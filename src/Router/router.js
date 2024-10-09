@@ -16,5 +16,6 @@ router.get('/specialties' ,authController.specialitespardoctor);
 router.get('/doctorspos',authController.getadressempas);
 router.get('/getvilles',authController.getvilles);
 router.get('/getpays',authController.getpays);
+router.get('/getmotif',authController.getmotif);
 
 module.exports = router;

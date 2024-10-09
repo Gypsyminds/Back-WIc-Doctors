@@ -414,6 +414,8 @@ app.post('/api/rendez_vous', (req, res) => {
     });
 });
 
+
+
 //get all doctors aléatoirement 
 const getalldoctors = (req, res) => {
     let query = `
@@ -465,8 +467,6 @@ const getalldoctors = (req, res) => {
         res.json(results);
     });
 };
-
-
 //get doctors par specialites ville et pays
 const getDoctorsparvillepaysspecialites = (req, res) => {
     const speciality_id = req.query.speciality_id;
@@ -622,6 +622,35 @@ const getpays = (req,res)=> {
        res.send(results); 
     });
 }
+const getmotif = (req,res)=>{
+   
+
+     const specialiteid = req.query.specialite_id; // Récupérer l'ID du médecin
+
+    // Vérification si doctorId est fourni
+    if (!specialiteid) {
+        return res.status(400).json({ error: 'Le specialiteid est requis.' });
+    }
+
+    // Préparation de la requête SQL
+    let query = `SELECT id,nom FROM pattern WHERE specialite_id = ?`;
+
+    // Exécution de la requête
+    db.query(query, [specialiteid], (err, results) => {
+        if (err) {
+            console.error(err); // Pour le débogage
+            return res.status(500).json({ error: 'Erreur lors de la récupération des motifs de spécialités.' });
+        }
+
+        // Vérification si des résultats ont été trouvés
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucun motif trouvée pour cette spécialité.' });
+        }
+
+        // Retourner les résultats
+        res.json(results);
+    });
+    }
 
 module.exports = {
     specialitespardoctor,
@@ -629,6 +658,6 @@ module.exports = {
     getDoctorsparvillepaysspecialites,
     getDoctorsById,
     getadressempas,
-    getvilles,getpays
+    getvilles,getpays,getmotif
 }
 

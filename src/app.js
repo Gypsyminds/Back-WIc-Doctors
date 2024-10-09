@@ -3,6 +3,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const authRoutes= require('./Router/router');
 const cors = require('cors');
+app.use(cors());
 
 // Route de base
 app.get('/', (req, res) => {

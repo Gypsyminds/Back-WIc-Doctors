@@ -10,13 +10,7 @@ app.use(cors());
 app.use(bodyParser.json());
 
 
-// Lire tous les positions des doctors pour maps
-app.get('/doctorspos', (req, res) => {
-    db.query('SELECT latitude , longitude From addresses', (err, results) => {
-        if (err) throw err;
-        res.send(results);
-    });
-});
+
 
 // Lire les horaires de chaque  docteur par ID doctor
 app.get('/availability/:doctorId', (req, res) => {
@@ -608,11 +602,19 @@ const specialitespardoctor =(req, res) => {
         res.json(results);
     });
 }
+// Lire tous les positions des doctors pour maps
+const getadressempas =(req, res) => {
+    db.query('SELECT latitude , longitude ,description From addresses', (err, results) => {
+        if (err) throw err;
+        res.send(results);
+    });
+}
 
 module.exports = {
     specialitespardoctor,
     getalldoctors,
     getDoctorsparvillepaysspecialites,
-    getDoctorsById
+    getDoctorsById,
+    getadressempas
 }
 

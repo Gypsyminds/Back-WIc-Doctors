@@ -585,7 +585,6 @@ const getDoctorsById = (req, res) => {
     });
 }
 //Voir les spécialité les plus existantes avec nombre des doctors 
-//app.get('/specialties', 
 const specialitespardoctor =(req, res) => {
     const query = `
       SELECT  s.name, COUNT(sd.doctor_id) AS doctor_count
@@ -609,12 +608,27 @@ const getadressempas =(req, res) => {
         res.send(results);
     });
 }
+//getvilles
+const getvilles = (req,res)=> {
+    db.query('SELECT ville FROM addresses',(err , results)=> {
+       if(err) throw err ;
+       res.send(results); 
+    });
+}
+//getpays
+const getpays = (req,res)=> {
+    db.query('SELECT DISTINCT pays FROM addresses',(err , results)=> {
+       if(err) throw err ;
+       res.send(results); 
+    });
+}
 
 module.exports = {
     specialitespardoctor,
     getalldoctors,
     getDoctorsparvillepaysspecialites,
     getDoctorsById,
-    getadressempas
+    getadressempas,
+    getvilles,getpays
 }
 

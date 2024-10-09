@@ -10,8 +10,6 @@ app.use(cors());
 app.use(bodyParser.json());
 
 
-
-
 // Lire les horaires de chaque  docteur par ID doctor
 app.get('/availability/:doctorId', (req, res) => {
     const doctorId = req.params.doctorId;
@@ -653,12 +651,33 @@ WHERE
         res.json(results);
     });
 }
+//addappointment  
+// Fonction pour insérer un rendez-vous
+function insertAppointment(req, res) {
+    console.log('Request Body:', req.body); // Ajoutez cette ligne pour voir le contenu de req.body
+
+    const { appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, payment_id, address } = req.body;
+
+    const query = 'INSERT INTO appointments (appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, payment_id, address, appointment_status_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)';
+    const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, payment_id, address];
+
+    db.query(query, values, (error, results) => {
+        if (error) {
+            return res.status(500).json({ error: error.message }); // Affiche le message d'erreur
+
+        }
+        res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: results.insertId });
+    });
+}
+
+
 module.exports = {
     specialitespardoctor,
     getalldoctors,
     getDoctorsparvillepaysspecialites,
     getDoctorsById,
     getadressempas,
-    getvilles,getpays,getmotif,gethistoriqu
+    getvilles,getpays,getmotif,gethistoriqu,
+    insertAppointment
 }
 

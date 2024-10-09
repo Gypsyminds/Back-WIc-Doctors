@@ -18,5 +18,7 @@ router.get('/getvilles',authController.getvilles);
 router.get('/getpays',authController.getpays);
 router.get('/getmotif',authController.getmotif);
 router.get('/gethistoriques',authController.gethistoriqu);
+router.post('/ajouterrendezvous',authController.insertAppointment);
+
 
 module.exports = router;

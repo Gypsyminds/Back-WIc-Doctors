@@ -310,34 +310,7 @@ WHERE r.doctor_id = ? AND s.status = 'failed';
         res.json(results);
     });
 });
-//historique des rendez_vour pour chaque patient
-app.get('/Historiquedesrendez_vous', (req, res) => {
-    const userId = req.query.userId;
-    
 
-    // Vérifier si au moins l'un des paramètres est fourni
-    if (!userId) {
-        return res.status(400).json({ error: 'L\'ID de spécialité ou l\'adresse est requis.' });
-    }
-let query = `
-      SELECT 
-    a.appointment_at, 
-    a.start_at, 
-    a.ends_at, 
-    d.name AS doctor_name
-FROM 
-    appointments a
-JOIN 
-    doctors d ON a.doctor_id = d.id
-WHERE 
-    a.user_id = ?;`;
-    db.query(query, [userId], (err, results) => {
-        if (err) {
-            return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs.' });
-        }
-        res.json(results);
-    });
-});
 // Fonction pour ajouter un rendez-vous
 app.post('/appointments', (req, res) => {
     const {
@@ -651,13 +624,41 @@ const getmotif = (req,res)=>{
         res.json(results);
     });
     }
+//historique des rendez_vour pour chaque patient
+///Historiquedesrendez_vous'
+const gethistoriqu = (req, res) => {
+    const userId = req.query.userId;
+    
 
+    // Vérifier si au moins l'un des paramètres est fourni
+    if (!userId) {
+        return res.status(400).json({ error: 'L\'ID de spécialité ou l\'adresse est requis.' });
+    }
+let query = `
+      SELECT 
+    a.appointment_at, 
+    a.start_at, 
+    a.ends_at, 
+    d.name AS doctor_name
+FROM 
+    appointments a
+JOIN 
+    doctors d ON a.doctor_id = d.id
+WHERE 
+    a.user_id = ?;`;
+    db.query(query, [userId], (err, results) => {
+        if (err) {
+            return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs.' });
+        }
+        res.json(results);
+    });
+}
 module.exports = {
     specialitespardoctor,
     getalldoctors,
     getDoctorsparvillepaysspecialites,
     getDoctorsById,
     getadressempas,
-    getvilles,getpays,getmotif
+    getvilles,getpays,getmotif,gethistoriqu
 }
 

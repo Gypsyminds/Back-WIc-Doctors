@@ -17,5 +17,6 @@ router.get('/doctorspos',authController.getadressempas);
 router.get('/getvilles',authController.getvilles);
 router.get('/getpays',authController.getpays);
 router.get('/getmotif',authController.getmotif);
+router.get('/gethistoriques',authController.gethistoriqu);
 
 module.exports = router;

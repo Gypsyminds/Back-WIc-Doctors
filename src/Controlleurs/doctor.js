@@ -8,6 +8,10 @@ const db = require('../config/db'); // Importer la connexion √† la base de donn√
 app.use(cors());
 // Middleware
 app.use(bodyParser.json());
+const session = require('express-session');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+
 
 
 // Lire les horaires de chaque  docteur par ID doctor
@@ -694,6 +698,7 @@ function insertAppointment(req, res) {
 }
 
 
+
 module.exports = {
     specialitespardoctor,
     getalldoctors,
@@ -701,6 +706,6 @@ module.exports = {
     getDoctorsById,
     getadressempas,
     getvilles,getpays,getmotif,gethistoriqu,
-    insertAppointment,getville
+    insertAppointment,getville,
 }
 

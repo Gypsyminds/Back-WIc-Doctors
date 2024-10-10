@@ -3,6 +3,7 @@ const authController =require ('../Controlleurs/doctor');
 const { getdoctorsbyid } = require('../Controlleurs/doctor');
 const app = express();
 
+const passport = require('passport');
 
 const db = require('../config/db'); // Importer la connexion à la base de données
 
@@ -19,6 +20,8 @@ router.get('/getpays',authController.getpays);
 router.get('/getmotif',authController.getmotif);
 router.get('/gethistoriques',authController.gethistoriqu);
 router.post('/ajouterrendezvous',authController.insertAppointment);
+
+
 
 
 module.exports = router;

@@ -586,6 +586,29 @@ const getvilles = (req,res)=> {
        res.send(results); 
     });
 }
+const getville = (req, res) => {
+    db.query('SELECT ville FROM addresses', (err, results) => {
+        if (err) {
+            // Gestion des erreurs
+            return res.status(500).json({ error: 'Erreur lors de la récupération des données' });
+        }
+
+        // Normaliser les noms de villes
+        const normalizedResults = results.map(row => {
+            return {
+                ville: row.ville
+                    .replace(/\s+/g, '_')    // Remplace les espaces par des underscores
+                    .normalize('NFD')       // Décompose les caractères accentués
+                    .replace(/[\u0300-\u036f]/g, '') // Supprime les accents
+                    .toLowerCase()          // Convertit en minuscules
+            };
+        });
+
+        // Envoi des résultats normalisés
+        res.json(normalizedResults);
+    });
+};
+
 //getpays
 const getpays = (req,res)=> {
     db.query('SELECT DISTINCT pays FROM addresses',(err , results)=> {
@@ -678,6 +701,6 @@ module.exports = {
     getDoctorsById,
     getadressempas,
     getvilles,getpays,getmotif,gethistoriqu,
-    insertAppointment
+    insertAppointment,getville
 }
 

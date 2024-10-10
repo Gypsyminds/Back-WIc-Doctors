@@ -13,7 +13,7 @@ const db = mysql.createConnection({
     host: '127.0.0.1',        // Remplacez par votre hôte
     user: 'root', // Remplacez par votre nouvel_utilisateurutilisateur
     password: 'StrongPassword123!', // Remplacez par votre mot de passe
-    database: 'doctor-way-interactive`'
+    database: 'doctor-way-interactive'
 });
 // Connecter à la base de données
 db.connect(err => {

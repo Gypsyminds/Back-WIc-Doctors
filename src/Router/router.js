@@ -20,8 +20,13 @@ router.get('/getpays',authController.getpays);
 router.get('/getmotif',authController.getmotif);
 router.get('/gethistoriques',authController.gethistoriqu);
 router.post('/ajouterrendezvous',authController.insertAppointment);
+<<<<<<< HEAD
 router.post('/api/forgot-password',authController.forgs);
 router.post('/api/reset-password',authController.rests);
+=======
+
+
+>>>>>>> 026c608 (first commit)
 
 
 module.exports = router;

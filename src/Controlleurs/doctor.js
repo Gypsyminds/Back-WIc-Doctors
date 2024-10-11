@@ -12,7 +12,12 @@ const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 
-
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
+app.use(express.json());
+const { v4: uuidv4 } = require('uuid');
+const moment = require('moment');
+const bcrypt = require('bcrypt'); // Importer bcrypt
 
 // Lire les horaires de chaque  docteur par ID doctor
 app.get('/availability/:doctorId', (req, res) => {
@@ -620,38 +625,42 @@ const getpays = (req,res)=> {
        res.send(results); 
     });
 }
-const getmotif = (req,res)=>{
-   
 
-     const specialiteid = req.query.specialite_id; // Récupérer l'ID du médecin
-
-    // Vérification si doctorId est fourni
-    if (!specialiteid) {
-        return res.status(400).json({ error: 'Le specialiteid est requis.' });
-    }
-
-    // Préparation de la requête SQL
-    let query = `SELECT id,nom FROM pattern WHERE specialite_id = ?`;
-
-    // Exécution de la requête
-    db.query(query, [specialiteid], (err, results) => {
-        if (err) {
-            console.error(err); // Pour le débogage
-            return res.status(500).json({ error: 'Erreur lors de la récupération des motifs de spécialités.' });
+    const getmotif = (req, res) => {
+        const doctorId = req.query.doctor_id; // Récupérer l'ID du médecin
+        const specialiteId = req.query.specialite_id; // Récupérer l'ID de la spécialité
+    
+        // Vérification si doctorId et specialiteId sont fournis
+        if (!doctorId || !specialiteId) {
+            return res.status(400).json({ error: 'Les paramètres doctor_id et specialite_id sont requis.' });
         }
-
-        // Vérification si des résultats ont été trouvés
-        if (results.length === 0) {
-            return res.status(404).json({ message: 'Aucun motif trouvée pour cette spécialité.' });
-        }
-
-        // Retourner les résultats
-        res.json(results);
-    });
-    }
+    
+        // Préparation de la requête SQL
+        let query = `SELECT id, nom, price FROM pattern WHERE specialite_id = ? AND doctor_id = ?`;
+    
+        // Exécution de la requête
+        db.query(query, [specialiteId, doctorId], (err, results) => {
+            if (err) {
+                console.error(err); // Pour le débogage
+                return res.status(500).json({ error: 'Erreur lors de la récupération des motifs de spécialités.' });
+            }
+    
+            // Vérification si des résultats ont été trouvés
+            if (results.length === 0) {
+                return res.status(404).json({ message: 'Aucun motif trouvé pour cette spécialité et ce médecin.' });
+            }
+    
+            // Retourner les résultats
+            res.json(results);
+        });
+    };
+    
 //historique des rendez_vour pour chaque patient
 ///Historiquedesrendez_vous'
-const gethistoriqu = (req, res) => {
+const gethistoriqu = (req, res) => {const nodemailer = require('nodemailer');
+    const crypto = require('crypto');
+    app.use(express.json());
+    
     const userId = req.query.userId;
     
 
@@ -699,6 +708,70 @@ function insertAppointment(req, res) {
 
 
 
+// Fonction "mot de passe oublié" app.post('/api/forgot-password'
+const forgs = (req, res) => {
+    const { email } = req.body;
+   
+    db.query('SELECT * FROM users WHERE email = ?', [email], (error, results) => {
+        if (error) return res.status(500).json({ message: "Database error." });
+
+        if (results.length === 0) {
+            return res.status(400).json({ message: "Email not found." });
+        }
+
+        const token = uuidv4(); // Générer un nouveau token
+        const tokenCreationDate = moment().format('YYYY-MM-DD HH:mm:ss');
+        const response = forgotPassword(email);
+
+        // Mettre à jour l'utilisateur avec le token
+       // db.query('UPDATE users SET api_token = ?, created_at = ? WHERE email = ?', [token, tokenCreationDate, email], (err) => {
+            //if (err) return res.status(500).json({ message: "Error updating user." });
+
+         //   sendEmail(email, token); // Simuler l'envoi d'email
+           // res.status(200).json({ message: "Reset password email sent." });
+           if (!response.startsWith("Invalid")) {
+            const resetLink = `http://localhost:3000/api/reset-password?token=${response}`;
+            return res.status(200).send(resetLink);
+        }
+        });
+    }
+
+   
+
+// Fonction pour réinitialiser le mot de passe app.post('/api/reset-password',
+ const rests = (req, res) => {
+  
+        const { token, password } = req.query; // Récupérer le token et le mot de passe depuis les paramètres de requête
+    
+        // Rechercher l'utilisateur par le token
+        db.query('SELECT * FROM users WHERE api_token = ?', [token], (error, results) => {
+            if (error) return res.status(500).json({ message: "Database error: " + error});
+    
+            if (results.length === 0) {
+                return res.status(400).json({ message: "Invalid token."+ error  });
+            }
+    
+            const user = results[0];
+            const isExpired = moment().diff(moment(user.tokenCreationDate), 'minutes') > 30; // Token expire après 30 minutes
+    
+            if (isExpired) {
+                return res.status(400).json({ message: "Token expired." + error.message });
+            }
+            user.tokenCreationDate = moment().format('YYYY-MM-DD HH:mm:ss'); // Mise à jour de la date
+
+            // Hacher le nouveau mot de passe
+            const hashedPassword = bcrypt.hashSync(password, 10);
+    
+            // Mettre à jour le mot de passe et supprimer le token
+            db.query('UPDATE users SET password = ?, api_token = ?, updated_at = ? WHERE id = ?', [hashedPassword,token,user.tokenCreationDate , user.id], (err) => {
+                if (err) return res.status(500).json({ message: "Error updating password." });
+    
+                res.status(200).json({ message: "Your password has been successfully updated." });
+            });
+        });
+    }
+
+
 module.exports = {
     specialitespardoctor,
     getalldoctors,
@@ -707,5 +780,6 @@ module.exports = {
     getadressempas,
     getvilles,getpays,getmotif,gethistoriqu,
     insertAppointment,getville,
+    forgs,rests
 }
 

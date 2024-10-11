@@ -20,8 +20,8 @@ router.get('/getpays',authController.getpays);
 router.get('/getmotif',authController.getmotif);
 router.get('/gethistoriques',authController.gethistoriqu);
 router.post('/ajouterrendezvous',authController.insertAppointment);
-
-
+router.post('/api/forgot-password',authController.forgs);
+router.post('/api/reset-password',authController.rests);
 
 
 module.exports = router;

@@ -1019,6 +1019,6 @@ module.exports = {
     getadressempas,
     getvilles,getpays,getmotif,gethistoriqu,
     insertAppointment,getville,
-  forgs,rests
+    forgs,rests
 }
 

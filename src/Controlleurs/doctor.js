@@ -17,8 +17,6 @@ const crypto = require('crypto');
 app.use(express.json());
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment');
-const bcrypt = require('bcrypt'); // Importer bcrypt
-
 // Lire les horaires de chaque  docteur par ID doctor
 app.get('/availability/:doctorId', (req, res) => {
     const doctorId = req.params.doctorId;
@@ -625,7 +623,35 @@ const getpays = (req,res)=> {
        res.send(results); 
     });
 }
+const getmotifs = (req,res)=>{
+   
 
+     const specialiteid = req.query.specialite_id; // Récupérer l'ID du médecin
+
+    // Vérification si doctorId est fourni
+    if (!specialiteid) {
+        return res.status(400).json({ error: 'Le specialiteid est requis.' });
+    }
+
+    // Préparation de la requête SQL
+    let query = `SELECT id,nom,price FROM pattern WHERE specialite_id = ?`;
+
+    // Exécution de la requête
+    db.query(query, [specialiteid], (err, results) => {
+        if (err) {
+            console.error(err); // Pour le débogage
+            return res.status(500).json({ error: 'Erreur lors de la récupération des motifs de spécialités.' });
+        }
+
+        // Vérification si des résultats ont été trouvés
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucun motif trouvée pour cette spécialité.' });
+        }
+
+        // Retourner les résultats
+        res.json(results);
+    });
+    }
     const getmotif = (req, res) => {
         const doctorId = req.query.doctor_id; // Récupérer l'ID du médecin
         const specialiteId = req.query.specialite_id; // Récupérer l'ID de la spécialité
@@ -707,6 +733,195 @@ function insertAppointment(req, res) {
 }
 
 
+//app.post('/reset-password', 
+// Route pour demander un lien de réinitialisation
+const restpassword = (req, res) => {
+    const { email } = req.body;
+    const token = crypto.randomBytes(20).toString('hex');
+
+    db.query('INSERT INTO password_resets (email, token) VALUES (?, ?)', [email, token], (err) => {
+        if (err) return res.status(500).send('Error saving token');
+
+        // Rediriger vers le lien de réinitialisation
+        const resetLink = `http://localhost:3000/reset-password/${token}`;
+        res.redirect(resetLink);
+    });
+}
+
+
+// Route pour demander une réinitialisation de mot de passe app.post('/forgot-password'
+const forgetpass = (req, res) => {
+    const { email } = req.body;
+    const response = forgotPassword(email);
+
+    if (!response.startsWith("Invalid")) {
+        const resetLink = `http://localhost:3000/reset-password?token=${response}`;
+        return res.status(200).send(resetLink);
+    }
+    
+    res.status(400).send(response); // Retourne "Invalid email id." si l'email est invalide
+}
+
+// Fonction de réinitialisation du mot de passe
+function forgotPassword(email) {
+    const user = findUserByEmail(email); // Simulez la recherche dans votre base de données
+
+    if (!user) {
+        return "Invalid email id.";
+    }
+
+    user.token = `${uuidv4()}${uuidv4()}`;
+    //user.tokenCreationDate = moment().toISOString();
+   user.tokenCreationDate = moment().format('YYYY-MM-DD HH:mm:ss');
+
+    // Ici, vous devriez mettre à jour l'utilisateur dans votre base de données
+    updateUser(email ,user.token ,user.tokenCreationDate); // Simulez la mise à jour
+
+    return user.token;
+}
+
+// Route pour réinitialiser le mot de passe app.put('/reset-password',
+ const resetpass = (req, res) => {
+    const { token, password } = req.body;
+    const response = resetPassword(token, password);
+    
+    res.status(200).send(response);
+}
+
+// Fonction de réinitialisation de mot de passe
+function resetPassword(token, password) {
+    const user = findUserByToken(forgotPassword.user.token); // Simulez la recherche dans votre base de données
+
+    if (!user) {
+        return "Invalid token.";
+    }
+
+    if (isTokenExpired(user.tokenCreationDate)) {
+        return "Token expired.";
+    }
+
+    user.password = password; // Mettez à jour le mot de passe
+    user.token = token;
+    user.tokenCreationDate = tokenCreationDate;
+
+    // Mettez à jour l'utilisateur dans votre base de données
+    updateUserpass(user.token,user.password); // Simulez la mise à jour
+
+    return "Your password successfully updated.";
+}
+
+// Simulez la recherche d'utilisateur par email
+function findUserByEmail(email) {
+  
+    return new Promise((resolve, reject) => {
+      const query = 'SELECT * FROM `users` WHERE email = ?';
+      db.execute(query, [email], (err, results) => {
+        if (err) {
+          return reject(err);
+        }
+        resolve(results);
+      });
+    });
+  }
+
+
+// Simulez la recherche d'utilisateur par token
+function findUserByToken(token) {
+  
+    return new Promise((resolve, reject) => {
+        const query = 'SELECT * FROM `users` WHERE api_token = ?';
+        db.execute(query, [token], (err, results) => {
+          if (err) {
+            return reject(err);
+          }
+          resolve(results);
+        });
+      });
+}
+class TokenManager {
+    // Durée d'expiration du token en millisecondes (ex: 1 heure)
+    static EXPIRATION_TIME = 60 * 60 * 1000; // 1 heure
+
+    // Méthode pour générer un token
+    generateToken() {
+        const token = `${uuidv4()}${uuidv4()}`;
+        return token;
+    }
+
+    /**
+     * Vérifie si le token a expiré ou non.
+     *
+     * @param {Date} tokenCreationDate - La date de création du token
+     * @returns {boolean} - true si le token a expiré, false sinon
+     */
+    isTokenExpired(tokenCreationDate) {
+        const currentTime = new Date().getTime();
+        const tokenTime = tokenCreationDate.getTime();
+        return (currentTime - tokenTime) > TokenManager.EXPIRATION_TIME;
+    }
+}
+// Fonction pour mettre à jour l'utilisateur dans la base de données
+function updateUser(email, token, tokenCreationDate) {
+    const query = 'UPDATE users SET api_token = ?, created_at = ? WHERE email = ?';
+    db.execute(query, [token, tokenCreationDate, email], (err, results) => {
+        if (err) {
+            return console.error('Erreur lors de la mise à jour :', err);
+        }
+        console.log('Utilisateur mis à jour avec succès :', results.affectedRows);
+    });
+}
+function updateUserpass(token,password) {
+    const query = 'UPDATE users SET api_token = ? and password = ?';
+    db.execute(query, [token,password], (err, results) => {
+        if (err) {
+            return console.error('Erreur lors de la mise à jour :', err);
+        }
+        console.log('Utilisateur mis à jour avec succès :', results.affectedRows);
+    });
+}
+
+
+
+
+
+// Simuler la recherche d'utilisateur par token
+function findUserByToken(token) {
+    return users.find(user => user.token === token);
+}
+
+// Vérifier si le token a expiré
+function isTokenExpired(tokenCreationDate) {
+    const creationDate = moment(tokenCreationDate);
+    return moment().diff(creationDate, 'minutes') > 60; // Exemple : le token expire après 30 minutes
+}
+
+// Fonction pour réinitialiser le mot de passe
+function resetPassword(token, password) {
+    const user = findUserByToken(token);
+
+    if (!user) {
+        return { message: "Invalid token.", success: false };
+    }
+
+    if (isTokenExpired(user.tokenCreationDate)) {
+        return { message: "Token expired.", success: false };
+    }
+
+    user.password = password; // Mettre à jour le mot de passe
+    user.tokenCreationDate = moment().format('YYYY-MM-DD HH:mm:ss'); // Mise à jour de la date
+
+    return { message: "Your password has been successfully updated.", success: true };
+}
+
+
+
+
+
+
+
+
+
+
 
 // Fonction "mot de passe oublié" app.post('/api/forgot-password'
 const forgs = (req, res) => {
@@ -736,7 +951,27 @@ const forgs = (req, res) => {
         });
     }
 
-   
+    function resetPassword(token, password) {
+        const user = findUserByToken(forgotPassword.user.token); // Simulez la recherche dans votre base de données
+    
+        if (!user) {
+            return "Invalid token.";
+        }
+    
+        if (isTokenExpired(user.tokenCreationDate)) {
+            return "Token expired.";
+        }
+    
+        user.password = password; // Mettez à jour le mot de passe
+        user.token = token;
+        user.tokenCreationDate = tokenCreationDate;
+    
+        // Mettez à jour l'utilisateur dans votre base de données
+        updateUserpass(user.token,user.password); // Simulez la mise à jour
+    
+        return "Your password successfully updated.";
+    }
+    const bcrypt = require('bcrypt'); // Importer bcrypt
 
 // Fonction pour réinitialiser le mot de passe app.post('/api/reset-password',
  const rests = (req, res) => {
@@ -745,7 +980,7 @@ const forgs = (req, res) => {
     
         // Rechercher l'utilisateur par le token
         db.query('SELECT * FROM users WHERE api_token = ?', [token], (error, results) => {
-            if (error) return res.status(500).json({ message: "Database error: " + error});
+            if (error) return res.status(500).json({ message: "Database error: " + error.message});
     
             if (results.length === 0) {
                 return res.status(400).json({ message: "Invalid token."+ error  });
@@ -763,13 +998,17 @@ const forgs = (req, res) => {
             const hashedPassword = bcrypt.hashSync(password, 10);
     
             // Mettre à jour le mot de passe et supprimer le token
-            db.query('UPDATE users SET password = ?, api_token = ?, updated_at = ? WHERE id = ?', [hashedPassword,token,user.tokenCreationDate , user.id], (err) => {
-                if (err) return res.status(500).json({ message: "Error updating password." });
+            db.query('UPDATE users SET password = ?, api_token = ?, updated_at = ? WHERE id = ?', [hashedPassword,token, user.tokenCreationDate,user.id], (err) => {
+                if (err) return res.status(500).json({ message: "Error updating password." + error.message  });
     
                 res.status(200).json({ message: "Your password has been successfully updated." });
             });
         });
     }
+
+
+
+
 
 
 module.exports = {
@@ -780,6 +1019,6 @@ module.exports = {
     getadressempas,
     getvilles,getpays,getmotif,gethistoriqu,
     insertAppointment,getville,
-    forgs,rests
+  forgs,rests
 }
 

@@ -41,8 +41,8 @@ passport.use(new FacebookStrategy({
         ]);
         console.log(result); // Log the result to see its structure
      
-      const newUser = { id: result.insertId, facebookId: profile.id, name: profile.displayName, email: profile.emails|| null};
-      done(null, newUser);
+      const newUser = { id: result.insertId, facebookId: profile.id, name: profile.displayName, email: profile.emails|| ''};
+      done('', newUser);
     }
   }
 ));
@@ -53,9 +53,13 @@ passport.serializeUser((user, done) => {
 });
 
 passport.deserializeUser(async (id) => {
- // const db = await mysql.createConnection(dbConfig);
-  const rows = await db.execute('SELECT * FROM users WHERE id = ?', [id]);
-  return rows[0];
+    try {
+        const rows = await db.execute('SELECT * FROM users WHERE id = ?', [id]);
+        return rows[0];
+      } catch (error) {
+        console.error('Erreur lors de la désérialisation de l’utilisateur:', error);
+        return null; // Ou gérer l'erreur selon votre logique
+      }
 });
 
 

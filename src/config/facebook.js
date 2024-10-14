@@ -26,7 +26,7 @@ passport.use(new FacebookStrategy({
   },
   async (accessToken, refreshToken, profile, done) => {
    // const connection = await mysql.createConnection(dbConfig);
-    const rows =  db.execute('SELECT * FROM users WHERE facebookId = ?', [profile.id]);
+    const rows = await db.execute('SELECT * FROM users WHERE facebookId = ?', [profile.id]);
      // Log values for debugging
      console.log('Facebook ID:', profile.id);
      console.log('Email:', profile.emails , 
@@ -34,11 +34,13 @@ passport.use(new FacebookStrategy({
     if (rows.length > 0) {
       done(null, rows[0]);
     } else {
-      const [result] =  db.execute('INSERT INTO users (facebookId, name, email) VALUES (?, ?, ?)', [
-        profile.id,
+        const result = await db.execute('INSERT INTO users (facebookId, name, email) VALUES (?, ?, ?)', [
+            profile.id,
         profile.displayName,
-        profile.emails || null, 
-      ]);
+        profile.emails || '', 
+        ]);
+        console.log(result); // Log the result to see its structure
+     
       const newUser = { id: result.insertId, facebookId: profile.id, name: profile.displayName, email: profile.emails|| null};
       done(null, newUser);
     }
@@ -52,7 +54,7 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id) => {
  // const db = await mysql.createConnection(dbConfig);
-  const rows =  db.execute('SELECT * FROM users WHERE id = ?', [id]);
+  const rows = await db.execute('SELECT * FROM users WHERE id = ?', [id]);
   return rows[0];
 });
 

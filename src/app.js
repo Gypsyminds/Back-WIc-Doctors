@@ -9,7 +9,7 @@ const bcrypt= require('bcryptjs');
 const jwt= require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 
-const authRoutes= require('./Router/authRoutes');
+const authRoutes= require('./Router/router');
 
 
 const db = require('./config/db'); 

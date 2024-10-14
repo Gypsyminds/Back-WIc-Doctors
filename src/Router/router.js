@@ -4,8 +4,9 @@ const { getdoctorsbyid } = require('../Controlleurs/doctor');
 const app = express();
 
 const passport = require('passport');
-
-const db = require('../config/db'); // Importer la connexion à la base de données
+const loginController =require ('../Controlleurs/authController');
+const profileController =require ('../Controlleurs/profile');
+const db = require('../config/db'); 
 
 const router= express.Router();
 
@@ -20,6 +21,22 @@ router.get('/getpays',authController.getpays);
 router.get('/getmotif',authController.getmotif);
 router.get('/gethistoriques',authController.gethistoriqu);
 router.post('/ajouterrendezvous',authController.insertAppointment);
+//route pour  l'inscription
+router.post('/register',loginController.register);
+router.get('/verify', loginController.verifyEmail);
+
+//route pour la connexion
+router.post('/login',loginController.login);
+
+router.get('/logout', function(request, response, next){
+
+    request.session.destroy();
+
+    response.redirect("/");
+
+});
+router.put('/update-profile/:id',profileController.updateProfile);
+router.get('/profile/:id',profileController.getprofile);
 
 
 

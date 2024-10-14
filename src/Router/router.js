@@ -6,6 +6,8 @@ const app = express();
 const passport = require('passport');
 const loginController =require ('../Controlleurs/authController');
 const profileController =require ('../Controlleurs/profile');
+
+const patientController =require ('../Controlleurs/patient')
 const db = require('../config/db'); 
 
 const router= express.Router();
@@ -23,7 +25,7 @@ router.get('/gethistoriques',authController.gethistoriqu);
 router.post('/ajouterrendezvous',authController.insertAppointment);
 //route pour  l'inscription
 router.post('/register',loginController.register);
-router.get('/verify', loginController.verifyEmail);
+router.post('/verify', loginController.verifyEmail);
 
 //route pour la connexion
 router.post('/login',loginController.login);
@@ -39,6 +41,10 @@ router.put('/update-profile/:id',profileController.updateProfile);
 router.get('/profile/:id',profileController.getprofile);
 
 
+router.get('/getallpatient',patientController.getpatients);
+router.get('/getpatientsId/:id',patientController.getpatientsId);
+router.put('/updatepatientId/:id',patientController.updatepatientId);
+router.delete('/deletepatientId',patientController.deletepatientId);
 
 
 module.exports = router;

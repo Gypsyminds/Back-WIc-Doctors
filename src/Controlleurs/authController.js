@@ -31,12 +31,27 @@ const register = (req, res) =>{
                 return res.status(500).json({ message: 'Erreur lors du hachage du mot de passe' });
             }
           
-          
+          // Generate a token JWT
+          const generateToken = () => {
+            
+            const payload = {}; 
+        
+            // Secret pour signer le token
+            const secret = 'your_jwt_secret';
+        
+            // Génération du token avec expiration (par exemple, 1 heure)
+            const token = jwt.sign(payload, secret, { expiresIn: '1h' });
+        
+            return token;
+        };
+        
+        // Exemple d'utilisation
+        const token = generateToken();
+          const verificationUrl = `http://localhost:3000/verify?api_token=${token}`;
 
             // Insert user
-           db.query(
-                'INSERT INTO users (name, password, email, phone_number, created_at, updated_at) VALUES (?, ?,?, ?, NOW(), NOW())',
-                [name, hash, email, phoneNumber],
+           db.query('INSERT INTO users (name, password, email, phone_number, api_token, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
+                                 [name, hash, email, phoneNumber,token],
                 (err, result) => {
                     if (err) {
                         console.error(err);
@@ -64,9 +79,7 @@ const register = (req, res) =>{
                     
                         }
                     );
-            // Generate a token JWT
-            const token = jwt.sign({ id: userId }, JWT_SECRET, { expiresIn: '1h' });
-            const verificationUrl = `http://localhost:3000/verify?api_token=${token}`;
+            
 
             const transporter = nodemailer.createTransport({
                 service: 'gmail',
@@ -176,12 +189,13 @@ const login = (req, res) =>{
         // Vérifier si l'utilisateur a vérifié son e-mail
         if (!user.email_verified_at) {
             return res.status(401).send({ msg: 'Your Email has not been verified. Please click on resend' });
+        }else {
+            return res.status(200).send({ msg: 'email verified' });
         }
+         
 
-        // Générer un token JWT
-        const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+       
         
-        res.status(200).send({ token: token });
     });
 };
    
@@ -241,7 +255,7 @@ const verifyEmail = (req, res) => {
             }
             if (results.affectedRows > 0) {
                 // Rediriger vers la page de connexion
-                return res.redirect('http://localhost:3000/login'); 
+                return res.console('test '); 
             } else {
                 return res.status(400).send('Erreur lors de la mise à jour de l\'état de vérification.');
             }

@@ -24,5 +24,46 @@ router.post('/api/forgot-password',authController.forgs);
 router.post('/api/reset-password',authController.rests);
 //router.get('http://localhost:3000/auth/google/callback',);
 
+app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
 
+app.get('/auth/facebook/callback',
+    passport.authenticate('facebook', { failureRedirect: '/' }),
+    (req, res) => {
+        // Successful authentication
+        res.redirect('/profile');
+    }
+);
+
+app.get('/profile', (req, res) => {
+    if (!req.isAuthenticated()) return res.redirect('/');
+    res.send(`Hello, ${req.user.name}`);
+});
+
+// Route pour démarrer l'authentification avec Google
+router.get('http://localhost:3000/auth/google', passport.authenticate('google'));
+
+// Route de rappel (callback) après l'authentification réussie
+router.get('http://localhost:3000/auth/google/callback', 
+    passport.authenticate('google', { failureRedirect: '/' }),
+    (req, res) => {
+        // L'utilisateur est maintenant authentifié, redirige vers une page protégée ou l'accueil
+        res.redirect('/dashboard'); // Change cette route selon tes besoins
+    }
+);
+
+// Route de déconnexion
+router.get('/logout', (req, res) => {
+    req.logout(err => {
+        if (err) return next(err);
+        res.redirect('/'); // Redirige vers la page d'accueil après la déconnexion
+    });
+});
+
+// Route pour afficher le profil de l'utilisateur (optionnelle)
+router.get('/profile', (req, res) => {
+    if (!req.isAuthenticated()) {
+        return res.redirect('/'); // Redirige si l'utilisateur n'est pas authentifié
+    }
+    res.json(req.user); // Affiche les informations de l'utilisateur
+});
 module.exports = router;

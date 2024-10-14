@@ -914,15 +914,6 @@ function resetPassword(token, password) {
 }
 
 
-
-
-
-
-
-
-
-
-
 // Fonction "mot de passe oublié" app.post('/api/forgot-password'
 const forgs = (req, res) => {
     const { email } = req.body;

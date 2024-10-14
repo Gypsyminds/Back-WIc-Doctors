@@ -47,7 +47,8 @@ const register = (req, res) =>{
         
         // Exemple d'utilisation
         const token = generateToken();
-          const verificationUrl = `http://localhost:3000/verify?api_token=${token}`;
+        //  const verificationUrl = `http://localhost:3000/verify?api_token=${token}`;
+        const verificationUrl =`http://127.0.0.1:5500/WicDoctor/Html/WIC-DOCTOR/Html/mydash.html?api_token=${token}`;
 
             // Insert user
            db.query('INSERT INTO users (name, password, email, phone_number, api_token, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())',

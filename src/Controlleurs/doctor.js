@@ -565,7 +565,7 @@ const getDoctorsById = (req, res) => {
 //Voir les spécialité les plus existantes avec nombre des doctors 
 const specialitespardoctor =(req, res) => {
     const query = `
-      SELECT  s.name, COUNT(sd.doctor_id) AS doctor_count
+      SELECT  s.name,s.icon, COUNT(sd.doctor_id) AS doctor_count
         FROM specialities s
         LEFT JOIN  doctor_specialities sd ON s.id = sd.speciality_id
         GROUP BY s.id, s.name

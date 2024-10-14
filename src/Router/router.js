@@ -22,22 +22,7 @@ router.get('/gethistoriques',authController.gethistoriqu);
 router.post('/ajouterrendezvous',authController.insertAppointment);
 router.post('/api/forgot-password',authController.forgs);
 router.post('/api/reset-password',authController.rests);
-//router.get('http://localhost:3000/auth/google/callback',);
 
-app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
-
-app.get('/auth/facebook/callback',
-    passport.authenticate('facebook', { failureRedirect: '/' }),
-    (req, res) => {
-        // Successful authentication
-        res.redirect('/profile');
-    }
-);
-
-app.get('/profile', (req, res) => {
-    if (!req.isAuthenticated()) return res.redirect('/');
-    res.send(`Hello, ${req.user.name}`);
-});
 
 // Route pour démarrer l'authentification avec Google
 router.get('http://localhost:3000/auth/google', passport.authenticate('google'));
@@ -51,6 +36,19 @@ router.get('http://localhost:3000/auth/google/callback',
     }
 );
 
+// Routes
+app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
+
+app.get('/auth/facebook/callback', 
+  passport.authenticate('facebook', { failureRedirect: '/' }),
+  (req, res) => {
+    res.redirect('/'); // Rediriger vers la page d'accueil
+  }
+);
+
+app.get('/', (req, res) => {
+  res.send(req.user ? `Bonjour, ${req.user.name}` : 'Bonjour, Invité');
+});
 // Route de déconnexion
 router.get('/logout', (req, res) => {
     req.logout(err => {

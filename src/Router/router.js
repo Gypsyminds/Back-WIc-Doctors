@@ -1,5 +1,8 @@
 const express= require ('express');
 const authController =require ('../Controlleurs/doctor');
+const loginController =require ('../Controlleurs/login');
+const bodyParser = require('body-parser');
+
 const { getdoctorsbyid } = require('../Controlleurs/doctor');
 const app = express();
 
@@ -8,6 +11,7 @@ const passport = require('passport');
 const db = require('../config/db'); // Importer la connexion à la base de données
 
 const router= express.Router();
+app.use(bodyParser.json()); // Middleware pour analyser le corps des requêtes JSON
 
 //route pour  l'inscription
 router.get('/afftempsdoctorsbyid',authController.getDoctorsById);
@@ -23,7 +27,7 @@ router.post('/ajouterrendezvous',authController.insertAppointment);
 router.post('/api/forgot-password',authController.forgs);
 router.post('/api/reset-password',authController.rests);
 
-
+router.post('/api/logup',loginController.signup);
 // Route pour démarrer l'authentification avec Google
 router.get('http://localhost:3000/auth/google', passport.authenticate('google'));
 

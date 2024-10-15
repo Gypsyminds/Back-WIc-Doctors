@@ -11,11 +11,19 @@ const app = express();
 const port = 3000;
 
 // Initialiser la session
-app.use(session({ secret: 'yourSecretKey', resave: false, saveUninitialized: true }));
+app.use(session({ secret: 'koukou', resave: false, saveUninitialized: true }));
 
 // Initialiser Passport
 app.use(passport.initialize());
 app.use(passport.session());
+
+
+app.use(session({
+    secret: 'koukou',
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: false } // Mettre à true si tu utilises HTTPS
+}));
 
 // Configuration de la stratégie Facebook
 passport.use(new FacebookStrategy({

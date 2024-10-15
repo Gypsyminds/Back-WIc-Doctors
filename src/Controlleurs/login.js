@@ -188,9 +188,10 @@ async function signup(req, res) {
             insertSql = 'INSERT INTO clinics (user_id, phone_number, name) VALUES (?, ?, ?)';
             values = [userId, phone, name];
         } 
-        else if (userType === 'clinic') {
-            insertSql = 'INSERT INTO clinics (user_id, phone_number, name) VALUES (?, ?, ?)';
-            values = [userId, phone, name];
+        else if (userType === 'pharmacie') {
+            insertSql = 'INSERT INTO pharmacies (phone_number, name) VALUES (?, ?)';
+            values = [phone, name];
+            
         } else {
             return res.status(400).json({ error: 'Type d\'utilisateur non valide.' });
         }

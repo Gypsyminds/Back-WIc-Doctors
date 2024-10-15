@@ -12,7 +12,9 @@ const { info, error } = require('console');
 app.use(cors());
 // Middleware
 app.use(bodyParser.json());
+const jwt = require('jsonwebtoken');
 
+app.use(express.json());
 // Configuration du transporteur Nodemailer
 const transporters = nodemailer.createTransport({
     service: 'gmail', 
@@ -43,7 +45,7 @@ async function signup(req, res) {
     const hashedPassword = await bcrypt.hash(password, 10); // 10 est le nombre de "salt rounds"
 
     // Insertion de l'utilisateur dans la table users
-    const userSql = 'INSERT INTO users (name, email, phone_number, password) VALUES (?, ?, ?, ?)';
+    const userSql = 'INSERT INTO users (name, email, phone_number, password,created_at) VALUES (?, ?, ?, ?, now())';
     db.execute(userSql, [name, email, phone, hashedPassword], (err, userResults) => {
         if (err) {
             console.error('Error inserting user:', err);
@@ -88,7 +90,7 @@ async function signup(req, res) {
                         <p>Vous êtes inscrit chez Wic-Doctor.</p>
                         <p>Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : <strong>${password}</strong></p>
                         <p>Veuillez compléter votre fiche patient, s'il vous plaît.</p>
-                        <a href="http://localhost:3000/login" style="display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;">Connexion</a>
+                        <a href="http://localhost:3001/api/login" style="display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;">Connexion</a>
                         <p>Si vous n'avez pas demandé cette inscription, ignorez simplement cet e-mail.</p>
                         <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
                     </body>
@@ -108,11 +110,52 @@ async function signup(req, res) {
         });
     });
 }
+ async function signin (req, res) {
+    const { email, password } = req.body;
 
+    // Validez les entrées
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Tous les champs sont requis.' });
+    }
 
+    // Rechercher l'utilisateur par email
+    const sql = 'SELECT * FROM users WHERE email = ?';
+    db.query(sql, [email], async (err, results) => {
+        if (err) {
+            console.error('Erreur lors de la recherche de l’utilisateur:', err);
+            return res.status(500).json({ error: 'Erreur interne du serveur.' });
+        }
+        if (results.length === 0) {
+            return res.status(401).json({ error: 'Email ou mot de passe incorrect.' });
+        }
+
+        const user = results[0];
+
+        // Vérifier le mot de passe
+        const match = await bcrypt.compare(password, user.password);
+        if (!match) {
+            return res.status(401).json({ error: 'Email ou mot de passe incorrect.' });
+        }
+
+        // Générer un jeton JWT (JSON Web Token)
+        const token = jwt.sign({ id: user.id }, 'votre_clé_secrète', { expiresIn: '1h' });
+
+         // Enregistrer le token dans la base de données
+         const updateSql = 'UPDATE users SET api_token = ? WHERE id = ?';
+         db.query(updateSql, [token, user.id], (updateErr) => {
+             if (updateErr) {
+                 console.error('Erreur lors de la mise à jour du token:', updateErr);
+                 return res.status(500).json({ error: 'Erreur interne du serveur.' });
+             }
+        // Répondre avec le jeton
+        res.json({ message: 'Connexion réussie!', token });
+        });
+})
+ 
+ }
 
 
 module.exports = {
-    signup
+    signup,signin
 }
   

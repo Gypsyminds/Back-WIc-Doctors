@@ -19,7 +19,7 @@ router.get('/affalldoctors', authController.getalldoctors);
 router.get('/doctorsadd', authController.getDoctorsparvillepaysspecialites);
 router.get('/specialties' ,authController.specialitespardoctor);
 router.get('/doctorspos',authController.getadressempas);
-router.get('/getvilles',authController.getville);
+router.get('/getvilles',authController.getvilles);
 router.get('/getpays',authController.getpays);
 router.get('/getmotif',authController.getmotif);
 router.get('/gethistoriques',authController.gethistoriqu);

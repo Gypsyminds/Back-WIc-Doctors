@@ -384,7 +384,32 @@ function sendConfirmationEmail(name, email, password, res, userId) {
     });
 }
 
+async function signupb2b(req, res) {
+    const { name, email, phone ,type ,specialities ,description} = req.body;
+
+    // Validez les entrées
+    if (!name || !email || !phone || !type) {
+        return res.status(400).json({ error: 'Tous les champs sont requis.' });
+    }
+
+    console.log("userId:", email);
+    console.log("phone:", phone);
+    console.log("name:", name);
+
+    console.log("specialities:", specialities);
+    console.log("descriptio:", description);
+    const userSql = 'INSERT INTO DemandesInscription (name, email, phone_number, type, 	specialities, description) VALUES (?, ?, ?, ?, ?, ?)';
+    db.execute(userSql, [name, email, phone, type, specialities || null, description || null], (err, userResults) => {
+        if (err) {
+            console.error('Error inserting registration request:', err);
+            return res.status(500).json({ error: 'Erreur lors de l\'insertion de la demande.' });
+        }
+
+        // Si l'insertion est réussie
+        return res.status(201).json({ message: 'Demande d\'inscription ajoutée avec succès.', id: userResults.insertId });
+    });
+}
 module.exports = {
-    signup,signin
+    signup,signin,signupb2b
 }
   

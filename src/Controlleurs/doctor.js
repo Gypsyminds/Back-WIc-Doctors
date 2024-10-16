@@ -713,27 +713,36 @@ WHERE
         res.json(results);
     });
 }
-//addappointment  
-// Fonction pour insérer un rendez-vous
-// Fonction pour insérer un rendez-vous
+
 function insertAppointment(req, res) {
     console.log('Request Body:', req.body); // Affiche le contenu de req.body
 
     // Récupérer les paramètres depuis le corps de la requête
-    const { appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address } = req.body;
+    const { appointment_at, ends_at, start_at, token, doctor_id, clinic, doctor, patient, address, motif_id } = req.body;
 
     // Vérification des paramètres requis
-    if (!appointment_at || !ends_at || !start_at || !user_id || !doctor_id || !clinic || !doctor || !patient || !address) {
+    if (!appointment_at || !ends_at || !start_at || !token || !doctor_id || !clinic || !doctor || !patient || !address ) {
         return res.status(400).json({ error: 'Tous les champs sont requis.' });
     }
 
+    // Décoder le token pour récupérer user_id
+    
+    let user_id;
+    try {
+        const decoded = jwt.verify(token, SECRET_KEY);
+        user_id = decoded.user_id; // Assurez-vous que user_id est dans le token décodé
+    } catch (error) {
+        return res.status(401).json({ error: 'Token invalide ou expiré.' });
+    }
     // Préparer la requête SQL
     const query = `
-        INSERT INTO appointments (appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, appointment_status_id) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        INSERT INTO appointments (appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id, appointment_status_id) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     `;
-    
-    const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address];
+   
+    const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id];
+    console.log(user_id);
+
 
     // Exécuter la requête
     db.query(query, values, (error, results) => {
@@ -741,7 +750,25 @@ function insertAppointment(req, res) {
             return res.status(500).json({ error: error.message }); // Affiche le message d'erreur
         }
         res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: results.insertId });
-    });
+    });}
+
+
+
+
+const jwt = require('jsonwebtoken');
+
+// Remplacez 'votre_clé_secrète' par votre clé secrète utilisée pour signer les tokens
+const SECRET_KEY = 'votre_clé_secrète';
+
+function decodeToken(token) {
+    try {
+        // Vérifier et décoder le token
+        const decoded = jwt.verify(token, SECRET_KEY);
+        return decoded; // Retourne l'objet décodé contenant les informations du token
+    } catch (error) {
+        console.error('Erreur lors du décodage du token:', error.message);
+        return null; // Retourne null en cas d'erreur
+    }
 }
 
 // Fonction pour insérer un rendez-vous
@@ -978,6 +1005,7 @@ const forgs = (req, res) => {
         return "Your password successfully updated.";
     }
     const bcrypt = require('bcrypt'); // Importer bcrypt
+const { error } = require('console');
 
 // Fonction pour réinitialiser le mot de passe app.post('/api/reset-password',
  const rests = (req, res) => {

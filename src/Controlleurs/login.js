@@ -138,7 +138,7 @@ async function signups(req, res) {
         }
 
         // Générer un jeton JWT (JSON Web Token)
-        const token = jwt.sign({ id: user.id }, 'votre_clé_secrète', { expiresIn: '1h' });
+        const token = jwt.sign({ user_id: user.id }, 'votre_clé_secrète', { expiresIn: '8h' });
 
          // Enregistrer le token dans la base de données
          const updateSql = 'UPDATE users SET api_token = ? WHERE id = ?';

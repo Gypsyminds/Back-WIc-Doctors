@@ -263,11 +263,11 @@ async function signupss(req, res) {
         });
     });
 }
-async function signup(req, res) {
-    const { name, email, phone, userType } = req.body; // Ajoutez userType
+async function signuppatient(req, res) {
+    const { name, email, phone } = req.body; // Ajoutez userType
 
     // Validez les entrées
-    if (!name || !email || !phone || !userType) {
+    if (!name || !email || !phone ) {
         return res.status(400).json({ error: 'Tous les champs sont requis.' });
     }
 
@@ -285,61 +285,24 @@ async function signup(req, res) {
         
         const userId = userResults.insertId; // ID de l'utilisateur nouvellement inséré
 
-        // Insertion selon le type d'utilisateur
-        if (userType === 'pharmacie') {
-            const pharmacySql = 'INSERT INTO pharmacies (phone_number, name) VALUES (?, ?)';
-            
-            db.execute(pharmacySql, [phone, name], (err, pharmacyResults) => {
-                if (err) {
-                    console.error('Error inserting pharmacy:', err);
-                    return res.status(500).json({ error: 'Database error while inserting pharmacy.' });
-                }
 
-                const pharmacyId = pharmacyResults.insertId; // ID de la pharmacie nouvellement insérée
-                
-                // Ajout de la relation dans la table de liaison, si nécessaire
-                const relationSql = 'INSERT INTO pharmacy_users (user_id, pharmacy_id) VALUES (?, ?)';
-                
-                db.execute(relationSql, [userId, pharmacyId], (err) => {
-                    if (err) {
-                        console.error('Error inserting user-pharmacy relation:', err);
-                        return res.status(500).json({ error: 'Database error while linking user to pharmacy.' });
-                    }
-                    
-                    // Envoi de l'email
-                    sendConfirmationEmail(name, email, password, res, userId);
-                });
-            });
-        } 
-        else {
-            // Traitement pour d'autres types d'utilisateurs (patients, docteurs, cliniques)
-            let insertSql;
-            let values;
+        // Insert into patients table
+        const insertSql = 'INSERT INTO patients (user_id, first_name, phone_number, created_at) VALUES (?, ?, ?,NOW())';
+        const values = [userId,name,phone]; // Assuming you just need to store the userId
 
-            if (userType === 'patient') {
-                insertSql = 'INSERT INTO patients (user_id, phone_number, first_name) VALUES (?, ?, ?)';
-                values = [userId, phone, name];
-            } else if (userType === 'doctor') {
-                insertSql = 'INSERT INTO doctors (user_id, name) VALUES (?, ?)';
-                values = [userId, name];
-            } else if (userType === 'clinic') {
-                insertSql = 'INSERT INTO clinics (user_id, phone_number, name) VALUES (?, ?, ?)';
-                values = [userId, phone, name];
-            } else {
-                return res.status(400).json({ error: 'Type d\'utilisateur non valide.' });
+        db.execute(insertSql, values, (err) => {
+            if (err) {
+                console.error('Error inserting into patients:', err);
+                return res.status(500).json({ error: 'Database error while inserting into patients.' });
             }
 
-            db.execute(insertSql, values, (err) => {
-                if (err) {
-                    console.error('Error inserting user type:', err);
-                    return res.status(500).json({ error: 'Database error while inserting user type.' });
-                }
-
-                // Envoi de l'email
-                sendConfirmationEmail(name, email, password, res, userId);
-            });
-        }
+            // Send confirmation email
+            sendConfirmationEmail(name, email, password, res, userId);
+        });
     });
+    
+    
+     
 }
 
 function sendConfirmationEmail(name, email, password, res, userId) {
@@ -410,6 +373,6 @@ async function signupb2b(req, res) {
     });
 }
 module.exports = {
-    signup,signin,signupb2b
+    signuppatient,signin,signupb2b
 }
   

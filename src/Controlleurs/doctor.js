@@ -716,9 +716,16 @@ WHERE
 
 function insertAppointment(req, res) {
     console.log('Request Body:', req.body); // Affiche le contenu de req.body
+    const authHeader = req.headers['authorization'];
 
+    // Vérifier si le header contient le token
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).json({ message: 'Accès refusé, token manquant' });
+    }
     // Récupérer les paramètres depuis le corps de la requête
-    const { appointment_at, ends_at, start_at, token, doctor_id, clinic, doctor, patient, address, motif_id } = req.body;
+    const { appointment_at, ends_at, start_at, doctor_id, clinic, doctor, patient, address, motif_id } = req.body;
 
     // Vérification des paramètres requis
     if (!appointment_at || !ends_at || !start_at || !token || !doctor_id || !clinic || !doctor || !patient || !address ) {

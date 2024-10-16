@@ -26,7 +26,7 @@ router.get('/gethistoriques',authController.gethistoriqu);
 router.post('/ajouterrendezvous',authController.insertAppointment);
 router.post('/api/forgot-password',authController.forgs);
 router.post('/api/reset-password',authController.rests);
-router.post('/api/logup',loginController.signup);
+router.post('/api/logup',loginController.signuppatient);
 router.post('/api/logupb2b',loginController.signupb2b);
 
 router.post('/api/login',loginController.signin);

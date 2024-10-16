@@ -154,7 +154,7 @@ async function signups(req, res) {
  
  }
 // Fonction d'inscription
-async function signup(req, res) {
+async function signupss(req, res) {
     const { name, email, phone, userType } = req.body; // Ajoutez userType
 
     // Validez les entrées
@@ -189,10 +189,17 @@ async function signup(req, res) {
             values = [userId, phone, name];
         } 
         else if (userType === 'pharmacie') {
-            insertSql = 'INSERT INTO pharmacies (phone_number, name) VALUES (?, ?)';
-            values = [phone, name];
             
-        } else {
+            const insertSqls = 'INSERT INTO pharmacies (phone_number, name) VALUES (?, ?)';
+            db.execute(insertSqls, [phone, name], (err, usersResults) => {
+                if (err) {
+                    console.error('Error inserting pharmacy:', err);
+                    return res.status(500).json({ error: 'Database error while inserting pharmacy.' });
+                }
+            })
+        
+        }
+         else {
             return res.status(400).json({ error: 'Type d\'utilisateur non valide.' });
         }
 
@@ -201,6 +208,9 @@ async function signup(req, res) {
                 console.error('Error inserting user type:', err);
                 return res.status(500).json({ error: 'Database error while inserting user type.' });
             }
+
+             
+
 
             const transporter = nodemailer.createTransport({
                 service: 'gmail',
@@ -251,6 +261,126 @@ async function signup(req, res) {
             });
     
         });
+    });
+}
+async function signup(req, res) {
+    const { name, email, phone, userType } = req.body; // Ajoutez userType
+
+    // Validez les entrées
+    if (!name || !email || !phone || !userType) {
+        return res.status(400).json({ error: 'Tous les champs sont requis.' });
+    }
+
+    const password = generatePassword(); // Assurez-vous que cette fonction génère un mot de passe valide.
+    const hashedPassword = await bcrypt.hash(password, 10); // 10 est le nombre de "salt rounds"
+
+    // Insertion de l'utilisateur dans la table users
+    const userSql = 'INSERT INTO users (name, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, NOW())';
+    
+    db.execute(userSql, [name, email, phone, hashedPassword], async (err, userResults) => {
+        if (err) {
+            console.error('Error inserting user:', err);
+            return res.status(500).json({ error: 'Database error while inserting user.' });
+        }
+        
+        const userId = userResults.insertId; // ID de l'utilisateur nouvellement inséré
+
+        // Insertion selon le type d'utilisateur
+        if (userType === 'pharmacie') {
+            const pharmacySql = 'INSERT INTO pharmacies (phone_number, name) VALUES (?, ?)';
+            
+            db.execute(pharmacySql, [phone, name], (err, pharmacyResults) => {
+                if (err) {
+                    console.error('Error inserting pharmacy:', err);
+                    return res.status(500).json({ error: 'Database error while inserting pharmacy.' });
+                }
+
+                const pharmacyId = pharmacyResults.insertId; // ID de la pharmacie nouvellement insérée
+                
+                // Ajout de la relation dans la table de liaison, si nécessaire
+                const relationSql = 'INSERT INTO pharmacy_users (user_id, pharmacy_id) VALUES (?, ?)';
+                
+                db.execute(relationSql, [userId, pharmacyId], (err) => {
+                    if (err) {
+                        console.error('Error inserting user-pharmacy relation:', err);
+                        return res.status(500).json({ error: 'Database error while linking user to pharmacy.' });
+                    }
+                    
+                    // Envoi de l'email
+                    sendConfirmationEmail(name, email, password, res, userId);
+                });
+            });
+        } 
+        else {
+            // Traitement pour d'autres types d'utilisateurs (patients, docteurs, cliniques)
+            let insertSql;
+            let values;
+
+            if (userType === 'patient') {
+                insertSql = 'INSERT INTO patients (user_id, phone_number, first_name) VALUES (?, ?, ?)';
+                values = [userId, phone, name];
+            } else if (userType === 'doctor') {
+                insertSql = 'INSERT INTO doctors (user_id, name) VALUES (?, ?)';
+                values = [userId, name];
+            } else if (userType === 'clinic') {
+                insertSql = 'INSERT INTO clinics (user_id, phone_number, name) VALUES (?, ?, ?)';
+                values = [userId, phone, name];
+            } else {
+                return res.status(400).json({ error: 'Type d\'utilisateur non valide.' });
+            }
+
+            db.execute(insertSql, values, (err) => {
+                if (err) {
+                    console.error('Error inserting user type:', err);
+                    return res.status(500).json({ error: 'Database error while inserting user type.' });
+                }
+
+                // Envoi de l'email
+                sendConfirmationEmail(name, email, password, res, userId);
+            });
+        }
+    });
+}
+
+function sendConfirmationEmail(name, email, password, res, userId) {
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        port: 587,
+        secure: false, 
+        auth: {
+            user: 'laajili.khouloud12@gmail.com', 
+            pass: 'lmvy ldix qtgm gbna', // Remplacez ceci par un mot de passe d'application pour plus de sécurité
+        },
+    });
+
+    const mailOptions = {
+        from: 'laajili.khouloud12@gmail.com',
+        to: email,
+        subject: 'Confirmation de votre inscription à Wic-Doctor.com',
+        html: `
+            <html>
+            <body>
+                <h2 style="color: #4CAF50;">Bienvenue ${name}!</h2>
+                <p>Vous êtes inscrit chez Wic-Doctor.</p>
+                <p>Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : <strong>${password}</strong></p>
+                <p>Veuillez compléter votre fiche, s'il vous plaît.</p>
+                <a href="http://localhost:3001/api/login" style="display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;">Connexion</a>
+                <p>Si vous n'avez pas demandé cette inscription, ignorez simplement cet e-mail.</p>
+                <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+            </body>
+            </html>
+        `,
+    };
+
+    transporter.sendMail(mailOptions, function(error, info) {
+        if (error) {
+            console.error('Error sending email:', error);
+            return res.status(500).json({ error: 'Erreur lors de l\'envoi de l\'email.' });
+        } else {
+            console.log('Email sent: ' + info.response);
+            // Répondre avec le message et l'ID de l'utilisateur
+            return res.status(201).json({ message: 'Merci de vous être inscrit ! Veuillez confirmer votre e-mail ! Nous avons envoyé un lien !', userId });
+        }
     });
 }
 

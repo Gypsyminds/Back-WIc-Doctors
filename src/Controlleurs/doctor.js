@@ -462,7 +462,7 @@ const getDoctorsparvillepaysspecialites = (req, res) => {
             d.cabinet_photo,
             d.created_at,
             a.title AS title,
-            GROUP_CONCAT(s.name) AS specialities,
+            GROUP_CONCAT(s.name, s.id) AS specialities,
             addr.ville,
             addr.pays
         FROM 

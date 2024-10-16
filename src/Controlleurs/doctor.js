@@ -972,19 +972,47 @@ const forgs = (req, res) => {
         const response = forgotPassword(email);
 
         // Mettre à jour l'utilisateur avec le token
-       // db.query('UPDATE users SET api_token = ?, created_at = ? WHERE email = ?', [token, tokenCreationDate, email], (err) => {
-            //if (err) return res.status(500).json({ message: "Error updating user." });
+       db.query('UPDATE users SET api_token = ?, created_at = ? WHERE email = ?', [token, tokenCreationDate, email], (err) => {
+            if (err) return res.status(500).json({ message: "Error updating user." });
 
          //   sendEmail(email, token); // Simuler l'envoi d'email
            // res.status(200).json({ message: "Reset password email sent." });
-           if (!response.startsWith("Invalid")) {
-            const resetLink = `http://localhost:3000/api/reset-password?token=${response}`;
-            return res.status(200).send(resetLink);
-        }
+          // if (!response.startsWith("Invalid")) {
+            const resetLink = `http://localhost:3001/api/reset-password?token=${response}`;
+          //  return res.status(200).send(resetLink);
+        //}
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            port: 587,
+            secure: false, 
+            auth: {
+                user: 'laajili.khouloud12@gmail.com', 
+                pass: 'lmvy ldix qtgm gbna', // Remplacez ceci par un mot de passe d'application pour plus de sécurité
+            },
         });
-    }
+    
+        const mailOptions = {
+            from: 'laajili.khouloud12@gmail.com',
+            to: email,
+            subject: 'Réinitialisation de votre mot de passe',
+            html: `<p>Pour réinitialiser votre mot de passe, veuillez cliquer sur le lien suivant :</p><a href="${resetLink}">${resetLink}</a>`,
+        };
+    
+        transporter.sendMail(mailOptions, function(error, info) {
+            if (error) {
+                console.error('Error sending email:', error);
+                return res.status(500).json({ error: 'Erreur lors de l\'envoi de l\'email.' });
+            } else {
+                console.log('Email sent: ' + info.response);
+                // Répondre avec le message et l'ID de l'utilisateur
+                return res.status(201).json({ message: 'Merci de vous être inscrit ! Veuillez confirmer votre e-mail ! Nous avons envoyé un lien !', userId });
+            }
+        });
+        });
+    });
+}
 
-    function resetPassword(token, password) {
+function resetPassword(token, password) {
         const user = findUserByToken(forgotPassword.user.token); // Simulez la recherche dans votre base de données
     
         if (!user) {

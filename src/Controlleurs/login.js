@@ -147,8 +147,20 @@ async function signups(req, res) {
                  console.error('Erreur lors de la mise à jour du token:', updateErr);
                  return res.status(500).json({ error: 'Erreur interne du serveur.' });
              }
+             const getSql = 'SELECT * FROM patients WHERE user_id = ?';
+
+             // Exécuter la requête
+             db.execute(getSql, [user.id], (err, result) => {
+                 if (err) {
+                     return console.error('Erreur lors de l\'exécution de la requête : ' + err.stack);
+                 }
+             
+                 // Afficher les résultats dans la console
+                 console.log('Résultats de la requête :', result);
+                 res.json({ message: 'Connexion réussie!', user ,result});
+
+             });
         // Répondre avec le jeton
-        res.json({ message: 'Connexion réussie!', token });
         });
 })
  

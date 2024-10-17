@@ -498,8 +498,50 @@ async function updateprofilpatient  (req, res) {
     }
 }
  
+// Function to reset the password
+const resetPassword = (req, res) => {
+    const { userId, currentPassword, newPassword } = req.body;
+
+    // Find the user by ID
+    const query = 'SELECT * FROM users WHERE id = ?';
+    db.query(query, [userId], (err, results) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error.' });
+        }
+
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        const user = results[0];
+
+        // Compare the current password with the stored password
+        bcrypt.compare(currentPassword, user.password, (compareErr, isMatch) => {
+            if (compareErr) {
+                return res.status(500).json({ error: 'Error comparing passwords.' });
+            }
+
+            if (!isMatch) {
+                return res.status(401).json({ message: 'Current password is incorrect.' });
+            }
+
+            // Hash the new password
+            const hashedNewPassword = bcrypt.hashSync(newPassword, 10); // Use bcrypt to hash the new password
+
+            // Update the user's password in the database
+            const updateQuery = 'UPDATE users SET password = ? WHERE id = ?';
+            db.query(updateQuery, [hashedNewPassword, userId], (updateErr) => {
+                if (updateErr) {
+                    return res.status(500).json({ error: 'Failed to update password.' });
+                }
+
+                res.status(200).json({ message: 'Password updated successfully.' });
+            });
+        });
+    });
+};
 
 module.exports = {
-    signuppatient,signin,signupb2b,updateprofilpatient,logout
+    signuppatient,signin,signupb2b,updateprofilpatient,logout,resetPassword
 }
   

@@ -32,7 +32,7 @@ router.put('/update/patient/:id',loginController.updateprofilpatient);
 router.post('/api/login',loginController.signin);
 // Route pour démarrer l'authentification avec Google
 router.get('http://localhost:3000/auth/google', passport.authenticate('google'));
-
+router.post('/logout', loginController.logout);
 // Route de rappel (callback) après l'authentification réussie
 router.get('http://localhost:3000/auth/google/callback', 
     passport.authenticate('google', { failureRedirect: '/' }),

@@ -395,6 +395,42 @@ async function signupb2b(req, res) {
 
 
 
+const logout = (req, res) => {
+    // Retrieve the token from the authorization header
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    // Check if token is provided
+    if (!token) {
+        return res.status(401).json({ message: 'Token missing, authorization denied.' });
+    }
+
+    // Verify the token
+    jwt.verify(token, 'votre_clé_secrète', (err, decoded) => {
+        if (err) {
+            return res.status(403).json({ message: 'Invalid token.' });
+        }
+
+        const userId = decoded.user_id; // Assuming your token contains user_id
+
+        // Nullify or delete the token from the database
+        const query = 'UPDATE users SET api_token = NULL WHERE id = ?';
+        db.query(query, [userId], (dbErr, result) => {
+            if (dbErr) {
+                console.error('Failed to update token in database:', dbErr);
+                return res.status(500).json({ error: 'Failed to logout.' });
+            }
+
+            // If the user is successfully updated
+            if (result.affectedRows > 0) {
+                return res.status(200).json({ message: 'Successfully logged out.' });
+            } else {
+                return res.status(404).json({ message: 'User not found.' });
+            }
+        });
+    });
+};
+
 // Update patient profile
 async function updateprofilpatient  (req, res) {
     const patientId = req.params.id;
@@ -464,6 +500,6 @@ async function updateprofilpatient  (req, res) {
  
 
 module.exports = {
-    signuppatient,signin,signupb2b,updateprofilpatient
+    signuppatient,signin,signupb2b,updateprofilpatient,logout
 }
   

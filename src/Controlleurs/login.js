@@ -8,7 +8,7 @@ const cors = require('cors'); // Importer cors
 const app = express();
 const port = 3000;
 const db = require('../config/db'); // Importer la connexion à la base de données
-const { info, error } = require('console');
+const { info, error, Console } = require('console');
 app.use(cors());
 // Middleware
 app.use(bodyParser.json());
@@ -392,7 +392,78 @@ async function signupb2b(req, res) {
         return res.status(201).json({ message: 'Demande d\'inscription ajoutée avec succès.', id: userResults.insertId });
     });
 }
+
+
+
+// Update patient profile
+async function updateprofilpatient  (req, res) {
+    const patientId = req.params.id;
+    const {
+        first_name,
+        last_name,
+        phone_number,
+        mobile_number,
+        age,
+        gender,
+        weight,
+        height,
+        medical_history,
+        notes
+    } = req.body;
+
+    // Validate inputs
+    if (!first_name || !last_name || !phone_number) {
+        return res.status(400).json({ error: 'First name, last name, and phone number are required.' });
+    }
+
+    try {
+        const sql = `
+            UPDATE patients
+            SET
+                first_name = ?,
+                last_name = ?,
+                phone_number = ?,
+                mobile_number = ?,
+                age = ?,
+                gender = ?,
+                weight = ?,
+                height = ?,
+                medical_history = ?,
+                notes = ?,
+                updated_at = NOW()
+            WHERE id = ?
+        `;
+
+        const values = [
+            first_name,
+            last_name,
+            phone_number,
+            mobile_number,
+            age,
+            gender,
+            weight,
+            height,
+            medical_history,
+            notes,
+            patientId
+        ];
+
+        const [result] = await db.execute(sql, values);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Patient not found.' });
+        }
+
+        res.json({ message: 'Profile updated successfully!' });
+
+    } catch (error) {
+        console.error('Error updating patient profile:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+
+    }
+}
+ 
+
 module.exports = {
-    signuppatient,signin,signupb2b
+    signuppatient,signin,signupb2b,updateprofilpatient
 }
   

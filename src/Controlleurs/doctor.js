@@ -407,7 +407,7 @@ const getalldoctors = (req, res) => {
         d.cabinet_photo,
         d.created_at,
         a.title AS title,
-        GROUP_CONCAT(s.name) AS specialities,
+        JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities
       
         addr.ville
   

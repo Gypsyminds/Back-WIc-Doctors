@@ -458,7 +458,7 @@ const getalldoctors = (req, res) => {
         d.created_at,
         a.title AS title,
         JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
-        usr.phone_number,   -- Get phone number from the users table
+        usr.phone_number,  
         addr.ville
   
     FROM 
@@ -496,6 +496,7 @@ const getalldoctors = (req, res) => {
     });
 };
 
+
 const getDoctorsparvillepaysspecialites = (req, res) => {
     const speciality_id = req.query.speciality_id;
     const ville = req.query.ville; // Ville
@@ -512,6 +513,7 @@ const getDoctorsparvillepaysspecialites = (req, res) => {
             d.cabinet_photo,
             d.created_at,
             a.title AS title,
+            usr.phone_number, -- Include phone number from users table
             addr.ville,
             addr.pays,
             JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities
@@ -532,30 +534,30 @@ const getDoctorsparvillepaysspecialites = (req, res) => {
     const queryParams = [];
     const conditions = [];
 
-    // Condition pour la spécialité
+    // Condition for speciality
     if (speciality_id) {
         conditions.push('ds.speciality_id = ?');
         queryParams.push(speciality_id);
     }
 
-    // Condition pour la ville
+    // Condition for city (ville)
     if (ville) {
         conditions.push('addr.ville = ?'); 
         queryParams.push(ville);
     }
 
-    // Condition pour le pays
+    // Condition for country (pays)
     if (pays) {
         conditions.push('addr.pays = ?'); 
         queryParams.push(pays);
     }
 
-    // Ajout des conditions à la requête
+    // Append conditions to the query if any
     if (conditions.length > 0) {
         query += ` WHERE ${conditions.join(' AND ')}`;
     }
 
-    // Grouper les résultats par médecin
+    // Grouping the results and randomizing the order
     query += `
         GROUP BY  
             d.id, 
@@ -567,6 +569,7 @@ const getDoctorsparvillepaysspecialites = (req, res) => {
             d.cabinet_photo,
             d.created_at,
             a.title,
+            usr.phone_number, -- Add phone number to the GROUP BY clause
             addr.ville,
             addr.pays
         ORDER BY RAND()
@@ -574,10 +577,10 @@ const getDoctorsparvillepaysspecialites = (req, res) => {
 
     db.query(query, queryParams, (err, results) => {
         if (err) {
-            console.error(err); // Pour le débogage
+            console.error(err); // Debugging
             return res.status(500).json({ error: 'Erreur lors de la récupération des médecins.' });
         }
-        // Vérifier si des résultats ont été trouvés
+        // Check if results were found
         if (results.length === 0) {
             return res.status(404).json({ message: 'Aucun médecin trouvé avec ces critères.' });
         }

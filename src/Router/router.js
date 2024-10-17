@@ -34,6 +34,7 @@ router.post('/api/login',loginController.signin);
 router.get('http://localhost:3000/auth/google', passport.authenticate('google'));
 router.post('/logout', loginController.logout);
 router.post('/reset-password', loginController.resetPassword);
+router.get('/api/doctorsparposition', authController.getplusprochedoc)
 // Route de rappel (callback) après l'authentification réussie
 router.get('http://localhost:3000/auth/google/callback', 
     passport.authenticate('google', { failureRedirect: '/' }),

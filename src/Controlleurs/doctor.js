@@ -1370,8 +1370,46 @@ const { error } = require('console');
             }
         });
     }
+    //app.get('/api/doctors', 
+    const getplusprochedoc = (req, res) => {
+        const userLatitude = parseFloat(req.query.latitude);
+        const userLongitude = parseFloat(req.query.longitude);
+    
+        const query = 'SELECT * FROM addresses'; // Récupérer tous les médecins
+    
+        db.query(query, (err, results) => {
+            if (err) {
+                return res.status(500).json({ error: 'Erreur lors de la récupération des médecins.' });
+            }
+    
+            // Calculer la distance et ajouter à chaque médecin
+            const doctorsWithDistance = results.map(doctor => {
+                const distance = haversineDistance(userLatitude, userLongitude, doctor.latitude, doctor.longitude);
+                return {
+                    ...doctor,
+                    distance: distance // Ajouter la distance
+                };
+            });
+    
+            // Trier par distance
+            doctorsWithDistance.sort((a, b) => a.distance - b.distance);
+    
+            // Retourner les médecins les plus proches
+            res.json(doctorsWithDistance);
+        });
+    }
 
-
+    function haversineDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Rayon de la Terre en kilomètres
+        const dLat = (lat2 - lat1) * (Math.PI / 180);
+        const dLon = (lon2 - lon1) * (Math.PI / 180);
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c; // Distance en kilomètres
+    }
+    
 
 
 
@@ -1383,6 +1421,6 @@ module.exports = {
     getadressempas,
     getvilles,getpays,getmotif,gethistoriqu,
     insertAppointment,getville,
-    forgs,rests,insertAppointment
+    forgs,rests,insertAppointment,getplusprochedoc
 }
 

@@ -715,7 +715,7 @@ WHERE
     });
 }
 
-function insertAppointment(req, res) {
+function insertAppointments(req, res) {
     console.log('Request Body:', req.body); // Affiche le contenu de req.body
     const authHeader = req.headers['authorization'];
 
@@ -780,9 +780,188 @@ function insertAppointment(req, res) {
         res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: results.insertId });
     });
 });
+let querys = `SELECT email FROM users WHERE id = ?;`;
 
+    // Exécution de la requête
+    db.query(querys, [user_id], (err, resul) => {
+        if (err) {
+            console.error(err); // Pour le débogage
+            return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
+        }
+
+        // Vérification si des résultats ont été trouvés
+        if (resul.length === 0) {
+            return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+        }
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    port: 587,
+    secure: false, 
+    auth: {
+        user: 'laajili.khouloud12@gmail.com', 
+        pass: 'lmvy ldix qtgm gbna', // Remplacez ceci par un mot de passe d'application pour plus de sécurité
+    },
+});
+
+const mailOptions = {
+    from: 'laajili.khouloud12@gmail.com',
+    to: resul,
+    subject: 'Confirmation de votre Rendez_vous à Wic-Doctor.com',
+    html: `
+        <html>
+        <body>
+            <h2 style="color: #4CAF50;">Bienvenue Cher Patient!</h2>
+            <p>Votre rendez_vous avec le médecin  ${doctor} à ${start_at}</p>
+            <p>est bien confirmé</p>   
+            <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+        </body>
+        </html>
+    `,
+};
+
+transporter.sendMail(mailOptions, function(error, info) {
+    if (error) {
+        console.error('Error sending email:', error);
+        return res.status(500).json({ error: 'Erreur lors de l\'envoi de l\'email.' });
+    } else {
+        console.log('Email sent: ' + info.response);
+        // Répondre avec le message et l'ID de l'utilisateur
+        return res.status(201).json({ message: 'Merci de vous être inscrit ! Veuillez confirmer votre e-mail ! Nous avons envoyé un lien !', userId });
+    }
+});
+
+})
 }
 
+function insertAppointment(req, res) {
+    console.log('Request Body:', req.body);
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).json({ message: 'Accès refusé, token manquant' });
+    }
+
+    const { appointment_at, ends_at, start_at, doctor_id, clinic, doctor, patient, address, motif_id } = req.body;
+
+    if (!appointment_at || !ends_at || !start_at || !doctor_id || !clinic || !doctor || !patient || !address) {
+        return res.status(400).json({ error: 'Tous les champs sont requis.' });
+    }
+
+    let user_id;
+    try {
+        const decoded = jwt.verify(token, SECRET_KEY);
+        user_id = decoded.user_id;
+    } catch (error) {
+        return res.status(401).json({ error: 'Token invalide ou expiré.' });
+    }
+
+    const insertQuery = `
+        INSERT INTO appointments (appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id, appointment_status_id) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    `;
+    const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id];
+
+    const deleteAvailableHourQuery = `
+        DELETE FROM availability_hours 
+        WHERE doctor_id = ? 
+        AND start_at = ? 
+        AND end_at = ? 
+    `;
+
+    const availableHourValues = [doctor_id, start_at, ends_at];
+
+    // Start by deleting available hours
+    db.query(deleteAvailableHourQuery, availableHourValues, (deleteError, deleteResults) => {
+        if (deleteError) {
+            return res.status(500).json({ error: `Erreur lors de la suppression des heures disponibles: ${deleteError.message}` });
+        }
+
+        // Now, insert the appointment
+        db.query(insertQuery, values, (error, results) => {
+            if (error) {
+                return res.status(500).json({ error: error.message });
+            }
+
+            // Email sending logic
+            const querys = `SELECT email FROM users WHERE id = ?;`;
+            db.query(querys, [user_id], (err, resul) => {
+                if (err) {
+                    console.error(err);
+                    return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
+                }
+
+                if (resul.length === 0) {
+                    return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+                }
+const qurry =  `SELECT name FROM doctors WHERE id = ?;`;
+db.query(qurry, [doctor_id], (err, resuls) => {
+    if (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
+    }
+
+    if (resul.length === 0) {
+        return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+    }
+    const queryss = `SELECT name FROM users WHERE id = ?;`;
+            db.query(queryss, [user_id], (err, resull) => {
+                if (err) {
+                    console.error(err);
+                    return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
+                }
+
+                if (resul.length === 0) {
+                    return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+                }
+                const transporter = nodemailer.createTransport({
+                    service: 'gmail',
+                    port: 587,
+                    secure: false,
+                    auth: {
+                        user: 'laajili.khouloud12@gmail.com',
+                        pass: 'lmvy ldix qtgm gbna', // Use app password for security
+                    },
+                });
+                const startDate = new Date(start_at); // Convert to JavaScript Date object
+
+                // Format to display the day in words and time without seconds
+                const formattedStartAt = startDate.toLocaleString('fr-FR', {
+                    weekday: 'long',   // Full name of the day (e.g., "lundi")
+                    hour: '2-digit',   // Two-digit hour (e.g., "14" for 2 PM)
+                    minute: '2-digit', // Two-digit minute
+                });
+                const mailOptions = {
+                    from: 'laajili.khouloud12@gmail.com',
+                    to: resul[0].email, // Ensure it's a string, assuming resul is an array of objects
+                    subject: 'Confirmation de votre Rendez-vous',
+                    html: `
+                        <html>
+                        <body>
+                            <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${resull[0].name}</h2>
+                            <p>Votre rendez-vous avec le médecin  ${JSON.parse(resuls[0].name).fr} le ${formattedStartAt}</p>
+                            <p>est bien confirmé</p>   
+                            <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+                        </body>
+                        </html>
+                    `,
+                };
+
+                transporter.sendMail(mailOptions, function (error, info) {
+                    if (error) {
+                        console.error('Error sending email:', error);
+                        return res.status(500).json({ error: 'Erreur lors de l\'envoi de l\'email.' });
+                    } else {
+                        console.log('Email sent: ' + info.response);
+                        return res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: results.insertId });
+                    }
+                });
+            });
+        });
+    });
+});
+    });
+}
 
 const jwt = require('jsonwebtoken');
 
@@ -1097,6 +1276,47 @@ const { error } = require('console');
         });
     }
 
+    function sendConfirmationEmail(name, email, password, res, userId) {
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            port: 587,
+            secure: false, 
+            auth: {
+                user: 'laajili.khouloud12@gmail.com', 
+                pass: 'lmvy ldix qtgm gbna', // Remplacez ceci par un mot de passe d'application pour plus de sécurité
+            },
+        });
+    
+        const mailOptions = {
+            from: 'laajili.khouloud12@gmail.com',
+            to: email,
+            subject: 'Confirmation de votre inscription à Wic-Doctor.com',
+            html: `
+                <html>
+                <body>
+                    <h2 style="color: #4CAF50;">Bienvenue ${name}!</h2>
+                    <p>Vous êtes inscrit chez Wic-Doctor.</p>
+                    <p>Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : <strong>${password}</strong></p>
+                    <p>Veuillez compléter votre fiche, s'il vous plaît.</p>
+                    <a href="http://localhost:3001/api/login" style="display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;">Connexion</a>
+                    <p>Si vous n'avez pas demandé cette inscription, ignorez simplement cet e-mail.</p>
+                    <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+                </body>
+                </html>
+            `,
+        };
+    
+        transporter.sendMail(mailOptions, function(error, info) {
+            if (error) {
+                console.error('Error sending email:', error);
+                return res.status(500).json({ error: 'Erreur lors de l\'envoi de l\'email.' });
+            } else {
+                console.log('Email sent: ' + info.response);
+                // Répondre avec le message et l'ID de l'utilisateur
+                return res.status(201).json({ message: 'Merci de vous être inscrit ! Veuillez confirmer votre e-mail ! Nous avons envoyé un lien !', userId });
+            }
+        });
+    }
 
 
 

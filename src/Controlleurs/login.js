@@ -165,7 +165,7 @@ function isValidEmail(email) {
              
                  // Afficher les résultats dans la console
                  console.log('Résultats de la requête :', result);
-                 res.json({ message: 'Connexion réussie!', email ,result});
+                 res.json({ message: 'Connexion réussie!', email ,result ,token});
 
              });
         // Répondre avec le jeton

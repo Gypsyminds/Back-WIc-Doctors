@@ -751,6 +751,26 @@ function insertAppointment(req, res) {
     const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id];
     console.log(user_id);
 
+     // Supprimer l'heure disponible associée dans la table 'available_hours'
+     const deleteAvailableHourQuery = `
+     DELETE FROM availability_hours 
+     WHERE doctor_id = ? 
+     AND start_at = ? 
+     AND end_at = ? 
+    
+ `;
+
+ const availableHourValues = [doctor_id, start_at, ends_at];
+
+ db.query(deleteAvailableHourQuery, availableHourValues, (deleteError, deleteResults) => {
+    if (deleteError) {
+        return res.status(500).json({ error: `Erreur lors de la suppression des heures disponibles: ${deleteError.message}` });
+    }
+
+    // Réponse réussie si tout s'est bien passé
+    res.status(201).json({ 
+        message: 'Rendez-vous inséré avec succès, et heure disponible supprimée', 
+    });
 
     // Exécuter la requête
     db.query(query, values, (error, results) => {
@@ -758,9 +778,10 @@ function insertAppointment(req, res) {
             return res.status(500).json({ error: error.message }); // Affiche le message d'erreur
         }
         res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: results.insertId });
-    });}
+    });
+});
 
-
+}
 
 
 const jwt = require('jsonwebtoken');

@@ -445,7 +445,7 @@ const getalldoctors = (req, res) => {
         res.json(results);
     });
 };
-//get doctors par specialites ville et pays
+
 const getDoctorsparvillepaysspecialites = (req, res) => {
     const speciality_id = req.query.speciality_id;
     const ville = req.query.ville; // Ville
@@ -462,9 +462,9 @@ const getDoctorsparvillepaysspecialites = (req, res) => {
             d.cabinet_photo,
             d.created_at,
             a.title AS title,
-            GROUP_CONCAT(s.name, s.id) AS specialities,
             addr.ville,
-            addr.pays
+            addr.pays,
+            JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities
         FROM 
             doctors d 
         LEFT JOIN 
@@ -533,7 +533,8 @@ const getDoctorsparvillepaysspecialites = (req, res) => {
         }
         res.json(results);
     });
-}
+};
+
 //get availeble date pour doctors
 const getDoctorsById = (req, res) => {
     const doctorId = req.query.doctor_id; // Récupérer l'ID du médecin

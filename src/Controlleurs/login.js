@@ -110,6 +110,11 @@ async function signups(req, res) {
         });
     });
 }
+// Function to validate email format
+function isValidEmail(email) {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // Basic email validation regex
+    return regex.test(email);
+}
  async function signin (req, res) {
     const { email, password } = req.body;
 
@@ -117,7 +122,10 @@ async function signups(req, res) {
     if (!email || !password) {
         return res.status(400).json({ error: 'Tous les champs sont requis.' });
     }
-
+ // Validate email format
+ if (!isValidEmail(email)) {
+    return res.status(400).json({ error: 'Adresse email invalide.' });
+}
     // Rechercher l'utilisateur par email
     const sql = 'SELECT * FROM users WHERE email = ?';
     db.query(sql, [email], async (err, results) => {
@@ -157,7 +165,7 @@ async function signups(req, res) {
              
                  // Afficher les résultats dans la console
                  console.log('Résultats de la requête :', result);
-                 res.json({ message: 'Connexion réussie!', user ,result});
+                 res.json({ message: 'Connexion réussie!', email ,result});
 
              });
         // Répondre avec le jeton

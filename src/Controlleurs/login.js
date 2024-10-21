@@ -2,7 +2,7 @@ const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const express = require('express');
-const mysql = require('mysql2');
+const mysql = require('mysql2/promise');
 const bodyParser = require('body-parser');
 const cors = require('cors'); // Importer cors
 const app = express();
@@ -432,7 +432,7 @@ const logout = (req, res) => {
 };
 
 // Update patient profile
-async function updateprofilpatients  (req, res) {
+async function updateprofilpatients(req, res) {
     const patientId = req.params.id;
     const {
         first_name,
@@ -484,7 +484,7 @@ async function updateprofilpatients  (req, res) {
             patientId
         ];
 
-        const [result] = await db.execute(sql, values);
+        const [result] = db.execute(sql, values);
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Patient not found.' });
         }
@@ -497,93 +497,9 @@ async function updateprofilpatients  (req, res) {
 
     }
 }
-async function updateprofilpatient(req, res) {
-    const patientId = req.params.id;
-    const {
-        first_name,
-        last_name,
-        phone_number,
-        mobile_number,
-        age,
-        gender,
-        weight,
-        height,
-        medical_history,
-        notes,
-        email // Nouveau champ pour l'email
-    } = req.body;
-
-    // Validez les entrées
-    if (!first_name || !last_name || !phone_number || !email) {
-        return res.status(400).json({ error: 'First name, last name, phone number, and email are required.' });
-    }
-
-    try {
-        // D'abord, récupérons le `user_id` lié à ce patient
-        const [patientResult] = await db.execute(`SELECT user_id FROM patients WHERE id = ?`, [patientId]);
-
-        // Ajout de log pour vérifier le retour
-        console.log("Patient result:", patientResult);
-
-        // Si pas de patient trouvé, retourner une erreur 404
-        if (patientResult.length === 0) {
-            return res.status(404).json({ error: 'Patient not found.' });
-        }
-
-        const userId = patientResult[0].user_id;
-
-        // Mettons à jour les informations du patient
-        const sqlPatient = `
-            UPDATE patients
-            SET
-                first_name = ?,
-                last_name = ?,
-                phone_number = ?,
-                mobile_number = ?,
-                age = ?,
-                gender = ?,
-                weight = ?,
-                height = ?,
-                medical_history = ?,
-                notes = ?,
-                updated_at = NOW()
-            WHERE id = ?
-        `;
-
-        const patientValues = [
-            first_name,
-            last_name,
-            phone_number,
-            mobile_number,
-            age,
-            gender,
-            weight,
-            height,
-            medical_history,
-            notes,
-            patientId
-        ];
-
-        const [patientUpdateResult] = await db.execute(sqlPatient, patientValues);
-
-        // Ajout de log pour vérifier le retour de la mise à jour
-        console.log("Patient update result:", patientUpdateResult);
-
-        // Mettons à jour l'email de l'utilisateur lié
-        const sqlUser = `UPDATE users SET email = ? WHERE id = ?`;
-        const [userUpdateResult] = await db.execute(sqlUser, [email, userId]);
-
-        // Ajout de log pour vérifier le retour de la mise à jour de l'utilisateur
-        console.log("User update result:", userUpdateResult);
-
-        res.json({ message: 'Profile and email updated successfully!' });
-
-    } catch (error) {
-        console.error('Error updating patient profile:', error);
-        res.status(500).json({ error: 'Internal server error.' });
-    }
-}
-
+// Update patient profile
+// Fonction pour mettre à jour le profil du patient
+// Fonction pour mettre à jour le profil du patient
 
 // Function to reset the password
 const resetPassword = (req, res) => {
@@ -627,6 +543,100 @@ const resetPassword = (req, res) => {
         });
     });
 };
+function updateprofilpatients(first_name ,last_name,phone_number,mobile_number,age,gender,weight,height,medical_history,notes,id) {
+    const query = 'UPDATE users SET first_name = ?, last_name = ? ,phone_number  = ? ,mobile_number = ? ,age = ? ,gender = ? ,weight = ? ,height = ? ,medical_history = ? ,notes  = ? WHERE id = ?';
+    db.execute(query, [first_name ,last_name,phone_number,mobile_number,age,gender,weight,height,medical_history,notes,id], (err, results) => {
+        if (err) {
+            return console.error('Erreur lors de la mise à jour :', err);
+        }
+        console.log('Utilisateur mis à jour avec succès :', results.affectedRows);
+    });
+}
+
+
+async function updateprofilpatient(req, res) {
+    const patientId = req.params.id;  // Récupérer l'ID du patient à partir des paramètres de la requête
+    const {
+        first_name,
+        last_name,
+        phone_number,
+        mobile_number,
+        age,
+        gender,
+        weight,
+        height,
+        medical_history,
+        notes,
+        email  // Ajouter le champ email
+    } = req.body;
+
+    // Valider les champs requis
+    if (!first_name || !last_name || !phone_number || !email) {
+        return res.status(400).json({ error: 'First name, last name, phone number, and email are required.' });
+    }
+
+    const updatePatientQuery = `
+        UPDATE patients
+        SET
+            first_name = ?,
+            last_name = ?,
+            phone_number = ?,
+            mobile_number = ?,
+            age = ?,
+            gender = ?,
+            weight = ?,
+            height = ?,
+            medical_history = ?,
+            notes = ?,
+            updated_at = NOW()
+        WHERE id = ?
+    `;
+
+    const updateUserQuery = `
+        UPDATE users
+        SET
+            email = ? , phone_number =?
+        WHERE id = (
+            SELECT user_id FROM patients WHERE id = ?
+        )
+    `;
+
+    try {
+        // Mettre à jour les informations du patient
+        const patientValues = [
+            first_name,
+            last_name,
+            phone_number,
+            mobile_number,
+            age,
+            gender,
+            weight,
+            height,
+            medical_history,
+            notes,
+            patientId
+        ];
+
+        const [patientResult] = await db.promise().execute(updatePatientQuery, patientValues);
+
+        if (patientResult.affectedRows === 0) {
+            return res.status(404).json({ error: 'Patient not found.' });
+        }
+
+        // Mettre à jour l'email de l'utilisateur
+        const [userResult] = await db.promise().execute(updateUserQuery, [email,phone_number, patientId]);
+
+        if (userResult.affectedRows === 0) {
+            return res.status(404).json({ error: 'User not found for the patient.' });
+        }
+
+        res.json({ message: 'Profile updated successfully!' });
+
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        res.status(500).json({ error: 'Internal server error.', details: error.message });
+    }
+}
 
 module.exports = {
     signuppatient,signin,signupb2b,updateprofilpatient,logout,resetPassword

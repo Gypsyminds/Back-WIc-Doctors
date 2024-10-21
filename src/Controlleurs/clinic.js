@@ -23,25 +23,31 @@ const moment = require('moment');
 // Fonction pour obtenir les informations des cliniques
 const getClinic = (req, res) => {
     const query = `
- SELECT 
-      clinics.name AS clinic_name, 
-      clinics.description,  
-clinics.phone_number ,
-clinics.mobile_number ,clinics.	clinic_photo ,
-      clinic_levels.commission AS level_commission, 
-      clinic_levels.name AS level_name, 
-      addresses.description AS adresse_description, 
-      addresses.address AS adresse_address,
-      addresses.latitude AS adresse_latitude,
-      addresses.longitude AS adresse_longitude,
-      addresses.ville AS adresse_ville,
-      addresses.pays AS adresse_pays,
-      availability_hours_clinic.start_at AS start ,
-      availability_hours_clinic.end_at AS end 
-    FROM clinics
-    JOIN clinic_levels ON clinics.clinic_level_id = clinic_levels.id
-    JOIN addresses ON clinics.address_id = addresses.id
-    JOIN availability_hours_clinic ON availability_hours_clinic.clinic_id;
+SELECT 
+    clinics.name AS clinic_name, 
+    clinics.description,  
+    clinics.phone_number,
+    clinics.mobile_number,
+    clinics.clinic_photo,
+    clinic_levels.commission AS level_commission, 
+    clinic_levels.name AS level_name, 
+    addresses.description AS adresse_description, 
+    addresses.address AS adresse_address,
+    addresses.latitude AS adresse_latitude,
+    addresses.longitude AS adresse_longitude,
+    addresses.ville AS adresse_ville,
+    addresses.pays AS adresse_pays,
+    availability_hours_clinic.start_at AS start,
+    availability_hours_clinic.end_at AS end 
+FROM 
+    clinics
+JOIN 
+    clinic_levels ON clinics.clinic_level_id = clinic_levels.id
+JOIN 
+    addresses ON clinics.address_id = addresses.id
+JOIN 
+    availability_hours_clinic ON availability_hours_clinic.clinic_id = clinics.id;  
+
     `;
   
     // Exécuter la requête SQL
@@ -55,8 +61,35 @@ clinics.mobile_number ,clinics.	clinic_photo ,
       // Retourner les résultats en JSON
       res.status(200).json(results);
     });
-  };
-  
+  }
+  // Fonction pour obtenir les spécialités par clinic_id
+async function getSpecialitiesByClinicId(clinicId) {
+    const query = `
+        SELECT s.id, s.name, s.icon
+        FROM specialities s
+        LEFT JOIN clinic_specialities sd ON s.id = sd.speciality_id
+        WHERE sd.clinic_id = ?
+        GROUP BY s.id, s.name, s.icon;
+    `;
+
+    try {
+        // Établir la connexion à la base de données
+        const connection = await mysql.createConnection(dbConfig);
+
+        // Exécuter la requête
+        const [rows] = await connection.execute(query, [clinicId]);
+
+        // Fermer la connexion
+        await connection.end();
+
+        return rows;
+    } catch (error) {
+        console.error('Error fetching specialities:', error);
+        throw new Error('Internal server error');
+    }
+}
+
+
   module.exports = {
-    getClinic
+    getClinic , getSpecialitiesByClinicId
   };

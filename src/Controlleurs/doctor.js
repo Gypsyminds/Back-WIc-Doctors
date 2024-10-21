@@ -770,6 +770,44 @@ WHERE
         res.json(results);
     });
 }
+async function getAppointmentsByPatientId(req, res) {
+    const patientId = req.params.patientId;  // Get the patient ID from request parameters
+
+    const query = `
+        SELECT 
+            a.appointment_at AS appointment_at,
+            a.start_at AS start_date,
+            a.ends_at AS end_date,
+            a.clinic AS clinic,
+            a.doctor AS doctor,
+            s.status AS appointment_status,
+            p.amount AS payment_status,
+            m.name AS payment_method
+        FROM 
+            appointments a
+        LEFT JOIN 
+            appointment_statuses s ON a.appointment_status_id = s.id
+        LEFT JOIN 
+            payments p ON a.payment_id = p.id
+        LEFT JOIN 
+            payment_methods m ON p.payment_method_id = m.id
+        WHERE 
+            a.user_id = (
+                SELECT user_id FROM patients WHERE id = ?
+            );
+    `;
+
+    try {
+        const [results] = await db.promise().execute(query, [patientId]);
+        if (results.length === 0) {
+            return res.status(404).json({ error: 'No appointments found for this patient.' });
+        }
+        res.json(results);
+    } catch (error) {
+        console.error('Error fetching appointments:', error);
+        res.status(500).json({ error: 'Internal server error.', details: error.message });
+    }
+}
 
 function insertAppointments(req, res) {
     console.log('Request Body:', req.body); // Affiche le contenu de req.body
@@ -1425,5 +1463,6 @@ module.exports = {
     getvilles,getpays,getmotif,gethistoriqu,
     insertAppointment,getville,
     forgs,rests,insertAppointment,getplusprochedoc
+    ,getAppointmentsByPatientId
 }
 

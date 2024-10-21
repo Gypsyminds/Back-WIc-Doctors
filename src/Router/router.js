@@ -37,7 +37,8 @@ router.post('/logout', loginController.logout);
 router.post('/reset-password', loginController.resetPassword);
 router.get('/api/doctorsparposition', authController.getplusprochedoc);
 router.get('/getclinics', clinicController.getClinic);
-// Route de rappel (callback) après l'authentification réussie
+router.get('/appointments/:patientId', authController.getAppointmentsByPatientId);
+// Route de rappel (callback) après l'authauthentification réussie
 router.get('http://localhost:3000/auth/google/callback', 
     passport.authenticate('google', { failureRedirect: '/' }),
     (req, res) => {

@@ -431,75 +431,8 @@ const logout = (req, res) => {
     });
 };
 
-// Update patient profile
-async function updateprofilpatients(req, res) {
-    const patientId = req.params.id;
-    const {
-        first_name,
-        last_name,
-        phone_number,
-        mobile_number,
-        age,
-        gender,
-        weight,
-        height,
-        medical_history,
-        notes
-    } = req.body;
 
-    // Validate inputs
-    if (!first_name || !last_name || !phone_number) {
-        return res.status(400).json({ error: 'First name, last name, and phone number are required.' });
-    }
 
-    try {
-        const sql = `
-            UPDATE patients
-            SET
-                first_name = ?,
-                last_name = ?,
-                phone_number = ?,
-                mobile_number = ?,
-                age = ?,
-                gender = ?,
-                weight = ?,
-                height = ?,
-                medical_history = ?,
-                notes = ?,
-                updated_at = NOW()
-            WHERE id = ?
-        `;
-
-        const values = [
-            first_name,
-            last_name,
-            phone_number,
-            mobile_number,
-            age,
-            gender,
-            weight,
-            height,
-            medical_history,
-            notes,
-            patientId
-        ];
-
-        const [result] = db.execute(sql, values);
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Patient not found.' });
-        }
-
-        res.json({ message: 'Profile updated successfully!' });
-
-    } catch (error) {
-        console.error('Error updating patient profile:', error);
-        res.status(500).json({ error: 'Internal server error.' });
-
-    }
-}
-// Update patient profile
-// Fonction pour mettre à jour le profil du patient
-// Fonction pour mettre à jour le profil du patient
 
 // Function to reset the password
 const resetPassword = (req, res) => {
@@ -543,17 +476,9 @@ const resetPassword = (req, res) => {
         });
     });
 };
-function updateprofilpatients(first_name ,last_name,phone_number,mobile_number,age,gender,weight,height,medical_history,notes,id) {
-    const query = 'UPDATE users SET first_name = ?, last_name = ? ,phone_number  = ? ,mobile_number = ? ,age = ? ,gender = ? ,weight = ? ,height = ? ,medical_history = ? ,notes  = ? WHERE id = ?';
-    db.execute(query, [first_name ,last_name,phone_number,mobile_number,age,gender,weight,height,medical_history,notes,id], (err, results) => {
-        if (err) {
-            return console.error('Erreur lors de la mise à jour :', err);
-        }
-        console.log('Utilisateur mis à jour avec succès :', results.affectedRows);
-    });
-}
-
-
+// Update patient profile
+// Fonction pour mettre à jour le profil du patient
+// Fonction pour mettre à jour le profil du patient
 async function updateprofilpatient(req, res) {
     const patientId = req.params.id;  // Récupérer l'ID du patient à partir des paramètres de la requête
     const {

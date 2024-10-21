@@ -23,11 +23,11 @@ const moment = require('moment');
 // Fonction pour obtenir les informations des cliniques
 const getClinic = (req, res) => {
     const query = `
-  SELECT 
+ SELECT 
       clinics.name AS clinic_name, 
       clinics.description,  
 clinics.phone_number ,
-clinics.mobile_number ,
+clinics.mobile_number ,clinics.	clinic_photo ,
       clinic_levels.commission AS level_commission, 
       clinic_levels.name AS level_name, 
       addresses.description AS adresse_description, 
@@ -35,10 +35,13 @@ clinics.mobile_number ,
       addresses.latitude AS adresse_latitude,
       addresses.longitude AS adresse_longitude,
       addresses.ville AS adresse_ville,
-      addresses.pays AS adresse_pays
+      addresses.pays AS adresse_pays,
+      availability_hours_clinic.start_at AS start ,
+      availability_hours_clinic.end_at AS end 
     FROM clinics
     JOIN clinic_levels ON clinics.clinic_level_id = clinic_levels.id
-    JOIN addresses ON clinics.address_id = addresses.id;
+    JOIN addresses ON clinics.address_id = addresses.id
+    JOIN availability_hours_clinic ON availability_hours_clinic.clinic_id;
     `;
   
     // Exécuter la requête SQL

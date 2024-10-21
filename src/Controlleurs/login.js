@@ -432,7 +432,7 @@ const logout = (req, res) => {
 };
 
 // Update patient profile
-async function updateprofilpatient  (req, res) {
+async function updateprofilpatients  (req, res) {
     const patientId = req.params.id;
     const {
         first_name,
@@ -497,7 +497,94 @@ async function updateprofilpatient  (req, res) {
 
     }
 }
- 
+async function updateprofilpatient(req, res) {
+    const patientId = req.params.id;
+    const {
+        first_name,
+        last_name,
+        phone_number,
+        mobile_number,
+        age,
+        gender,
+        weight,
+        height,
+        medical_history,
+        notes,
+        email // Nouveau champ pour l'email
+    } = req.body;
+
+    // Validez les entrées
+    if (!first_name || !last_name || !phone_number || !email) {
+        return res.status(400).json({ error: 'First name, last name, phone number, and email are required.' });
+    }
+
+    try {
+        // D'abord, récupérons le `user_id` lié à ce patient
+        const [patientResult] = await db.execute(`SELECT user_id FROM patients WHERE id = ?`, [patientId]);
+
+        // Ajout de log pour vérifier le retour
+        console.log("Patient result:", patientResult);
+
+        // Si pas de patient trouvé, retourner une erreur 404
+        if (patientResult.length === 0) {
+            return res.status(404).json({ error: 'Patient not found.' });
+        }
+
+        const userId = patientResult[0].user_id;
+
+        // Mettons à jour les informations du patient
+        const sqlPatient = `
+            UPDATE patients
+            SET
+                first_name = ?,
+                last_name = ?,
+                phone_number = ?,
+                mobile_number = ?,
+                age = ?,
+                gender = ?,
+                weight = ?,
+                height = ?,
+                medical_history = ?,
+                notes = ?,
+                updated_at = NOW()
+            WHERE id = ?
+        `;
+
+        const patientValues = [
+            first_name,
+            last_name,
+            phone_number,
+            mobile_number,
+            age,
+            gender,
+            weight,
+            height,
+            medical_history,
+            notes,
+            patientId
+        ];
+
+        const [patientUpdateResult] = await db.execute(sqlPatient, patientValues);
+
+        // Ajout de log pour vérifier le retour de la mise à jour
+        console.log("Patient update result:", patientUpdateResult);
+
+        // Mettons à jour l'email de l'utilisateur lié
+        const sqlUser = `UPDATE users SET email = ? WHERE id = ?`;
+        const [userUpdateResult] = await db.execute(sqlUser, [email, userId]);
+
+        // Ajout de log pour vérifier le retour de la mise à jour de l'utilisateur
+        console.log("User update result:", userUpdateResult);
+
+        res.json({ message: 'Profile and email updated successfully!' });
+
+    } catch (error) {
+        console.error('Error updating patient profile:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+}
+
+
 // Function to reset the password
 const resetPassword = (req, res) => {
     const { userId, currentPassword, newPassword } = req.body;

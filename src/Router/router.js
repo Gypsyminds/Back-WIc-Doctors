@@ -2,6 +2,7 @@ const express= require ('express');
 const authController =require ('../Controlleurs/doctor');
 const loginController =require ('../Controlleurs/login');
 const bodyParser = require('body-parser');
+const clinicController =require ('../Controlleurs/clinic');
 
 const { getdoctorsbyid } = require('../Controlleurs/doctor');
 const app = express();
@@ -34,7 +35,8 @@ router.post('/api/login',loginController.signin);
 router.get('http://localhost:3000/auth/google', passport.authenticate('google'));
 router.post('/logout', loginController.logout);
 router.post('/reset-password', loginController.resetPassword);
-router.get('/api/doctorsparposition', authController.getplusprochedoc)
+router.get('/api/doctorsparposition', authController.getplusprochedoc);
+router.get('/getclinics', clinicController.getClinic);
 // Route de rappel (callback) après l'authentification réussie
 router.get('http://localhost:3000/auth/google/callback', 
     passport.authenticate('google', { failureRedirect: '/' }),

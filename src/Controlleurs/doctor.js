@@ -17,6 +17,9 @@ const crypto = require('crypto');
 app.use(express.json());
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment');
+
+
+
 // Lire les horaires de chaque  docteur par ID doctor
 app.get('/availability/:doctorId', (req, res) => {
     const doctorId = req.params.doctorId;

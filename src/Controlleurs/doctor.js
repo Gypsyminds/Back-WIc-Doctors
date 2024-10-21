@@ -755,7 +755,7 @@ let query = `
       SELECT 
     a.appointment_at, 
     a.start_at, 
-    a.ends_at, 
+    a.ends_at, a.clinic ,a.s
     d.name AS doctor_name
 FROM 
     appointments a

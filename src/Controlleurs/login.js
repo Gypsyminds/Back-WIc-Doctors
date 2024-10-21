@@ -567,64 +567,89 @@ async function updateprofilpatient(req, res) {
         height,
         medical_history,
         notes,
-        email  // Ajouter le champ email
+        email
     } = req.body;
 
     // Valider les champs requis
-    if (!first_name || !last_name || !phone_number || !email) {
-        return res.status(400).json({ error: 'First name, last name, phone number, and email are required.' });
+    if (!first_name || !last_name || !email) {
+        return res.status(400).json({ error: 'First name, last name, and email are required.' });
     }
 
-    const updatePatientQuery = `
-        UPDATE patients
-        SET
-            first_name = ?,
-            last_name = ?,
-            phone_number = ?,
-            mobile_number = ?,
-            age = ?,
-            gender = ?,
-            weight = ?,
-            height = ?,
-            medical_history = ?,
-            notes = ?,
-            updated_at = NOW()
-        WHERE id = ?
-    `;
-
-    const updateUserQuery = `
-        UPDATE users
-        SET
-            email = ? , phone_number =?
-        WHERE id = (
-            SELECT user_id FROM patients WHERE id = ?
-        )
-    `;
-
     try {
-        // Mettre à jour les informations du patient
-        const patientValues = [
-            first_name,
-            last_name,
-            phone_number,
-            mobile_number,
-            age,
-            gender,
-            weight,
-            height,
-            medical_history,
-            notes,
-            patientId
-        ];
+        // 1. Fetch current patient details
+        const [currentPatient] = await db.promise().execute('SELECT * FROM patients WHERE id = ?', [patientId]);
+        if (currentPatient.length === 0) {
+            return res.status(404).json({ error: 'Patient not found.' });
+        }
 
-        const [patientResult] = await db.promise().execute(updatePatientQuery, patientValues);
+        // 2. Prepare the updates
+        const updates = [];
+        const values = [];
+
+        // Always update these fields
+        updates.push('first_name = ?');
+        values.push(first_name);
+
+        updates.push('last_name = ?');
+        values.push(last_name);
+
+        // Optional fields: use existing values if not provided
+        values.push(phone_number !== undefined ? phone_number : currentPatient[0].phone_number);
+        updates.push('phone_number = ?');
+
+        values.push(mobile_number !== undefined ? mobile_number : currentPatient[0].mobile_number);
+        updates.push('mobile_number = ?');
+
+        values.push(age !== undefined ? age : currentPatient[0].age);
+        updates.push('age = ?');
+
+        values.push(gender !== undefined ? gender : currentPatient[0].gender);
+        updates.push('gender = ?');
+
+        values.push(weight !== undefined ? weight : currentPatient[0].weight);
+        updates.push('weight = ?');
+
+        values.push(height !== undefined ? height : currentPatient[0].height);
+        updates.push('height = ?');
+
+        values.push(medical_history !== undefined ? medical_history : currentPatient[0].medical_history);
+        updates.push('medical_history = ?');
+
+        values.push(notes !== undefined ? notes : currentPatient[0].notes);
+        updates.push('notes = ?');
+
+        // Add patientId to the end of values
+        values.push(patientId);
+
+        // Construct the final SQL query
+        const updatePatientQuery = `
+            UPDATE patients
+            SET ${updates.join(', ')}
+            WHERE id = ?
+        `;
+
+        // Prepare user values for the update
+        const userValues = [email, phone_number !== undefined ? phone_number : currentPatient[0].phone_number, patientId];
+
+        const updateUserQuery = `
+            UPDATE users
+            SET
+                email = ?,
+                phone_number = ?
+            WHERE id = (
+                SELECT user_id FROM patients WHERE id = ?
+            )
+        `;
+
+        // 3. Update patient info
+        const [patientResult] = await db.promise().execute(updatePatientQuery, values);
 
         if (patientResult.affectedRows === 0) {
             return res.status(404).json({ error: 'Patient not found.' });
         }
 
-        // Mettre à jour l'email de l'utilisateur
-        const [userResult] = await db.promise().execute(updateUserQuery, [email,phone_number, patientId]);
+        // 4. Update user info
+        const [userResult] = await db.promise().execute(updateUserQuery, userValues);
 
         if (userResult.affectedRows === 0) {
             return res.status(404).json({ error: 'User not found for the patient.' });
@@ -637,6 +662,8 @@ async function updateprofilpatient(req, res) {
         res.status(500).json({ error: 'Internal server error.', details: error.message });
     }
 }
+
+
 
 module.exports = {
     signuppatient,signin,signupb2b,updateprofilpatient,logout,resetPassword

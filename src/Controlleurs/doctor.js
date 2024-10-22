@@ -638,7 +638,21 @@ const specialitespardoctor =(req, res) => {
 }
 // Lire tous les positions des doctors pour maps
 const getadressempas =(req, res) => {
-    db.query('SELECT latitude , longitude ,description From addresses', (err, results) => {
+    db.query(`SELECT  addresses.latitude, addresses.longitude, addresses.description AS adresse_description, CONCAT(doctors.name) AS doctor_name, GROUP_CONCAT(DISTINCT specialities.name SEPARATOR ', ') AS specialty_names 
+FROM 
+    addresses
+JOIN 
+    users ON addresses.user_id = users.id  
+JOIN 
+    doctors ON users.id = doctors.user_id  
+JOIN 
+    clinics ON doctors.clinic_id = clinics.id 
+JOIN 
+    doctor_specialities ON doctors.id = doctor_specialities.doctor_id 
+JOIN 
+    specialities ON doctor_specialities.speciality_id = specialities.id  
+GROUP BY 
+    addresses.latitude, addresses.longitude, addresses.description, doctors.name;`, (err, results) => {
         if (err) throw err;
         res.send(results);
     });

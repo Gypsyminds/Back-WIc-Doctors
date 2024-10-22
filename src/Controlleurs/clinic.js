@@ -92,8 +92,41 @@ async function getSpecialitiesByClinicId(clinicId) {
         throw new Error('Internal server error');
     }
 }
+// Route pour obtenir les médecins d'une clinique spécifique
+//router.get('/doctors/clinic/:clinicId',
+ const getdoctosandspeciality = (req, res) => {
 
+    const clinicId = req.params.clinicId;
+
+    const query = `
+     SELECT 
+    specialities.name AS specialty_name,
+    GROUP_CONCAT(DISTINCT doctors.name SEPARATOR ', ') AS doctors_name,
+    GROUP_CONCAT(DISTINCT doctors.doctor_photo SEPARATOR ', ') AS doctor_photos
+FROM 
+    doctors
+JOIN 
+    clinics ON doctors.clinic_id = clinics.id
+JOIN 
+    doctor_specialities ON doctors.id = doctor_specialities.doctor_id
+JOIN 
+    specialities ON doctor_specialities.speciality_id = specialities.id
+WHERE 
+    clinics.id = ?
+GROUP BY 
+    specialities.name
+ORDER BY 
+    specialities.name;
+    `;
+
+    db.query(query, [clinicId], (error, results) => {
+        if (error) {
+            return res.status(500).json({ error: 'Database query error' });
+        }
+        res.json(results);
+    });
+ }
 
   module.exports = {
-    getClinic , getSpecialitiesByClinicId
-  };
+    getClinic , getSpecialitiesByClinicId , getdoctosandspeciality
+  }

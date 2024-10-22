@@ -16,6 +16,7 @@ app.use(bodyParser.json()); // Middleware pour analyser le corps des requêtes J
 
 //route pour  l'inscription
 router.get('/afftempsdoctorsbyid',authController.getDoctorsById);
+router.get('/afftempsclinicsbyid',clinicController.getTempsClinicssById);
 router.get('/affalldoctors', authController.getalldoctors);
 router.get('/doctorsadd', authController.getDoctorsparvillepaysspecialites);
 router.get('/specialties' ,authController.specialitespardoctor);
@@ -25,6 +26,8 @@ router.get('/getpays',authController.getpays);
 router.get('/getmotif',authController.getmotif);
 router.get('/gethistoriques',authController.gethistoriqu);
 router.post('/ajouterrendezvous',authController.insertAppointment);
+router.post('/ajouterrendezvousclinic',clinicController.insertAppointmentclinic);
+
 router.post('/api/forgot-password',authController.forgs);
 router.post('/api/reset-password',authController.rests);
 router.post('/api/logup',loginController.signuppatient);

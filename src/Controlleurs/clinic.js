@@ -31,13 +31,16 @@ SELECT
     GROUP_CONCAT(DISTINCT clinics.horaires SEPARATOR ', ') AS horaires,
     GROUP_CONCAT(DISTINCT clinics.clinic_photo SEPARATOR ', ') AS clinic_photos,
     GROUP_CONCAT(DISTINCT clinic_levels.name SEPARATOR ', ') AS level_names,
-    GROUP_CONCAT(DISTINCT addresses.description SEPARATOR ', ') AS adresse_descriptions,
-    GROUP_CONCAT(DISTINCT addresses.address SEPARATOR ', ') AS adresse_addresses,
-    GROUP_CONCAT(DISTINCT addresses.latitude SEPARATOR ', ') AS adresse_latitudes,
-    GROUP_CONCAT(DISTINCT addresses.longitude SEPARATOR ', ') AS adresse_longitudes,
-    GROUP_CONCAT(DISTINCT addresses.ville SEPARATOR ', ') AS adresse_villes,
-    GROUP_CONCAT(DISTINCT addresses.pays SEPARATOR ', ') AS adresse_pays 
-    
+    JSON_ARRAYAGG(
+        JSON_OBJECT(
+            'description', addresses.description,
+            'address', addresses.address,
+            'latitude', addresses.latitude,
+            'longitude', addresses.longitude,
+            'ville', addresses.ville,
+            'pays', addresses.pays
+        )
+    ) AS addresses
 FROM 
     clinics
 JOIN 

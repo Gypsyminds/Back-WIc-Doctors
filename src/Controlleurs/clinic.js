@@ -24,29 +24,30 @@ const moment = require('moment');
 const getClinic = (req, res) => {
     const query = `
 SELECT 
-    clinics.name AS clinic_name, 
-    clinics.description,  
-    clinics.phone_number,
-    clinics.mobile_number,
-    clinics.clinic_photo,
-    clinic_levels.commission AS level_commission, 
-    clinic_levels.name AS level_name, 
-    addresses.description AS adresse_description, 
-    addresses.address AS adresse_address,
-    addresses.latitude AS adresse_latitude,
-    addresses.longitude AS adresse_longitude,
-    addresses.ville AS adresse_ville,
-    addresses.pays AS adresse_pays,
-    availability_hours_clinic.start_at AS start,
-    availability_hours_clinic.end_at AS end 
+    clinics.name AS clinic_name,
+    GROUP_CONCAT(DISTINCT clinics.description SEPARATOR ', ') AS descriptions,
+    GROUP_CONCAT(DISTINCT clinics.phone_number SEPARATOR ', ') AS phone_numbers,
+    GROUP_CONCAT(DISTINCT clinics.mobile_number SEPARATOR ', ') AS mobile_numbers,
+    GROUP_CONCAT(DISTINCT clinics.horaires SEPARATOR ', ') AS horaires,
+    GROUP_CONCAT(DISTINCT clinics.clinic_photo SEPARATOR ', ') AS clinic_photos,
+    GROUP_CONCAT(DISTINCT clinic_levels.name SEPARATOR ', ') AS level_names,
+    GROUP_CONCAT(DISTINCT addresses.description SEPARATOR ', ') AS adresse_descriptions,
+    GROUP_CONCAT(DISTINCT addresses.address SEPARATOR ', ') AS adresse_addresses,
+    GROUP_CONCAT(DISTINCT addresses.latitude SEPARATOR ', ') AS adresse_latitudes,
+    GROUP_CONCAT(DISTINCT addresses.longitude SEPARATOR ', ') AS adresse_longitudes,
+    GROUP_CONCAT(DISTINCT addresses.ville SEPARATOR ', ') AS adresse_villes,
+    GROUP_CONCAT(DISTINCT addresses.pays SEPARATOR ', ') AS adresse_pays 
+    
 FROM 
     clinics
 JOIN 
     clinic_levels ON clinics.clinic_level_id = clinic_levels.id
 JOIN 
     addresses ON clinics.address_id = addresses.id
-JOIN 
-    availability_hours_clinic ON availability_hours_clinic.clinic_id = clinics.id;  
+GROUP BY 
+    clinics.name
+ORDER BY 
+    clinics.name;
 
     `;
   

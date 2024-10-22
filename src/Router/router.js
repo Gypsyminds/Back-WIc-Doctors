@@ -40,6 +40,7 @@ router.get('/getclinics', clinicController.getClinic);
 router.get('/doctors/clinic/:clinicId',clinicController.getSpecialitiesByClinicId);
 router.get('/getspecialitiesparclinics/:clinicId', clinicController.getdoctosandspeciality);
 router.get('/appointments/:patientId', authController.getAppointmentsByPatientId);
+router.get('/specialitiesclinic/:clinicId',clinicController.getspecialitesdeclinic);
 // Route de rappel (callback) après l'authauthentification réussie
 router.get('http://localhost:3000/auth/google/callback', 
     passport.authenticate('google', { failureRedirect: '/' }),

@@ -126,7 +126,29 @@ ORDER BY
         res.json(results);
     });
  }
+//router.get('/specialities/clinic/:clinicId',
+const getspecialitesdeclinic =   (req, res) => {
+    const clinicId = req.params.clinicId;
+
+    const query = `
+        SELECT 
+            specialities.name AS specialty_name
+        FROM 
+            specialities
+        JOIN 
+            clinic_specialities ON specialities.id = clinic_specialities.speciality_id
+        WHERE 
+            clinic_specialities.clinic_id = ?;
+    `;
+
+    db.query(query, [clinicId], (error, results) => {
+        if (error) {
+            return res.status(500).json({ error: 'Database query error' });
+        }
+        res.json(results);
+    });
+}
 
   module.exports = {
-    getClinic , getSpecialitiesByClinicId , getdoctosandspeciality
+    getClinic , getSpecialitiesByClinicId , getdoctosandspeciality,getspecialitesdeclinic
   }

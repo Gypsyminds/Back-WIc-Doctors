@@ -168,7 +168,36 @@ const getmotifByClinicAndSpecialite = (req, res) => {
         res.json(results);
     });
 }
+// Fonction pour obtenir le nom des médecins en fonction de l'ID de la spécialité, ID de la clinique et ID du pattern
+ const getDoctorsBySpecialityAndClinic = (req, res) => {
+    const specialityId = req.params.specialityId; // Récupérer l'ID de la spécialité depuis l'URL
+    const clinicId = req.params.clinicId;         // Récupérer l'ID de la clinique depuis l'URL
+    const patternId = req.params.patternId;       // Récupérer l'ID du pattern depuis l'URL
 
+    const query = `
+     SELECT 
+            doctors.name AS doctor_name ,
+            doctors.doctor_photo AS doctoe_photo 
+        FROM 
+            doctors
+        JOIN 
+            pattern ON doctors.id = pattern.doctor_id
+        WHERE 
+            pattern.specialite_id = ?
+            AND pattern.clinic_id = ?
+            AND pattern.id = ?;
+    `;
+
+    // Exécution de la requête SQL
+    db.query(query, [specialityId, clinicId, patternId], (error, results) => {
+        if (error) {
+            console.error('Erreur lors de la requête SQL :', error);
+            return res.status(500).json({ error: 'Erreur de requête SQL' });
+        }
+        // Renvoie des résultats en JSON
+        res.json(results);
+    });
+}
   module.exports = {
-    getClinic , getSpecialitiesByClinicId , getdoctosandspeciality,getspecialitesdeclinic,getmotifByClinicAndSpecialite
+    getClinic , getSpecialitiesByClinicId , getdoctosandspeciality,getspecialitesdeclinic,getmotifByClinicAndSpecialite , getDoctorsBySpecialityAndClinic
   }

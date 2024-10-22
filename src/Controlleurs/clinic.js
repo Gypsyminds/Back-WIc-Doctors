@@ -148,7 +148,27 @@ const getspecialitesdeclinic =   (req, res) => {
         res.json(results);
     });
 }
+const getmotifByClinicAndSpecialite = (req, res) => {
+    const clinicId = req.params.clinicId;         // Récupérer l'ID de la clinique depuis l'URL
+    const specialiteId = req.params.specialiteId; // Récupérer l'ID de la spécialité depuis l'URL
+
+    const query = `
+        SELECT nom 
+        FROM pattern 
+        WHERE clinic_id = ? AND specialite_id = ?;
+    `;
+
+    // Exécution de la requête SQL
+    db.query(query, [clinicId, specialiteId], (error, results) => {
+        if (error) {
+            console.error('Erreur lors de la requête SQL :', error);
+            return res.status(500).json({ error: 'Erreur de requête SQL' });
+        }
+        // Renvoie des résultats en JSON
+        res.json(results);
+    });
+}
 
   module.exports = {
-    getClinic , getSpecialitiesByClinicId , getdoctosandspeciality,getspecialitesdeclinic
+    getClinic , getSpecialitiesByClinicId , getdoctosandspeciality,getspecialitesdeclinic,getmotifByClinicAndSpecialite
   }

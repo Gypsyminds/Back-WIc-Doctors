@@ -24,6 +24,7 @@ const moment = require('moment');
 const getClinic = (req, res) => {
     const query = `
 SELECT 
+clinics.id AS clinic_id ,
     clinics.name AS clinic_name,
     GROUP_CONCAT(DISTINCT clinics.description SEPARATOR ', ') AS descriptions,
     GROUP_CONCAT(DISTINCT clinics.phone_number SEPARATOR ', ') AS phone_numbers,
@@ -48,7 +49,7 @@ JOIN
 JOIN 
     addresses ON clinics.address_id = addresses.id
 GROUP BY 
-    clinics.name
+    clinics.name,clinics.id
 ORDER BY 
     clinics.name;
 
@@ -366,6 +367,75 @@ db.query(qurryy, [clinic_id], (err, resulss) => {
 });
 }
 
+const updateAppointment = (req, res) => {
+    const { start_at, end_at } = req.body;
+
+    // Vérification des champs requis
+    if (!start_at || !end_at) {
+        return res.status(400).send({ message: 'Les champs start_at, end_at, new_start_at et new_end_at sont requis' });
+    }
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    jwt.verify(token, SECRET_KEY, (err, decoded) => {
+        if (err) {
+            if (err.name === 'TokenExpiredError') {
+                return res.status(401).json({ message: 'Token expiré.' });
+            }
+            return res.status(401).json({ message: 'Token invalide.' });
+        }
+    
+        // Continue the request with the decoded token
+        req.user = decoded;
+    });
+
+    if (!token) {
+        return res.status(401).json({ message: 'Accès refusé, token manquant' });
+    }
+    let user_id;
+    try {
+        const decoded = jwt.verify(token, SECRET_KEY);
+        user_id = decoded.user_id;
+      
+    } catch (error) {
+        return res.status(401).json({ error: 'Token invalide ou expiré.' });
+    }
+    db.query('SELECT * FROM  appointments WHERE user_id = ? ORDER BY start_at DESC LIMIT 1', 
+        [user_id], 
+        (err, result) => {
+            if (err) {
+                return res.status(500).send({ message: 'Erreur lors de la récupération du rendez-vous', error: err });
+            }
+
+            if (result.length === 0) {
+                return res.status(404).send({ message: 'Aucun rendez-vous trouvé pour cet utilisateur' });
+            }
+
+            const oldAppointment = result[0]; // Ancien rendez-vous
+            console.log(oldAppointment);
+            // Insérer l'historique
+            db.query('INSERT INTO availability_hours_clinic (start_at, end_at ,clinic_id) VALUES (?, ?, ?)', 
+                [oldAppointment.start_at, oldAppointment.ends_at , oldAppointment.clinic_id], 
+                (err, insertResult) => {
+                    if (err) {
+                        return res.status(500).send({ message: 'Erreur lors de l\'insertion dans history', error: err });
+                    }
+
+                    // Mettre à jour les nouvelles valeurs du rendez-vous
+                    db.query('UPDATE appointments SET start_at = ?, ends_at = ? WHERE id = ?', 
+                        [start_at, end_at, oldAppointment.id], 
+                        (err, updateResult) => {
+                            if (err) {
+                                return res.status(500).send({ message: 'Erreur lors de la mise à jour du rendez-vous', error: err });
+                            }
+
+                            return res.status(200).send({ message: 'Rendez-vous mis à jour avec succès' });
+                        });
+                });
+
+                
+});
+        }
+    
 //get availeble date pour doctors
 const getTempsClinicssById = (req, res) => {
     const clinicId = req.query.clinic_id; // Récupérer l'ID du médecin
@@ -396,4 +466,5 @@ const getTempsClinicssById = (req, res) => {
 }
   module.exports = {
     getClinic , getSpecialitiesByClinicId , getdoctosandspeciality,getspecialitesdeclinic,getmotifByClinicAndSpecialite , getDoctorsBySpecialityAndClinic, insertAppointmentclinic ,getTempsClinicssById
+    ,updateAppointment
   }

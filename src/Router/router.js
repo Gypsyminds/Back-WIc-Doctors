@@ -34,6 +34,8 @@ router.post('/api/logup',loginController.signuppatient);
 router.post('/api/logupb2b',loginController.signupb2b);
 router.put('/update/patient/:id',loginController.updateprofilpatient);
 router.put('/updateappointement',authController.updateAppointment);
+router.put('/updateappointementclinic',clinicController.updateAppointment);
+
 router.post('/api/login',loginController.signin);
 // Route pour démarrer l'authentification avec Google
 router.get('http://localhost:3000/auth/google', passport.authenticate('google'));

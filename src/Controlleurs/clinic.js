@@ -101,6 +101,7 @@ async function getSpecialitiesByClinicId(clinicId) {
 
     const query = `
      SELECT 
+     specialities.id AS specialty_id ,
     specialities.name AS specialty_name,
     GROUP_CONCAT(DISTINCT doctors.name SEPARATOR ', ') AS doctors_name,
     GROUP_CONCAT(DISTINCT doctors.doctor_photo SEPARATOR ', ') AS doctor_photos
@@ -115,7 +116,7 @@ JOIN
 WHERE 
     clinics.id = ?
 GROUP BY 
-    specialities.name
+    specialities.name , specialities.id
 ORDER BY 
     specialities.name;
     `;
@@ -154,7 +155,7 @@ const getmotifByClinicAndSpecialite = (req, res) => {
     const specialiteId = req.params.specialiteId; // Récupérer l'ID de la spécialité depuis l'URL
 
     const query = `
-        SELECT nom 
+        SELECT nom ,id 
         FROM pattern 
         WHERE clinic_id = ? AND specialite_id = ?;
     `;
@@ -177,6 +178,7 @@ const getmotifByClinicAndSpecialite = (req, res) => {
 
     const query = `
      SELECT 
+     doctors.id AS doctor_id ,
             doctors.name AS doctor_name ,
             doctors.doctor_photo AS doctoe_photo 
         FROM 

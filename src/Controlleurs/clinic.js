@@ -512,7 +512,26 @@ const getTempsClinicssById = (req, res) => {
         res.json(results);
     });
 }
+const getAvailabilityHours = (req, res) => {
+    const { clinic_id, doctor_id } = req.params;
+
+    const query = `
+        SELECT start_at, end_at 
+        FROM availability_hours_clinic 
+        WHERE clinic_id = ? AND doctor_id = ?;
+    `;
+
+    db.query(query, [clinic_id, doctor_id], (err, results) => {
+        if (err) {
+            console.error('Erreur lors de la récupération des heures de disponibilité:', err.stack);
+            return res.status(500).json({ error: 'Erreur interne du serveur' });
+        }
+
+        // Retourner les résultats en JSON
+        res.status(200).json(results);
+    });
+};
   module.exports = {
     getClinic , getSpecialitiesByClinicId , getdoctosandspeciality,getspecialitesdeclinic,getmotifByClinicAndSpecialite , getDoctorsBySpecialityAndClinic, insertAppointmentclinic ,getTempsClinicssById
-    ,updateAppointment
+    ,updateAppointment , getAvailabilityHours
   }

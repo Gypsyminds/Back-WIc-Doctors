@@ -35,6 +35,7 @@ router.post('/api/logupb2b',loginController.signupb2b);
 router.put('/update/patient/:id',loginController.updateprofilpatient);
 router.put('/updateappointement',authController.updateAppointment);
 router.put('/updateappointementclinic',clinicController.updateAppointment);
+router.get('/availability/:clinic_id/:doctor_id', clinicController.getAvailabilityHours);
 
 router.post('/api/login',loginController.signin);
 // Route pour démarrer l'authentification avec Google

@@ -1465,7 +1465,165 @@ const { error } = require('console');
         return R * c; // Distance en kilomètres
     }
     
+// Middleware pour vérifier le token JWT
+function verifyToken(req, res, next) {
+    const token = req.headers['authorization'];
+    if (!token) return res.status(403).send({ message: 'Token requis' });
 
+    jwt.verify(token, 'your_secret_key', (err, decoded) => {
+        if (err) return res.status(500).send({ message: 'Token invalide' });
+        req.userId = decoded.id; // L'ID de l'utilisateur extrait du token
+      
+    });
+}
+const updateAppointment = (req, res) => {
+    const { start_at, end_at } = req.body;
+
+    // Vérification des champs requis
+    if (!start_at || !end_at) {
+        return res.status(400).send({ message: 'Les champs start_at, end_at, new_start_at et new_end_at sont requis' });
+    }
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    jwt.verify(token, SECRET_KEY, (err, decoded) => {
+        if (err) {
+            if (err.name === 'TokenExpiredError') {
+                return res.status(401).json({ message: 'Token expiré.' });
+            }
+            return res.status(401).json({ message: 'Token invalide.' });
+        }
+    
+        // Continue the request with the decoded token
+        req.user = decoded;
+    });
+
+    if (!token) {
+        return res.status(401).json({ message: 'Accès refusé, token manquant' });
+    }
+    let user_id;
+    try {
+        const decoded = jwt.verify(token, SECRET_KEY);
+        user_id = decoded.user_id;
+      
+    } catch (error) {
+        return res.status(401).json({ error: 'Token invalide ou expiré.' });
+    }
+    db.query('SELECT * FROM  appointments WHERE user_id = ? ORDER BY start_at DESC LIMIT 1', 
+        [user_id], 
+        (err, result) => {
+            if (err) {
+                return res.status(500).send({ message: 'Erreur lors de la récupération du rendez-vous', error: err });
+            }
+
+            if (result.length === 0) {
+                return res.status(404).send({ message: 'Aucun rendez-vous trouvé pour cet utilisateur' });
+            }
+
+            const oldAppointment = result[0]; // Ancien rendez-vous
+            console.log(oldAppointment);
+            // Insérer l'historique
+            db.query('INSERT INTO availability_hours (start_at, end_at ,doctor_id) VALUES (?, ?, ?)', 
+                [oldAppointment.start_at, oldAppointment.ends_at , oldAppointment.doctor_id], 
+                (err, insertResult) => {
+                    if (err) {
+                        return res.status(500).send({ message: 'Erreur lors de l\'insertion dans history', error: err });
+                    }
+
+                    // Mettre à jour les nouvelles valeurs du rendez-vous
+                    db.query('UPDATE appointments SET start_at = ?, ends_at = ? WHERE id = ?', 
+                        [start_at, end_at, oldAppointment.id], 
+                        (err, updateResult) => {
+                            if (err) {
+                                return res.status(500).send({ message: 'Erreur lors de la mise à jour du rendez-vous', error: err });
+                            }
+
+                            return res.status(200).send({ message: 'Rendez-vous mis à jour avec succès' });
+                        });
+                });
+
+                db.query('SELECT d.id AS doctor_id, d.name AS doctor_name, u.email AS doctor_email FROM appointments r JOIN doctors d ON r.doctor_id = d.id JOIN users u ON d.user_id = u.id WHERE r.id = ?;', 
+                    [oldAppointment.id], 
+                    (err, resulta) => {
+                        if (err) {
+                            return res.status(500).send({ message: 'Erreur lors de la récupération du rendez-vous', error: err });
+                        }
+            
+                        if (result.length === 0) {
+                            return res.status(404).send({ message: 'Aucun rendez-vous trouvé pour cet utilisateur' });
+                        }
+                        const doctorEmail = resulta[0].doctor_email; // Récupérer l'email du docteur
+                        const doctorName = resulta[0].doctor_name; 
+
+                        db.query('SELECT * FROM patients WHERE user_id= ?;', 
+                            [user_id], 
+                            (err, resultas) => {
+                                if (err) {
+                                    return res.status(500).send({ message: 'Erreur lors de la récupération du rendez-vous', error: err });
+                                }
+                    
+                                if (result.length === 0) {
+                                    return res.status(404).send({ message: 'Aucun rendez-vous trouvé pour cet utilisateur' });
+                                }
+                                const patientName = resultas[0].first_name;
+                                const startDate = new Date(start_at); // Convert to JavaScript Date object
+
+                                // Format to display the day in words and time without seconds
+                                const formattedStartAt = startDate.toLocaleString('fr-FR', {
+                                    weekday: 'long',   // Full name of the day (e.g., "lundi")
+                                    hour: '2-digit',   // Two-digit hour (e.g., "14" for 2 PM)
+                                    minute: '2-digit', // Two-digit minute
+                                });
+
+                                const startDate1 = new Date(oldAppointment.start_at); // Convert to JavaScript Date object
+
+                                // Format to display the day in words and time without seconds
+                                const formattedStartAt1 = startDate.toLocaleString('fr-FR', {
+                                    weekday: 'long',   // Full name of the day (e.g., "lundi")
+                                    hour: '2-digit',   // Two-digit hour (e.g., "14" for 2 PM)
+                                    minute: '2-digit', // Two-digit minute
+                                });
+                const transporter = nodemailer.createTransport({
+                    service: 'gmail',
+                    port: 587,
+                    secure: false, 
+                    auth: {
+                        user: 'laajili.khouloud12@gmail.com', 
+                        pass: 'lmvy ldix qtgm gbna', // Remplacez ceci par un mot de passe d'application pour plus de sécurité
+                    },
+                });
+            
+                const mailOptions = {
+                    from: 'laajili.khouloud12@gmail.com',
+                    to: doctorEmail,
+                    subject: 'Modification De Rendez-vous',
+                    html: `
+                        <html>
+                        <body>
+                            <h2>Bienvenue  Cher Doctor ${JSON.parse(doctorName).fr} </h2>
+                            <p>Votre patient ${patientName}  a modifier son rendez-vous de  ${formattedStartAt1} à   ${formattedStartAt} </p>
+                            
+                            <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+                        </body>
+                        </html>
+                    `,
+                };
+            
+                transporter.sendMail(mailOptions, function(error, info) {
+                    if (error) {
+                        console.error('Error sending email:', error);
+                        return res.status(500).json({ error: 'Erreur lors de l\'envoi de l\'email.' });
+                    } else {
+                        console.log('Email sent: ' + info.response);
+                        // Répondre avec le message et l'ID de l'utilisateur
+                        return res.status(201).json({ message: 'Merci de vous être inscrit ! Veuillez confirmer votre e-mail ! Nous avons envoyé un lien !', userId });
+                    }
+                });
+        }
+    );
+                    });
+});
+        }
+    
 
 
 module.exports = {
@@ -1477,6 +1635,6 @@ module.exports = {
     getvilles,getpays,getmotif,gethistoriqu,
     insertAppointment,getville,
     forgs,rests,insertAppointment,getplusprochedoc
-    ,getAppointmentsByPatientId
+    ,getAppointmentsByPatientId , updateAppointment
 }
 

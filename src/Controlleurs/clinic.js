@@ -21,7 +21,7 @@ const moment = require('moment');
 
 
 // Fonction pour obtenir les informations des cliniques
-const getClinic = (req, res) => {
+const getClinics = (req, res) => {
     const query = `
 SELECT 
 clinics.id AS clinic_id ,
@@ -67,6 +67,52 @@ ORDER BY
       res.status(200).json(results);
     });
   }
+
+  const getClinic = (req, res) => {
+    const query = `
+SELECT 
+    clinics.name AS clinic_name,
+    GROUP_CONCAT(DISTINCT clinics.description SEPARATOR ', ') AS descriptions,
+    GROUP_CONCAT(DISTINCT clinics.phone_number SEPARATOR ', ') AS phone_numbers,
+    GROUP_CONCAT(DISTINCT clinics.mobile_number SEPARATOR ', ') AS mobile_numbers,
+    GROUP_CONCAT(DISTINCT clinics.horaires SEPARATOR ', ') AS horaires,
+    GROUP_CONCAT(DISTINCT clinics.clinic_photo SEPARATOR ', ') AS clinic_photos,
+    GROUP_CONCAT(DISTINCT clinic_levels.name SEPARATOR ', ') AS level_names,
+    JSON_ARRAYAGG(
+        JSON_OBJECT(
+            'description', addresses.description,
+            'address', addresses.address,
+            'latitude', addresses.latitude,
+            'longitude', addresses.longitude,
+            'ville', addresses.ville,
+            'pays', addresses.pays
+        )
+    ) AS addresses
+FROM 
+    clinics
+JOIN 
+    clinic_levels ON clinics.clinic_level_id = clinic_levels.id
+JOIN 
+    addresses ON clinics.address_id = addresses.id
+GROUP BY 
+    clinics.name
+ORDER BY 
+    clinics.name;
+    `;
+
+    // Exécuter la requête SQL
+    db.query(query, (err, results) => {
+      if (err) {
+        console.error('Erreur lors de la récupération des cliniques:', err.stack);
+        res.status(500).json({ error: 'Erreur interne du serveur' });
+        return;
+      }
+
+      // Retourner les résultats en JSON
+      res.status(200).json(results);
+    });
+}
+
   // Fonction pour obtenir les spécialités par clinic_id
 async function getSpecialitiesByClinicId(clinicId) {
     const query = `

@@ -49,7 +49,7 @@ JOIN
 JOIN 
     addresses ON clinics.address_id = addresses.id
 GROUP BY 
-    clinics.name,clinics.id
+    clinics.name,clinics.id 
 ORDER BY 
     clinics.name;
 

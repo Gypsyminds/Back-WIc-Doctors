@@ -285,7 +285,7 @@ function insertAppointmentclinic(req, res) {
 
     const { appointment_at, ends_at, start_at, doctor_id, clinic_id, doctor, patient, address, motif_id } = req.body;
 
-    if (!appointment_at || !ends_at || !start_at || !doctor_id || !clinic_id ) {
+    if ( !ends_at || !start_at || !doctor_id || !clinic_id || !motif_id ) {
         return res.status(400).json({ error: 'Tous les champs sont requis.' });
     }
 

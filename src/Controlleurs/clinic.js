@@ -71,6 +71,7 @@ ORDER BY
   const getClinic = (req, res) => {
     const query = `
 SELECT 
+clinics.id AS clinic_id ,
     clinics.name AS clinic_name,
     GROUP_CONCAT(DISTINCT clinics.description SEPARATOR ', ') AS descriptions,
     GROUP_CONCAT(DISTINCT clinics.phone_number SEPARATOR ', ') AS phone_numbers,
@@ -95,7 +96,7 @@ JOIN
 JOIN 
     addresses ON clinics.address_id = addresses.id
 GROUP BY 
-    clinics.name
+    clinics.name ,clinics.id 
 ORDER BY 
     clinics.name;
     `;
@@ -530,8 +531,44 @@ const getAvailabilityHours = (req, res) => {
         // Retourner les résultats en JSON
         res.status(200).json(results);
     });
-};
+}
+
+const axios = require('axios');
+
+// Fonction pour envoyer un SMS
+const sendSMS = async (req, res) => {
+    const { apiKey, from, to, message } = req.body;
+
+    const url = 'https://wicsms.com/apis/smscontact/';
+    const fields = {
+        apikey: apiKey,
+        from: from,
+        to: to,
+        message: message,
+    };
+
+    try {
+        const response = await axios.post(url, new URLSearchParams(fields), {
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+        });
+
+        // Envoyer la réponse de l'API au client
+        return res.status(200).json({
+            success: true,
+            data: response.data,
+        });
+    } catch (error) {
+        // Gérer les erreurs
+        return res.status(500).json({
+            success: false,
+            message: 'Erreur lors de l\'envoi du SMS',
+            error: error.message,
+        });
+    }
+}
   module.exports = {
     getClinic , getSpecialitiesByClinicId , getdoctosandspeciality,getspecialitesdeclinic,getmotifByClinicAndSpecialite , getDoctorsBySpecialityAndClinic, insertAppointmentclinic ,getTempsClinicssById
-    ,updateAppointment , getAvailabilityHours
+    ,updateAppointment , getAvailabilityHours , sendSMS
   }

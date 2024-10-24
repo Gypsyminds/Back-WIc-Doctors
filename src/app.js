@@ -11,7 +11,8 @@ require('./config/facebook');
 // Configuration de CORS et du body parser
 app.use(cors());
 app.use(bodyParser.json());
-
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 // Configuration de la session
 app.use(session({
     secret: 'koukou',

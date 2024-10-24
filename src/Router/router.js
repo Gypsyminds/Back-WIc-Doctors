@@ -37,6 +37,8 @@ router.put('/updateappointement',authController.updateAppointment);
 router.put('/updateappointementclinic',clinicController.updateAppointment);
 router.get('/availability/:clinic_id/:doctor_id', clinicController.getAvailabilityHours);
 
+
+router.post('/send-sms', clinicController.sendSMS);
 router.post('/api/login',loginController.signin);
 // Route pour démarrer l'authentification avec Google
 router.get('http://localhost:3000/auth/google', passport.authenticate('google'));

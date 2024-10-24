@@ -20,13 +20,13 @@ const moment = require('moment');
 
 
 
-// Fonction pour obtenir les informations des cliniques
-const getClinics = (req, res) => {
-    const query = `
+
+const getClinic = (req, res) => {
+    const query =  `
 SELECT 
-clinics.id AS clinic_id ,
+    MIN(clinics.id) AS clinic_id,  -- Utiliser MIN pour obtenir un ID représentatif
     clinics.name AS clinic_name,
-    GROUP_CONCAT(DISTINCT clinics.description SEPARATOR ', ') AS descriptions,
+    clinics.description AS description,
     GROUP_CONCAT(DISTINCT clinics.phone_number SEPARATOR ', ') AS phone_numbers,
     GROUP_CONCAT(DISTINCT clinics.mobile_number SEPARATOR ', ') AS mobile_numbers,
     GROUP_CONCAT(DISTINCT clinics.horaires SEPARATOR ', ') AS horaires,
@@ -49,58 +49,12 @@ JOIN
 JOIN 
     addresses ON clinics.address_id = addresses.id
 GROUP BY 
-    clinics.name,clinics.id 
+    clinics.name, clinics.description  -- Retirer clinics.id du GROUP BY
 ORDER BY 
     clinics.name;
 
-    `;
-  
-    // Exécuter la requête SQL
-    db.query(query, (err, results) => {
-      if (err) {
-        console.error('Erreur lors de la récupération des cliniques:', err.stack);
-        res.status(500).json({ error: 'Erreur interne du serveur' });
-        return;
-      }
-      
-      // Retourner les résultats en JSON
-      res.status(200).json(results);
-    });
-  }
-
-  const getClinic = (req, res) => {
-    const query = `
-SELECT 
-clinics.id AS clinic_id ,
-    clinics.name AS clinic_name,
-    GROUP_CONCAT(DISTINCT clinics.description SEPARATOR ', ') AS descriptions,
-    GROUP_CONCAT(DISTINCT clinics.phone_number SEPARATOR ', ') AS phone_numbers,
-    GROUP_CONCAT(DISTINCT clinics.mobile_number SEPARATOR ', ') AS mobile_numbers,
-    GROUP_CONCAT(DISTINCT clinics.horaires SEPARATOR ', ') AS horaires,
-    GROUP_CONCAT(DISTINCT clinics.clinic_photo SEPARATOR ', ') AS clinic_photos,
-    GROUP_CONCAT(DISTINCT clinic_levels.name SEPARATOR ', ') AS level_names,
-    JSON_ARRAYAGG(
-        JSON_OBJECT(
-            'description', addresses.description,
-            'address', addresses.address,
-            'latitude', addresses.latitude,
-            'longitude', addresses.longitude,
-            'ville', addresses.ville,
-            'pays', addresses.pays
-        )
-    ) AS addresses
-FROM 
-    clinics
-JOIN 
-    clinic_levels ON clinics.clinic_level_id = clinic_levels.id
-JOIN 
-    addresses ON clinics.address_id = addresses.id
-GROUP BY 
-    clinics.name ,clinics.id 
-ORDER BY 
-    clinics.name;
-    `;
-
+    
+`
     // Exécuter la requête SQL
     db.query(query, (err, results) => {
       if (err) {
@@ -113,7 +67,6 @@ ORDER BY
       res.status(200).json(results);
     });
 }
-
   // Fonction pour obtenir les spécialités par clinic_id
 async function getSpecialitiesByClinicId(clinicId) {
     const query = `
@@ -535,24 +488,34 @@ const getAvailabilityHours = (req, res) => {
 
 const axios = require('axios');
 
+
+
 // Fonction pour envoyer un SMS
 const sendSMS = async (req, res) => {
     const { apiKey, from, to, message } = req.body;
 
-    const url = 'https://wicsms.com/apis/smscontact/';
-    const fields = {
-        apikey: apiKey,
-        from: from,
-        to: to,
-        message: message,
-    };
+    // Validation des paramètres
+    if (!apiKey || !from || !to || !message) {
+        return res.status(400).json({
+            success: false,
+            message: 'Tous les champs (apiKey, from, to, message) sont requis.',
+        });
+    }
+
+    // Construire l'URL avec les paramètres
+    const url = `https://wicsms.com/apis/smscontact/?apikey=${encodeURIComponent(apiKey)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&message=${encodeURIComponent(message)}`;
 
     try {
-        const response = await axios.post(url, new URLSearchParams(fields), {
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-        });
+        // Faire la requête GET vers l'API SMS
+        const response = await axios.get(url);
+
+        // Vérifier si la réponse contient une erreur
+        if (response.data[0].status && response.data[0].status !== '1') {
+            return res.status(400).json({
+                success: false,
+                message: response.data[0].msg,
+            });
+        }
 
         // Envoyer la réponse de l'API au client
         return res.status(200).json({
@@ -567,7 +530,10 @@ const sendSMS = async (req, res) => {
             error: error.message,
         });
     }
-}
+};
+
+module.exports = { sendSMS };
+
   module.exports = {
     getClinic , getSpecialitiesByClinicId , getdoctosandspeciality,getspecialitesdeclinic,getmotifByClinicAndSpecialite , getDoctorsBySpecialityAndClinic, insertAppointmentclinic ,getTempsClinicssById
     ,updateAppointment , getAvailabilityHours , sendSMS

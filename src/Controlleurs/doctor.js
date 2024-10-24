@@ -1477,10 +1477,10 @@ function verifyToken(req, res, next) {
     });
 }
 const updateAppointment = (req, res) => {
-    const { start_at, end_at } = req.body;
+    const { start_at, end_at ,patern_id} = req.body;
 
     // Vérification des champs requis
-    if (!start_at || !end_at) {
+    if (!start_at || !end_at || !patern_id) {
         return res.status(400).send({ message: 'Les champs start_at, end_at, new_start_at et new_end_at sont requis' });
     }
     const authHeader = req.headers['authorization'];
@@ -1522,8 +1522,8 @@ const updateAppointment = (req, res) => {
             const oldAppointment = result[0]; // Ancien rendez-vous
             console.log(oldAppointment);
             // Insérer l'historique
-            db.query('INSERT INTO availability_hours (start_at, end_at ,doctor_id) VALUES (?, ?, ?)', 
-                [oldAppointment.start_at, oldAppointment.ends_at , oldAppointment.doctor_id], 
+            db.query('INSERT INTO availability_hours (start_at, end_at ,doctor_id , patern_id) VALUES (?, ?, ?,?)', 
+                [oldAppointment.start_at, oldAppointment.ends_at , oldAppointment.doctor_id ,patern_id], 
                 (err, insertResult) => {
                     if (err) {
                         return res.status(500).send({ message: 'Erreur lors de l\'insertion dans history', error: err });
@@ -1577,7 +1577,7 @@ const updateAppointment = (req, res) => {
                                 const startDate1 = new Date(oldAppointment.start_at); // Convert to JavaScript Date object
 
                                 // Format to display the day in words and time without seconds
-                                const formattedStartAt1 = startDate.toLocaleString('fr-FR', {
+                                const formattedStartAt1 = startDate1.toLocaleString('fr-FR', {
                                     weekday: 'long',   // Full name of the day (e.g., "lundi")
                                     hour: '2-digit',   // Two-digit hour (e.g., "14" for 2 PM)
                                     minute: '2-digit', // Two-digit minute

@@ -284,10 +284,10 @@ async function signupss(req, res) {
     });
 }
 async function signuppatient(req, res) {
-    const { name, email, phone } = req.body; // Ajoutez userType
+    const {  email, phone , lastname ,firstname} = req.body; // Ajoutez userType
 
     // Validez les entrées
-    if (!name || !email || !phone ) {
+    if (!firstname ||!lastname || !email || !phone ) {
         return res.status(400).json({ error: 'Tous les champs sont requis.' });
     }
 
@@ -295,9 +295,9 @@ async function signuppatient(req, res) {
     const hashedPassword = await bcrypt.hash(password, 10); // 10 est le nombre de "salt rounds"
 
     // Insertion de l'utilisateur dans la table users
-    const userSql = 'INSERT INTO users (name, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, NOW())';
+    const userSql = 'INSERT INTO users (firstname,lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
     
-    db.execute(userSql, [name, email, phone, hashedPassword], async (err, userResults) => {
+    db.execute(userSql, [firstname, lastname, email, phone, hashedPassword], async (err, userResults) => {
         if (err) {
             console.error('Error inserting user:', err);
             return res.status(500).json({ error: 'Database error while inserting user.' });
@@ -307,8 +307,8 @@ async function signuppatient(req, res) {
 
 
         // Insert into patients table
-        const insertSql = 'INSERT INTO patients (user_id, first_name, phone_number, created_at) VALUES (?, ?, ?,NOW())';
-        const values = [userId,name,phone]; // Assuming you just need to store the userId
+        const insertSql = 'INSERT INTO patients (user_id, first_name, last_name ,phone_number, created_at) VALUES (?,?, ?, ?,NOW())';
+        const values = [userId,firstname,lastname,phone]; // Assuming you just need to store the userId
 
         db.execute(insertSql, values, (err) => {
             if (err) {
@@ -317,7 +317,7 @@ async function signuppatient(req, res) {
             }
 
             // Send confirmation email
-            sendConfirmationEmail(name, email, password, res, userId);
+            sendConfirmationEmail(firstname+lastname, email, password, res, userId);
         });
     });
     

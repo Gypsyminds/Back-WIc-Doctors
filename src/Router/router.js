@@ -19,6 +19,9 @@ router.get('/afftempsdoctorsbyid',authController.getDoctorsById);
 router.get('/afftempsclinicsbyid',clinicController.getTempsClinicssById);
 router.get('/affalldoctors', authController.getalldoctors);
 router.get('/doctorsadd', authController.getDoctorsparvillepaysspecialites);
+router.get('/getclinicsspcitypay', clinicController.getClinicsBySpecialityCityCountry);
+
+
 router.get('/specialties' ,authController.specialitespardoctor);
 router.get('/doctorspos',authController.getadressempas);
 router.get('/getvilles',authController.getvilles);

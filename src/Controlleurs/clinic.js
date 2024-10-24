@@ -623,9 +623,97 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
     return distance;
 }
 
+const getClinicsBySpecialityCityCountry = (req, res) => {
+    const speciality_id = req.query.speciality_id;  // ID de la spécialité
+    const city = req.query.city;                      // Ville
+    const country = req.query.country;                // Pays
+
+    let query = `
+        SELECT 
+            c.id AS clinic_id,
+            c.name AS clinic_name,
+            c.description AS description,
+            GROUP_CONCAT(DISTINCT c.phone_number SEPARATOR ', ') AS phone_numbers,
+            GROUP_CONCAT(DISTINCT c.mobile_number SEPARATOR ', ') AS mobile_numbers,
+            GROUP_CONCAT(DISTINCT c.horaires SEPARATOR ', ') AS horaires,
+            GROUP_CONCAT(DISTINCT c.clinic_photo SEPARATOR ', ') AS clinic_photos,
+            GROUP_CONCAT(DISTINCT cl.name SEPARATOR ', ') AS level_names,
+            JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
+            JSON_ARRAYAGG(
+                JSON_OBJECT(
+                    'address_id', a.id, 
+                    'description', a.description,
+                    'address', a.address,
+                    'latitude', a.latitude,
+                    'longitude', a.longitude,
+                    'ville', a.ville,
+                    'pays', a.pays
+                )
+            ) AS addresses
+        FROM 
+            clinics c
+        LEFT JOIN 
+            clinic_specialities cs ON c.id = cs.clinic_id 
+        LEFT JOIN 
+            specialities s ON cs.speciality_id = s.id 
+        JOIN 
+            addresses a ON a.id = c.address_id 
+        JOIN 
+            clinic_levels cl ON c.clinic_level_id = cl.id
+    `;
+
+    const queryParams = [];
+    const conditions = [];
+
+    // Condition pour la spécialité
+    if (speciality_id) {
+        conditions.push('cs.speciality_id = ?');
+        queryParams.push(speciality_id);
+    }
+
+    // Condition pour la ville
+    if (city) {
+        conditions.push('a.ville = ?');
+        queryParams.push(city);
+    }
+
+    // Condition pour le pays
+    if (country) {
+        conditions.push('a.pays = ?');
+        queryParams.push(country);
+    }
+
+    // Ajouter les conditions à la requête si nécessaire
+    if (conditions.length > 0) {
+        query += ` WHERE ${conditions.join(' AND ')}`;
+    }
+
+    // Regroupement des résultats
+    query += `
+        GROUP BY 
+            c.id,
+            c.name,
+            c.description
+        ORDER BY 
+            c.name;  -- Vous pouvez changer le critère de tri selon vos besoins
+    `;
+
+    // Exécution de la requête
+    db.query(query, queryParams, (err, results) => {
+        if (err) {
+            console.error(err);  // Débogage
+            return res.status(500).json({ error: 'Erreur lors de la récupération des cliniques.' });
+        }
+        // Vérification si des résultats ont été trouvés
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucune clinique trouvée avec ces critères.' });
+        }
+        res.json(results);
+    });
+};
 
 
   module.exports = {
     getClinic , getSpecialitiesByClinicId , getdoctosandspeciality,getspecialitesdeclinic,getmotifByClinicAndSpecialite , getDoctorsBySpecialityAndClinic, insertAppointmentclinic ,getTempsClinicssById
-    ,updateAppointment , getAvailabilityHours , sendSMS , getplusprocheclinic
+    ,updateAppointment , getAvailabilityHours , sendSMS , getplusprocheclinic , getClinicsBySpecialityCityCountry
   }

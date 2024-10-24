@@ -45,6 +45,8 @@ router.get('http://localhost:3000/auth/google', passport.authenticate('google'))
 router.post('/logout', loginController.logout);
 router.post('/reset-password', loginController.resetPassword);
 router.get('/api/doctorsparposition', authController.getplusprochedoc);
+router.get('/api/clinicsparposition', clinicController.getplusprocheclinic);
+
 router.get('/getclinics', clinicController.getClinic);
 router.get('/doctors/clinic/:clinicId',clinicController.getSpecialitiesByClinicId);
 router.get('/getspecialitiesparclinics/:clinicId', clinicController.getdoctosandspeciality);

@@ -51,10 +51,7 @@ JOIN
 GROUP BY 
     clinics.name, clinics.description  -- Retirer clinics.id du GROUP BY
 ORDER BY 
-    clinics.name;
-
-    
-`
+    clinics.name; `
     // Exécuter la requête SQL
     db.query(query, (err, results) => {
       if (err) {
@@ -532,9 +529,103 @@ const sendSMS = async (req, res) => {
     }
 };
 
-module.exports = { sendSMS };
+
+// Function to get the closest clinic
+const getplusprocheclinic = (req, res) => {
+    const userLatitude = parseFloat(req.query.latitude);
+    const userLongitude = parseFloat(req.query.longitude);
+
+    const query = `SELECT 
+        clinics.id AS clinic_id,
+        clinics.name AS clinic_name,
+        clinics.description AS description,
+        GROUP_CONCAT(DISTINCT clinics.phone_number SEPARATOR ', ') AS phone_numbers,
+        GROUP_CONCAT(DISTINCT clinics.mobile_number SEPARATOR ', ') AS mobile_numbers,
+        GROUP_CONCAT(DISTINCT clinics.horaires SEPARATOR ', ') AS horaires,
+        GROUP_CONCAT(DISTINCT clinics.clinic_photo SEPARATOR ', ') AS clinic_photos,
+        GROUP_CONCAT(DISTINCT clinic_levels.name SEPARATOR ', ') AS level_names,
+        JSON_ARRAYAGG(
+            JSON_OBJECT(
+                'address_id', addresses.id, 
+                'description', addresses.description,
+                'address', addresses.address,
+                'latitude', addresses.latitude,
+                'longitude', addresses.longitude,
+                'ville', addresses.ville,
+                'pays', addresses.pays
+            )
+        ) AS addresses
+    FROM 
+        clinics
+    JOIN 
+        clinic_levels ON clinics.clinic_level_id = clinic_levels.id
+    JOIN 
+        addresses ON addresses.id = clinics.address_id
+    GROUP BY 
+        clinics.id
+    ORDER BY 
+        clinics.name;
+    `;
+
+    db.query(query, (err, results) => {
+        if (err) {
+            return res.status(500).json({ error: 'Erreur lors de la récupération des cliniques.' });
+        }
+
+        // Calculate distance and add it to each clinic
+        const clinicsWithDistance = results.map(clinic => {
+            const addresses = clinic.addresses; // Already a JSON array, no need to parse
+
+            if (addresses && addresses.length > 0) {
+                const clinicAddress = addresses[0]; // Assume first address for distance calculation
+
+                if (clinicAddress.latitude && clinicAddress.longitude) {
+                    // Calculate distance only if latitude and longitude exist
+                    const distance = haversineDistance(
+                        userLatitude, 
+                        userLongitude, 
+                        clinicAddress.latitude, 
+                        clinicAddress.longitude
+                    );
+
+                    return {
+                        ...clinic,
+                        distance: distance
+                    };
+                }
+            }
+
+            // If no valid latitude/longitude, return distance as null
+            return {
+                ...clinic,
+                distance: null
+            };
+        });
+
+        // Sort clinics by distance
+        clinicsWithDistance.sort((a, b) => a.distance - b.distance);
+
+        // Return the closest clinics
+        res.json(clinicsWithDistance);
+    });
+};
+
+// Haversine distance calculation function
+function haversineDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radius of Earth in kilometers
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+    return distance;
+}
+
+
 
   module.exports = {
     getClinic , getSpecialitiesByClinicId , getdoctosandspeciality,getspecialitesdeclinic,getmotifByClinicAndSpecialite , getDoctorsBySpecialityAndClinic, insertAppointmentclinic ,getTempsClinicssById
-    ,updateAppointment , getAvailabilityHours , sendSMS
+    ,updateAppointment , getAvailabilityHours , sendSMS , getplusprocheclinic
   }

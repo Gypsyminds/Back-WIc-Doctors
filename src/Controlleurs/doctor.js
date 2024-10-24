@@ -473,7 +473,7 @@ const getalldoctors = (req, res) => {
     JOIN 
         experiences a ON d.id = a.doctor_id 
     JOIN 
-        users usr ON d.user_id = usr.id -- Join users to get phone_number
+        users usr ON d.user_id = usr.id 
     JOIN 
         addresses addr ON usr.id = addr.user_id 
     GROUP BY  
@@ -486,7 +486,7 @@ const getalldoctors = (req, res) => {
         d.cabinet_photo,
         d.created_at,
         a.title,
-        usr.phone_number,  -- Group by phone number as well
+        usr.phone_number,  
         addr.ville
    ORDER BY RAND()
    `;

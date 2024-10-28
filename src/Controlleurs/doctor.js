@@ -1476,7 +1476,7 @@ function verifyToken(req, res, next) {
       
     });
 }
-const updateAppointment = (req, res) => {
+const updateAppointments = (req, res) => {
     const { start_at, end_at ,patern_id} = req.body;
 
     // Vérification des champs requis
@@ -1520,7 +1520,7 @@ const updateAppointment = (req, res) => {
             }
 
             const oldAppointment = result[0]; // Ancien rendez-vous
-            console.log(oldAppointment);
+           // console.log(oldAppointment);
             // Insérer l'historique
             db.query('INSERT INTO availability_hours (start_at, end_at ,doctor_id , patern_id) VALUES (?, ?, ?,?)', 
                 [oldAppointment.start_at, oldAppointment.ends_at , oldAppointment.doctor_id ,patern_id], 
@@ -1537,7 +1537,7 @@ const updateAppointment = (req, res) => {
                                 return res.status(500).send({ message: 'Erreur lors de la mise à jour du rendez-vous', error: err });
                             }
 
-                            return res.status(200).send({ message: 'Rendez-vous mis à jour avec succès' });
+                            return res.status(200).send({ message: 'Rendez-vous mis à jour avec succès', appointment: updateAppointment });
                         });
                 });
 
@@ -1615,7 +1615,8 @@ const updateAppointment = (req, res) => {
                     } else {
                         console.log('Email sent: ' + info.response);
                         // Répondre avec le message et l'ID de l'utilisateur
-                        return res.status(201).json({ message: 'Merci de vous être inscrit ! Veuillez confirmer votre e-mail ! Nous avons envoyé un lien !', userId });
+                        return res.status(200).json({ message: 'Merci de vous être inscrit ! Veuillez confirmer votre e-mail ! Nous avons envoyé un lien !',   appointment: updateAppointment  });
+                        
                     }
                 });
         }
@@ -1623,7 +1624,165 @@ const updateAppointment = (req, res) => {
                     });
 });
         }
-    
+        const updateAppointment = async (req, res) => {
+            const { start_at, end_at, patern_id } = req.body;
+            
+            if (!start_at || !end_at || !patern_id) {
+                return res.status(400).send({ message: 'Les champs start_at, end_at et patern_id sont requis' });
+            }
+            
+            const authHeader = req.headers['authorization'];
+            const token = authHeader && authHeader.split(' ')[1];
+            
+            if (!token) {
+                return res.status(401).json({ message: 'Accès refusé, token manquant' });
+            }
+            
+            let user_id;
+            try {
+                const decoded = jwt.verify(token, SECRET_KEY);
+                user_id = decoded.user_id;
+            } catch (error) {
+                return res.status(401).json({ error: 'Token invalide ou expiré.' });
+            }
+            
+            try {
+                const [oldAppointments] = await db.promise().query(
+                    'SELECT * FROM appointments WHERE user_id = ? ORDER BY start_at DESC LIMIT 1', 
+                    [user_id]
+                );
+                
+                if (oldAppointments.length === 0) {
+                    return res.status(404).send({ message: 'Aucun rendez-vous trouvé pour cet utilisateur' });
+                }
+                
+                const oldAppointment = oldAppointments[0];
+                
+                await db.promise().query(
+                    'INSERT INTO availability_hours (start_at, end_at, doctor_id, patern_id) VALUES (?, ?, ?, ?)', 
+                    [oldAppointment.start_at, oldAppointment.ends_at, oldAppointment.doctor_id, patern_id]
+                );
+                
+                await db.promise().query(
+                    'UPDATE appointments SET start_at = ?, ends_at = ? WHERE id = ?', 
+                    [start_at, end_at, oldAppointment.id]
+                );
+        
+                const updatedAppointment = {
+                    ...oldAppointment,
+                    start_at: start_at,
+                    ends_at: end_at,
+                    patern_id: patern_id
+                };
+                
+                const [doctorInfo] = await db.promise().query(
+                    'SELECT d.id AS doctor_id, d.name AS doctor_name, u.email AS doctor_email FROM appointments r JOIN doctors d ON r.doctor_id = d.id JOIN users u ON d.user_id = u.id WHERE r.id = ?', 
+                    [oldAppointment.id]
+                );
+        
+                if (doctorInfo.length === 0) {
+                    return res.status(404).send({ message: 'Informations du médecin introuvables' });
+                }
+        
+                const doctorEmail = doctorInfo[0].doctor_email;
+                const doctorName = JSON.parse(doctorInfo[0].doctor_name).fr;
+        
+                const [patientInfo] = await db.promise().query(
+                    'SELECT * FROM patients WHERE user_id= ?', 
+                    [user_id]
+                );
+                
+                if (patientInfo.length === 0) {
+                    return res.status(404).send({ message: 'Informations du patient introuvables' });
+                }
+                const [patientEmail] = await db.promise().query(
+                    'SELECT u.email, u.firstname  FROM appointments rv  JOIN users u ON rv.user_id = u.id WHERE rv.user_id = ?;', 
+                    [user_id]
+                );
+                
+                
+                const patientName = patientInfo[0].first_name;
+                const emailpatient = patientEmail[0].email;   const namepatient = patientEmail[0].firstname;
+                const formattedStartAt = new Date(start_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+                const formattedStartAt1 = new Date(oldAppointment.start_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+        
+                const transporter = nodemailer.createTransport({
+                    service: 'gmail',
+                    port: 587,
+                    secure: false,
+                    auth: {
+                        user: 'laajili.khouloud12@gmail.com',
+                        pass: 'lmvy ldix qtgm gbna',
+                    },
+                });
+        
+                const mailOptions = {
+                    from: 'laajili.khouloud12@gmail.com',
+                    to: doctorEmail,
+                    subject: 'Modification De Rendez-vous',
+                    html: `
+                        <html>
+                        <body>
+                            <h2>Bienvenue Cher Docteur ${doctorName}</h2>
+                            <p>Votre patient ${patientName} a modifié son rendez-vous de ${formattedStartAt1} à ${formattedStartAt}</p>
+                            <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+                        </body>
+                        </html>
+                    `,
+                };
+        
+                // Utiliser une promesse pour l'envoi de l'email
+                await new Promise((resolve, reject) => {
+                    transporter.sendMail(mailOptions, (error, info) => {
+                        if (error) {
+                            console.error('Erreur lors de l\'envoi de l\'email:', error);
+                            reject(error);
+                        } else {
+                            console.log('Email envoyé: ' + info.response);
+                            resolve(info);
+                        }
+                    });
+                });
+        
+                const mailOptionss = {
+                    from: 'laajili.khouloud12@gmail.com',
+                    to: emailpatient,
+                    subject: 'Modification De Rendez-vous',
+                    html: `
+                        <html>
+                        <body>
+                            <h2>Bienvenue Cher Patient ${namepatient}</h2>
+                     <p>Votre rendez-vous avec le docteur ${doctorName} a été modifié de ${formattedStartAt1} à ${formattedStartAt} avec succès.</p>
+                            <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+                        </body>
+                        </html>
+                    `,
+                };
+        
+                // Utiliser une promesse pour l'envoi de l'email
+                await new Promise((resolve, reject) => {
+                    transporter.sendMail(mailOptionss, (error, info) => {
+                        if (error) {
+                            console.error('Erreur lors de l\'envoi de l\'email:', error);
+                            reject(error);
+                        } else {
+                            console.log('Email envoyé: ' + info.response);
+                            resolve(info);
+                        }
+                    });
+                });
+        
+                return res.status(200).json({ 
+                    message: 'Rendez-vous mis à jour avec succès et notification envoyée', 
+                    appointment: updatedAppointment 
+                });
+        
+            } catch (err) {
+                console.error('Erreur lors de la mise à jour du rendez-vous:', err);
+                return res.status(500).send({ message: 'Erreur lors de la mise à jour du rendez-vous', error: err });
+            }
+        };
+        
 
 
 module.exports = {

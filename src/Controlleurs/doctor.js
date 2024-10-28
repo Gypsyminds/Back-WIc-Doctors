@@ -788,27 +788,29 @@ async function getAppointmentsByPatientId(req, res) {
     const patientId = req.params.patientId;  // Get the patient ID from request parameters
 
     const query = `
-        SELECT 
-            a.appointment_at AS appointment_at,
-            a.start_at AS start_date,
-            a.ends_at AS end_date,
-            a.clinic AS clinic,
-            a.doctor AS doctor,
-            s.status AS appointment_status,
-            p.amount AS payment_status,
-            m.name AS payment_method
-        FROM 
-            appointments a
-        LEFT JOIN 
-            appointment_statuses s ON a.appointment_status_id = s.id
-        LEFT JOIN 
-            payments p ON a.payment_id = p.id
-        LEFT JOIN 
-            payment_methods m ON p.payment_method_id = m.id
-        WHERE 
-            a.user_id = (
-                SELECT user_id FROM patients WHERE id = ?
-            );
+SELECT 
+    a.appointment_at AS appointment_at,
+    a.start_at AS start_date,
+    a.ends_at AS end_date,
+    c.name AS clinic_name,c.clinic_photo AS clinic_photo ,
+    d.name , d.doctor_photo AS doctor_name,doctor_photo,
+    s.status AS appointment_status,
+    p.amount AS payment_amount,
+    m.name AS payment_method
+FROM 
+    appointments a
+LEFT JOIN 
+    appointment_statuses s ON a.appointment_status_id = s.id
+LEFT JOIN 
+    payments p ON a.payment_id = p.id
+LEFT JOIN 
+    payment_methods m ON p.payment_method_id = m.id
+LEFT JOIN 
+    doctors d ON a.doctor_id = d.id
+LEFT JOIN 
+    clinics c ON a.clinic_id = c.id
+WHERE 
+    a.user_id  = ?;
     `;
 
     try {

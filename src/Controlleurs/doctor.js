@@ -585,11 +585,11 @@ const getDoctorsparvillepaysspecialites = (req, res) => {
         }
         // Check if results were found
         if (results.length === 0) {
-            return res.status(404).json({ message: 'Aucun médecin trouvé avec ces critères.' });
+            return res.status(404).json({ message: 'Aucun médecin trouvé avec ces critères.' +error.message});
         }
         res.json(results);
     });
-};
+}
 
 //get availeble date pour doctors
 const getDoctorsById = (req, res) => {

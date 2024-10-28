@@ -1786,7 +1786,37 @@ const updateAppointments = (req, res) => {
             }
         };
         
-
+        const getDoctorById = (req, res) => {
+            const doctorId = req.params.id;
+        
+            if (!doctorId) {
+                return res.status(400).json({ message: "L'ID du docteur est requis." });
+            }
+        
+            const query = `
+                SELECT d.*, u.email, u.phone_number
+                FROM doctors d
+                JOIN users u ON d.user_id = u.id
+                WHERE d.id = ?;
+            `;
+        
+            db.query(query, [doctorId], (error, results) => {
+                if (error) {
+                    console.error("Erreur lors de la récupération des informations du docteur:", error);
+                    return res.status(500).json({ message: "Erreur du serveur lors de la récupération du docteur." });
+                }
+        
+                if (results.length === 0) {
+                    return res.status(404).json({ message: "Docteur non trouvé." });
+                }
+        
+                // Renvoyer les informations du docteur
+                res.status(200).json(results[0]);
+            });
+        };
+        
+   
+        
 
 module.exports = {
     specialitespardoctor,
@@ -1797,6 +1827,6 @@ module.exports = {
     getvilles,getpays,getmotif,gethistoriqu,
     insertAppointment,getville,
     forgs,rests,insertAppointment,getplusprochedoc
-    ,getAppointmentsByPatientId , updateAppointment
+    ,getAppointmentsByPatientId , updateAppointment , getDoctorById
 }
 

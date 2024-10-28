@@ -36,6 +36,8 @@ router.post('/api/reset-password',authController.rests);
 router.post('/api/logup',loginController.signuppatient);
 router.post('/api/logupb2b',loginController.signupb2b);
 router.put('/update/patient/:id',loginController.updateprofilpatient);
+router.get('/getdocbyid/:id',authController.getDoctorById);
+
 router.put('/updateappointement',authController.updateAppointment);
 router.put('/updateappointementclinic',clinicController.updateAppointment);
 router.get('/availability/:clinic_id/:doctor_id', clinicController.getAvailabilityHours);

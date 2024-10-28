@@ -24,7 +24,7 @@ const moment = require('moment');
 const getClinic = (req, res) => {
     const query =  `
 SELECT 
-    MIN(clinics.id) AS clinic_id,  -- Utiliser MIN pour obtenir un ID représentatif
+    MIN(clinics.id) AS clinic_id,  
     clinics.name AS clinic_name,
     clinics.description AS description,
     GROUP_CONCAT(DISTINCT clinics.phone_number SEPARATOR ', ') AS phone_numbers,
@@ -49,7 +49,7 @@ JOIN
 JOIN 
     addresses ON clinics.address_id = addresses.id
 GROUP BY 
-    clinics.name, clinics.description  -- Retirer clinics.id du GROUP BY
+    clinics.name, clinics.description  
 ORDER BY 
     clinics.name; `
     // Exécuter la requête SQL

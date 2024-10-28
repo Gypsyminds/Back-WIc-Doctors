@@ -768,7 +768,7 @@ const gethistoriqu = (req, res) => {const nodemailer = require('nodemailer');
 let query = `
       SELECT 
     a.appointment_at, a.id ,
-    a.start_at, 
+    a.start_at, a.doctor_id ,
     a.ends_at, a.clinic ,
     d.name AS doctor_name
 FROM 

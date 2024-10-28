@@ -1911,11 +1911,7 @@ const updateAppointments = (req, res) => {
                         });
                     });
                    
-          
-                    
-                  
-            
-                  
+             
             
                     const mailOptionss = {
                         from: 'laajili.khouloud12@gmail.com',

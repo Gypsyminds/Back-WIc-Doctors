@@ -41,6 +41,7 @@ router.get('/getdocbyid/:id',authController.getDoctorById);
 router.put('/updateappointement',authController.updateAppointment);
 router.put('/updateappointementclinic',clinicController.updateAppointment);
 router.get('/availability/:clinic_id/:doctor_id', clinicController.getAvailabilityHours);
+router.delete('/appointmentscancel/:id', authController.cancelAppointment);
 
 
 router.post('/send-sms', clinicController.sendSMS);

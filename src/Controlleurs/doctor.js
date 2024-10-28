@@ -1771,10 +1771,13 @@ const updateAppointments = (req, res) => {
                         }
                     });
                 });
-        
+                const [resultat] = await db.promise().query(
+                    'SELECT rv.*, u.email, u.firstname, s.status AS statut_nom FROM appointments rv JOIN users u ON rv.user_id = u.id JOIN appointment_statuses s ON rv.appointment_status_id = s.id WHERE rv.user_id = ?;', 
+                    [user_id]
+                );
                 return res.status(200).json({ 
                     message: 'Rendez-vous mis à jour avec succès et notification envoyée', 
-                    appointment: updatedAppointment 
+                    appointment: resultat 
                 });
         
             } catch (err) {

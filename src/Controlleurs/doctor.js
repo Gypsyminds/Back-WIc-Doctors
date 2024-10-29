@@ -499,39 +499,38 @@ const getalldoctors = (req, res) => {
     });
 };
 
-
 const getDoctorsparvillepaysspecialites = (req, res) => {
     const speciality_id = req.query.speciality_id;
     const ville = req.query.ville; // Ville
     const pays = req.query.pays; // Pays
 
     let query = `
-        SELECT  
-            d.id AS doctor_id,
-            d.name AS name,
-            d.doctor_photo,
-            d.enable_online_consultation,
-            d.description,
-            d.horaires,
-            d.cabinet_photo,
-            d.created_at,
-            a.title AS title,
-            usr.phone_number, -- Include phone number from users table
-            addr.ville,
-            addr.pays,
-            JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities
-        FROM 
-            doctors d 
-        LEFT JOIN 
-            doctor_specialities ds ON d.id = ds.doctor_id 
-        LEFT JOIN 
-            specialities s ON ds.speciality_id = s.id 
-        JOIN 
-            experiences a ON d.id = a.doctor_id 
-        JOIN 
-            users usr ON d.user_id = usr.id 
-        JOIN 
-            addresses addr ON usr.id = addr.user_id 
+     SELECT  
+        d.id AS doctor_id,
+        d.name AS name,
+        d.doctor_photo,
+        d.enable_online_consultation,
+        d.description,
+        d.horaires,
+        d.cabinet_photo,
+        d.created_at,
+        a.title AS title,
+        usr.phone_number,
+        addr.ville,
+        addr.pays,
+        JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities
+    FROM 
+        doctors d 
+    LEFT JOIN 
+        doctor_specialities ds ON d.id = ds.doctor_id 
+    LEFT JOIN 
+        specialities s ON ds.speciality_id = s.id 
+    LEFT JOIN 
+        experiences a ON d.id = a.doctor_id 
+    LEFT JOIN 
+        users usr ON d.user_id = usr.id 
+    LEFT JOIN 
+        addresses addr ON usr.id = addr.user_id
     `;
 
     const queryParams = [];
@@ -572,7 +571,7 @@ const getDoctorsparvillepaysspecialites = (req, res) => {
             d.cabinet_photo,
             d.created_at,
             a.title,
-            usr.phone_number, -- Add phone number to the GROUP BY clause
+            usr.phone_number, 
             addr.ville,
             addr.pays
         ORDER BY RAND()
@@ -585,11 +584,12 @@ const getDoctorsparvillepaysspecialites = (req, res) => {
         }
         // Check if results were found
         if (results.length === 0) {
-            return res.status(404).json({ message: 'Aucun médecin trouvé avec ces critères.' +error.message});
+            return res.status(404).json({ message: 'Aucun médecin trouvé avec ces critères.' });
         }
         res.json(results);
     });
 }
+
 
 //get availeble date pour doctors
 const getDoctorsById = (req, res) => {

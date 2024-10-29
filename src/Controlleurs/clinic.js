@@ -306,7 +306,7 @@ db.query(qurryy, [clinic_id], (err, resulss) => {
     if (resul.length === 0) {
         return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
     }
-    const queryss = `SELECT name FROM users WHERE id = ?;`;
+    const queryss = `SELECT firstname FROM users WHERE id = ?;`;
             db.query(queryss, [user_id], (err, resull) => {
                 if (err) {
                     console.error(err);

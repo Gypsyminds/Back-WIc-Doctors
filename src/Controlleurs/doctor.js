@@ -791,7 +791,7 @@ async function getAppointmentsByPatientId(req, res) {
 SELECT 
     a.appointment_at AS appointment_at,
     a.start_at AS start_date,
-    a.ends_at AS end_date,
+    a.ends_at AS end_date, a.id ,
     c.name AS clinic_name,
     c.clinic_photo AS clinic_photo,
     d.name AS doctor_name,  -- Ici, on assigne le nom du médecin à doctor_name
@@ -1848,10 +1848,13 @@ const updateAppointments = (req, res) => {
                         console.error("Erreur lors de la mise à jour du statut du rendez-vous:", updateError);
                         return res.status(500).json({ message: "Erreur du serveur lors de l'annulation du rendez-vous." });
                     }
-        
+                    const [patientEmail] = await db.promise().query(
+                        'SELECT u.email, u.firstname,rv.ends_at , rv.start_at  FROM appointments rv  JOIN users u ON rv.user_id = u.id WHERE rv.id = ?;', 
+                        [appointmentId]
+                    );
                     // Insérer les données dans la table available_hours
                     const insertQuery = 'INSERT INTO availability_hours (start_at, end_at, patern_id, doctor_id) VALUES (?, ?, ?, ?)';
-                    db.query(insertQuery, [cancellationTime, endAt, patternId, doctorId], (insertError, insertResult) => {
+                    db.query(insertQuery, [patientEmail[0].start_at, patientEmail[0].ends_at, patternId, doctorId], (insertError, insertResult) => {
                         if (insertError) {
                             console.error("Erreur lors de l'insertion dans available_hours:", insertError);
                             return res.status(500).json({ message: "Erreur du serveur lors de l'enregistrement de l'heure disponible." });
@@ -1860,10 +1863,7 @@ const updateAppointments = (req, res) => {
                         // Répondre avec succès
                         res.status(200).json({ message: "Rendez-vous annulé avec succès." });
                     });
-                    const [patientEmail] = await db.promise().query(
-                        'SELECT u.email, u.firstname,rv.ends_at , rv.start_at  FROM appointments rv  JOIN users u ON rv.user_id = u.id WHERE rv.id = ?;', 
-                        [appointmentId]
-                    );
+                   
                     
                     const [doctorInfo] = await db.promise().query(
                         'SELECT d.id AS doctor_id, d.name AS doctor_name, u.email AS doctor_email FROM appointments r JOIN doctors d ON r.doctor_id = d.id JOIN users u ON d.user_id = u.id WHERE r.id = ?', 

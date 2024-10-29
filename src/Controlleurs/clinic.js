@@ -487,6 +487,9 @@ const axios = require('axios');
 
 
 
+
+
+
 // Fonction pour envoyer un SMS
 const sendSMS = async (req, res) => {
     const { apiKey, from, to, message } = req.body;
@@ -521,6 +524,101 @@ const sendSMS = async (req, res) => {
         });
     } catch (error) {
         // Gérer les erreurs
+        return res.status(500).json({
+            success: false,
+            message: 'Erreur lors de l\'envoi du SMS',
+            error: error.message,
+        });
+    }
+}
+
+
+// Fonction pour envoyer un SMS
+const sendSMSs = async (req, res) => {
+    const { apiKey, from, to, message } = req.body;
+
+    // Validation des paramètres
+    if (!apiKey || !from || !to || !message) {
+        return res.status(400).json({
+            success: false,
+            message: 'Tous les champs (apiKey, from, to, message) sont requis.',
+        });
+    }
+
+    // Construire l'URL avec les paramètres
+    const url = `https://wicsms.com/apis/smscontact/?apikey=${encodeURIComponent(apiKey)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&message=${encodeURIComponent(message)}`;
+
+    try {
+        // Faire la requête GET vers l'API SMS
+        const response = await axios.get(url);
+
+        // Vérifier si la réponse contient une erreur
+        if (response.data[0].status && response.data[0].status !== '1') {
+            return res.status(400).json({
+                success: false,
+                message: response.data[0].msg,
+            });
+        }
+
+        // Envoyer la réponse de l'API au client
+        return res.status(200).json({
+            success: true,
+            data: response.data,
+        });
+    } catch (error) {
+        // Gérer les erreurs
+        return res.status(500).json({
+            success: false,
+            message: 'Erreur lors de l\'envoi du SMS',
+            error: error.message,
+        });
+    }
+};
+const sendSMSss = async (req, res) => {
+    const { apiKey, from, to, message } = req.body;
+
+    // Validation des paramètres
+    if (!apiKey || !from || !to || !message) {
+        return res.status(400).json({
+            success: false,
+            message: 'Tous les champs (apiKey, from, to, message) sont requis.',
+        });
+    }
+
+    // Construire l'URL avec les paramètres
+    const url = `https://wicsms.com/apis/smscontact/?apikey=${encodeURIComponent(apiKey)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&message=${encodeURIComponent(message)}`;
+
+    try {
+        // Faire la requête GET vers l'API SMS
+        const response = await axios.get(url);
+        console.log('Réponse brute de l\'API SMS:', response.data);
+
+        // Vérifier la structure de la réponse pour identifier les erreurs
+        const responseData = response.data;
+
+        // Assurez-vous que la réponse est un tableau ou un objet, et vérifiez le statut
+        if (Array.isArray(responseData)) {
+            if (responseData[0]?.status !== '1') {
+                return res.status(400).json({
+                    success: false,
+                    message: responseData[0]?.msg || 'Erreur inconnue de l\'API SMS',
+                });
+            }
+        } else if (responseData.status !== '1') {
+            return res.status(400).json({
+                success: false,
+                message: responseData.msg || 'Erreur inconnue de l\'API SMS',
+            });
+        }
+
+        // Envoyer la réponse de succès
+        return res.status(200).json({
+            success: true,
+            message: 'SMS envoyé avec succès.',
+            data: responseData,
+        });
+    } catch (error) {
+        // Gérer les erreurs inattendues
         return res.status(500).json({
             success: false,
             message: 'Erreur lors de l\'envoi du SMS',
@@ -623,267 +721,8 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
     return distance;
 }
 
-const getClinicsBySpecialityCityCountryx = (req, res) => {
-    const speciality_id = req.query.speciality_id;  // ID de la spécialité
-    const city = req.query.city;                      // Ville
-    const country = req.query.country;                // Pays
 
-    let query = `
-        SELECT 
-            c.id AS clinic_id,
-            c.name AS clinic_name,
-            c.description AS description,
-            GROUP_CONCAT(DISTINCT c.phone_number SEPARATOR ', ') AS phone_numbers,
-            GROUP_CONCAT(DISTINCT c.mobile_number SEPARATOR ', ') AS mobile_numbers,
-            GROUP_CONCAT(DISTINCT c.horaires SEPARATOR ', ') AS horaires,
-            GROUP_CONCAT(DISTINCT c.clinic_photo SEPARATOR ', ') AS clinic_photos,
-            GROUP_CONCAT(DISTINCT cl.name SEPARATOR ', ') AS level_names,
-            JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
-            JSON_ARRAYAGG(
-                JSON_OBJECT(
-                    'address_id', a.id, 
-                    'description', a.description,
-                    'address', a.address,
-                    'latitude', a.latitude,
-                    'longitude', a.longitude,
-                    'ville', a.ville,
-                    'pays', a.pays
-                )
-            ) AS addresses
-        FROM 
-            clinics c
-        LEFT JOIN 
-            clinic_specialities cs ON c.id = cs.clinic_id 
-        LEFT JOIN 
-            specialities s ON cs.speciality_id = s.id 
-        JOIN 
-            addresses a ON a.id = c.address_id 
-        JOIN 
-            clinic_levels cl ON c.clinic_level_id = cl.id
-    `;
-
-    const queryParams = [];
-    const conditions = [];
-
-    // Condition pour la spécialité
-    if (speciality_id) {
-        conditions.push('cs.speciality_id = ?');
-        queryParams.push(speciality_id);
-    }
-
-    // Condition pour la ville
-    if (city) {
-        conditions.push('a.ville = ?');
-        queryParams.push(city);
-    }
-
-    // Condition pour le pays
-    if (country) {
-        conditions.push('a.pays = ?');
-        queryParams.push(country);
-    }
-
-    // Ajouter les conditions à la requête si nécessaire
-    if (conditions.length > 0) {
-        query += ` WHERE ${conditions.join(' AND ')}`;
-    }
-
-    // Regroupement des résultats
-    query += `
-        GROUP BY 
-            c.id,
-            c.name,
-            c.description
-        ORDER BY 
-            c.name;  -- Vous pouvez changer le critère de tri selon vos besoins
-    `;
-
-    // Exécution de la requête
-    db.query(query, queryParams, (err, results) => {
-        if (err) {
-            console.error(err);  // Débogage
-            return res.status(500).json({ error: 'Erreur lors de la récupération des cliniques.' });
-        }
-        // Vérification si des résultats ont été trouvés
-        if (results.length === 0) {
-            return res.status(404).json({ message: 'Aucune clinique trouvée avec ces critères.' });
-        }
-        res.json(results);
-    });
-};
-
-const getClinicsBySpecialityCityCountryss = (req, res) => {
-    const speciality_id = req.query.speciality_id;  // ID de la spécialité
-    const city = req.query.city;                    // Ville
-    const country = req.query.country;              // Pays
-
-    let query = `
-       SELECT 
-    c.id AS clinic_id,
-    c.name AS clinic_name,
-    c.description AS description,
-    GROUP_CONCAT(DISTINCT c.phone_number SEPARATOR ', ') AS phone_numbers,
-    GROUP_CONCAT(DISTINCT c.mobile_number SEPARATOR ', ') AS mobile_numbers,
-    GROUP_CONCAT(DISTINCT c.horaires SEPARATOR ', ') AS horaires,
-    GROUP_CONCAT(DISTINCT c.clinic_photo SEPARATOR ', ') AS clinic_photos,
-    GROUP_CONCAT(DISTINCT cl.name SEPARATOR ', ') AS level_names,
-    JSON_ARRAYAGG(JSON_OBJECT(
-        'address_id', a.id,
-        'description', a.description,
-        'address', a.address,
-        'latitude', a.latitude,
-        'longitude', a.longitude,
-        'ville', a.ville,
-        'pays', a.pays
-    )) AS addresses
-FROM 
-    clinics c
-LEFT JOIN 
-    clinic_specialities cs ON c.id = cs.clinic_id 
-LEFT JOIN 
-    specialities s ON cs.speciality_id = s.id 
-JOIN 
-    addresses a ON a.id = c.address_id  -- Assurez-vous que c'est la bonne colonne ici
-JOIN 
-    clinic_levels cl ON c.clinic_level_id = cl.id ;
-    `;
-
-    const queryParams = [];
-    const conditions = [];
-
-    // Condition pour la spécialité
-    if (speciality_id) {
-        conditions.push('cs.speciality_id = ?');
-        queryParams.push(speciality_id);
-    }
-
-    // Condition pour la ville
-    if (city) {
-        conditions.push('a.ville = ?');
-        queryParams.push(city);
-    }
-
-    // Condition pour le pays
-    if (country) {
-        conditions.push('a.pays = ?');
-        queryParams.push(country);
-    }
-
-    // Ajouter les conditions à la requête si nécessaire
-    if (conditions.length > 0) {
-        query += ` WHERE ${conditions.join(' AND ')}`;
-    }
-
-    // Regroupement des résultats pour regrouper par nom de clinique avec toutes ses adresses
-    query += `
-        GROUP BY 
-        c.id ,
-            c.name,      
-            c.description
-        ORDER BY 
-            c.name;       
-    `;
-
-    // Exécution de la requête
-    db.query(query, queryParams, (err, results) => {
-        if (err) {
-            console.error(err);  // Débogage
-            return res.status(500).json({ error: 'Erreur lors de la récupération des cliniques.' });
-        }
-        // Vérification si des résultats ont été trouvés
-        if (results.length === 0) {
-            return res.status(404).json({ message: 'Aucune clinique trouvée avec ces critères.' });
-        }
-        res.json(results);
-    });
-}
-const getClinicsBySpecialityCityCountrys = (req, res) => {
-    const speciality_id = req.query.speciality_id;  // ID de la spécialité
-    const city = req.query.city;                    // Ville
-    const country = req.query.country;              // Pays
-
-    // Construction de la requête SQL
-    let query = `
-       SELECT 
-           c.id AS clinic_id,
-           c.name AS clinic_name,
-           c.description AS description,
-           GROUP_CONCAT(DISTINCT c.phone_number SEPARATOR ', ') AS phone_numbers,
-           GROUP_CONCAT(DISTINCT c.mobile_number SEPARATOR ', ') AS mobile_numbers,
-           GROUP_CONCAT(DISTINCT c.horaires SEPARATOR ', ') AS horaires,
-           GROUP_CONCAT(DISTINCT c.clinic_photo SEPARATOR ', ') AS clinic_photos,
-           GROUP_CONCAT(DISTINCT cl.name SEPARATOR ', ') AS level_names,
-           JSON_ARRAYAGG ( JSON_OBJECT(
-               'address_id', a.id,
-               'description', a.description,
-               'address', a.address,
-               'latitude', a.latitude,
-               'longitude', a.longitude,
-               'ville', a.ville,
-               'pays', a.pays
-           )) AS addresses
-       FROM 
-           clinics c
-       LEFT JOIN 
-           clinic_specialities cs ON c.id = cs.clinic_id 
-       LEFT JOIN 
-           specialities s ON cs.speciality_id = s.id 
-       JOIN 
-           addresses a ON a.id = c.address_id  -- Assurez-vous que c'est la bonne colonne ici
-       JOIN 
-           clinic_levels cl ON c.clinic_level_id = cl.id 
-    `;
-
-    const queryParams = [];
-    const conditions = [];
-
-    // Condition pour la spécialité
-    if (speciality_id) {
-        conditions.push('cs.speciality_id = ?');
-        queryParams.push(speciality_id);
-    }
-
-    // Condition pour la ville
-    if (city) {
-        conditions.push('a.ville = ?');
-        queryParams.push(city);
-    }
-
-    // Condition pour le pays
-    if (country) {
-        conditions.push('a.pays = ?');
-        queryParams.push(country);
-    }
-
-    // Ajouter les conditions à la requête si nécessaire
-    if (conditions.length > 0) {
-        query += ` WHERE ${conditions.join(' AND ')}`;
-    }
-
-    // Regroupement des résultats pour regrouper par nom de clinique avec toutes ses adresses
-    query += `
-        GROUP BY 
-            c.id,
-            c.name,      
-            c.description
-        ORDER BY 
-            c.name;       
-    `;
-
-    // Exécution de la requête
-    db.query(query, queryParams, (err, results) => {
-        if (err) {
-            console.error(err);  // Débogage
-            return res.status(500).json({ error: 'Erreur lors de la récupération des cliniques.' });
-        }
-        // Vérification si des résultats ont été trouvés
-        if (results.length === 0) {
-            return res.status(404).json({ message: 'Aucune clinique trouvée avec ces critères.' });
-        }
-        res.json(results);
-    });
-}
-const getClinicsBySpecialityCityCountryz = (req, res) => {
+const getClinicsBySpecialityCityCountry = (req, res) => {
     const speciality_id = req.query.speciality_id;  // ID de la spécialité
     const city = req.query.city;                    // Ville
     const country = req.query.country;              // Pays
@@ -899,7 +738,7 @@ const getClinicsBySpecialityCityCountryz = (req, res) => {
            GROUP_CONCAT(DISTINCT c.horaires SEPARATOR ', ') AS horaires,
            GROUP_CONCAT(DISTINCT c.clinic_photo SEPARATOR ', ') AS clinic_photos,
            GROUP_CONCAT(DISTINCT cl.name SEPARATOR ', ') AS level_names,
-           JSON_ARRAYAGG(JSON_OBJECT(
+           GROUP_CONCAT( DISTINCT JSON_OBJECT(
                'address_id', a.id,
                'description', a.description,
                'address', a.address,
@@ -918,7 +757,7 @@ const getClinicsBySpecialityCityCountryz = (req, res) => {
            clinic_specialities cs ON c.id = cs.clinic_id 
        LEFT JOIN 
            specialities s ON cs.speciality_id = s.id 
-       LEFT JOIN 
+        JOIN 
            addresses a ON a.id = c.address_id  -- Assurez-vous que c'est la bonne colonne ici
        LEFT JOIN 
            clinic_levels cl ON c.clinic_level_id = cl.id 
@@ -953,97 +792,9 @@ const getClinicsBySpecialityCityCountryz = (req, res) => {
     // Regroupement des résultats par nom de clinique
     query += `
         GROUP BY 
-            c.name
+            c.name 
         ORDER BY 
-            c.name;       
-    `;
-
-    // Exécution de la requête
-    db.query(query, queryParams, (err, results) => {
-        if (err) {
-            console.error(err);  // Débogage
-            return res.status(500).json({ error: 'Erreur lors de la récupération des cliniques.' });
-        }
-        // Vérification si des résultats ont été trouvés
-        if (results.length === 0) {
-            return res.status(404).json({ message: 'Aucune clinique trouvée avec ces critères.' });
-        }
-        res.json(results);
-    });
-};
-const getClinicsBySpecialityCityCountry = (req, res) => {
-    const speciality_id = req.query.speciality_id;  // ID de la spécialité
-    const city = req.query.city;                    // Ville
-    const country = req.query.country;              // Pays
-
-    let query = `
-       SELECT 
-           c.id AS clinic_id,
-           c.name AS clinic_name,
-           GROUP_CONCAT(DISTINCT c.id) AS clinic_ids,
-           GROUP_CONCAT(DISTINCT c.description SEPARATOR ', ') AS descriptions,
-           GROUP_CONCAT(DISTINCT c.phone_number SEPARATOR ', ') AS phone_numbers,
-           GROUP_CONCAT(DISTINCT c.mobile_number SEPARATOR ', ') AS mobile_numbers,
-           GROUP_CONCAT(DISTINCT c.horaires SEPARATOR ', ') AS horaires,
-           GROUP_CONCAT(DISTINCT c.clinic_photo SEPARATOR ', ') AS clinic_photos,
-           GROUP_CONCAT(DISTINCT cl.name SEPARATOR ', ') AS level_names,
-           JSON_ARRAYAGG( JSON_OBJECT(
-               'address_id', a.id,
-               'description', a.description,
-               'address', a.address,
-               'latitude', a.latitude,
-               'longitude', a.longitude,
-               'ville', a.ville,
-               'pays', a.pays
-           )) AS addresses,
-           JSON_ARRAYAGG(DISTINCT JSON_OBJECT(
-               'speciality_id', s.id,
-               'name', s.name
-           )) AS specialities
-       FROM 
-           clinics c
-       LEFT JOIN 
-           clinic_specialities cs ON c.id = cs.clinic_id 
-       LEFT JOIN 
-           specialities s ON cs.speciality_id = s.id 
-       LEFT JOIN 
-           addresses a ON a.id = c.address_id 
-       LEFT JOIN 
-           clinic_levels cl ON c.clinic_level_id = cl.id 
-    `;
-
-    const queryParams = [];
-    const conditions = [];
-
-    // Condition pour la spécialité
-    if (speciality_id) {
-        conditions.push('cs.speciality_id = ?');
-        queryParams.push(speciality_id);
-    }
-
-    // Condition pour la ville
-    if (city) {
-        conditions.push('a.ville = ?');
-        queryParams.push(city);
-    }
-
-    // Condition pour le pays
-    if (country) {
-        conditions.push('a.pays = ?');
-        queryParams.push(country);
-    }
-
-    // Ajouter les conditions à la requête si nécessaire
-    if (conditions.length > 0) {
-        query += ` WHERE ${conditions.join(' AND ')}`;
-    }
-
-    // Regroupement des résultats par ID de clinique (et nom pour éviter les conflits)
-    query += `
-        GROUP BY 
-            c.id, c.name
-        ORDER BY 
-            c.name;       
+            c.name ;       
     `;
 
     // Exécution de la requête
@@ -1060,10 +811,103 @@ const getClinicsBySpecialityCityCountry = (req, res) => {
     });
 }
 
+const sendSMS4MinBefore = async (req, res) => {
+    const { apiKey, from, userId, to, message } = req.body;
 
+    // Validation des paramètres
+    if (!apiKey || !from || !userId || !to || !message) {
+        return res.status(400).json({
+            success: false,
+            message: 'Tous les champs (apiKey, from, userId, to, message) sont requis.',
+        });
+    }
 
+    try {
+        // Rechercher le rendez-vous de l'utilisateur
+        const query = `
+        SELECT start_at 
+        FROM appointments 
+        WHERE user_id = ? AND start_at > NOW();
+        `;
+         db.query(query, userId, async (err, results) => {
+            if (err) {
+                console.error(err);  // Débogage
+                return res.status(500).json({ error: 'Erreur lors de la récupération des cliniques.' });
+            }
+       // const [results] = await db.execute(query, [userId]);
 
+        console.log('Résultats de la requête SQL:', results);
+
+        // Vérifier s'il y a un rendez-vous futur
+        if (results.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Aucun rendez-vous futur trouvé pour cet utilisateur.',
+            });
+        }
+
+        // Parcourir les rendez-vous pour vérifier leur timing
+        for (const appointment of results) {
+            const startAt = new Date(appointment.start_at);
+            const now = new Date();
+            const timeDiffMinutes = (startAt - now) / 60000; // Différence en minutes
+
+            console.log(`Rendez-vous prévu le : ${startAt}`);
+            console.log(`Temps restant : ${timeDiffMinutes.toFixed(2)} minutes`);
+
+            // Vérifier si le rendez-vous est dans 4 minutes
+            if (timeDiffMinutes <= 4 && timeDiffMinutes > 3) {
+                const trimmedTo = to.trim();
+
+                console.log(`Envoi d'un SMS à : ${trimmedTo}`);
+
+                // Construire l'URL pour l'envoi de SMS
+                const url = `https://wicsms.com/apis/smscontact/?apikey=${encodeURIComponent(apiKey)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(trimmedTo)}&message=${encodeURIComponent(message)}`;
+                //const response = await axios.get(url);
+                // Faire la requête GET vers l'API SMS
+                const response =  await axios.get(url);
+                console.log('Réponse de l\'API SMS:', response.data);
+                await db.execute(`UPDATE appointments SET notification_sent = true WHERE user_id = ? AND start_at = ?`, [userId, startAt]);
+
+                // Vérifier si la réponse contient une erreur
+                if (!Array.isArray(response.data)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Erreur de réponse de l\'API SMS : format inattendu.',
+                    });
+                }
+
+                if (response.data[0].status && response.data[0].status !== '1') {
+                    return res.status(400).json({
+                        success: false,
+                        message: response.data[0].msg,
+                    });
+                }
+
+                return res.status(200).json({
+                    success: true,
+                    message: 'SMS envoyé avec succès.',
+                });
+            }
+        }
+
+        // Si aucun rendez-vous n'est dans 4 minutes, retourner un message
+        return res.status(200).json({
+            success: false,
+            message: 'Le rendez-vous n\'est pas dans 4 minutes ou plus.',
+        });
+    });
+    } catch (error) {
+        console.error('Erreur lors de l\'envoi du SMS:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Erreur lors de l\'envoi du SMS',
+            error: error.message,
+        });
+    }
+}
+              
   module.exports = {
     getClinic , getSpecialitiesByClinicId , getdoctosandspeciality,getspecialitesdeclinic,getmotifByClinicAndSpecialite , getDoctorsBySpecialityAndClinic, insertAppointmentclinic ,getTempsClinicssById
-    ,updateAppointment , getAvailabilityHours , sendSMS , getplusprocheclinic , getClinicsBySpecialityCityCountry
+    ,updateAppointment , getAvailabilityHours , sendSMS , getplusprocheclinic , getClinicsBySpecialityCityCountry ,sendSMS4MinBefore
   }

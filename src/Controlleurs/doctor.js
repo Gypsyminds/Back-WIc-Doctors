@@ -792,8 +792,10 @@ SELECT
     a.appointment_at AS appointment_at,
     a.start_at AS start_date,
     a.ends_at AS end_date,
-    c.name AS clinic_name,c.clinic_photo AS clinic_photo ,
-    d.name , d.doctor_photo AS doctor_name,doctor_photo,
+    c.name AS clinic_name,
+    c.clinic_photo AS clinic_photo,
+    d.name AS doctor_name,  -- Ici, on assigne le nom du médecin à doctor_name
+    d.doctor_photo AS doctor_photo,  -- Corrigé pour utiliser doctor_photo
     s.status AS appointment_status,
     p.amount AS payment_amount,
     m.name AS payment_method
@@ -811,6 +813,7 @@ LEFT JOIN
     clinics c ON a.clinic_id = c.id
 WHERE 
     a.user_id  = ?;
+
     `;
 
     try {

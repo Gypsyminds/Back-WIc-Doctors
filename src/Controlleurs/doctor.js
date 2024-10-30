@@ -968,7 +968,7 @@ const insertAppointment= async (req, res) => {
     const { appointment_at, ends_at, start_at, doctor_id, clinic, doctor, patient, address, motif_id } = req.body;
 
     // Vérification des paramètres requis
-    if (!ends_at || !start_at || !token || !doctor_id ) {
+    if (!ends_at || !start_at || !token || !doctor_id || !motif_id ) {
         return res.status(400).json({ error: 'Tous les champs sont requis.' });
     }
 
@@ -1211,7 +1211,7 @@ function updateUserpass(token,password) {
 
 
 
-// Simuler la recherche d'utilisateur par token
+// Simuler la rechefrche d'utilisateur par token
 function findUserByToken(token) {
     return users.find(user => user.token === token);
 }
@@ -1593,11 +1593,12 @@ const updateAppointments = (req, res) => {
                     });
 });
         }
-const updateAppointment = async (req, res) => {
-            const { start_at, end_at, patern_id } = req.body;
+        const updateAppointment = async (req, res) => {
+            const { appointment_id, start_at, end_at, patern_id } = req.body;
             
-            if (!start_at || !end_at || !patern_id) {
-                return res.status(400).send({ message: 'Les champs start_at, end_at et patern_id sont requis' });
+            // Vérifiez si les champs requis sont fournis
+            if (!appointment_id || !start_at || !end_at || !patern_id) {
+                return res.status(400).send({ message: 'Les champs appointment_id, start_at, end_at et patern_id sont requis' });
             }
             
             const authHeader = req.headers['authorization'];
@@ -1616,37 +1617,39 @@ const updateAppointment = async (req, res) => {
             }
             
             try {
-                const [oldAppointments] = await db.promise().query(
-                    'SELECT * FROM appointments WHERE user_id = ? ORDER BY start_at DESC LIMIT 1', 
-                    [user_id]
+                // Vérifiez si le rendez-vous existe pour cet utilisateur
+                const [oldAppointment] = await db.query(
+                    'SELECT * FROM appointments WHERE id = ? AND user_id = ?', 
+                    [appointment_id, user_id]
                 );
                 
-                if (oldAppointments.length === 0) {
-                    return res.status(404).send({ message: 'Aucun rendez-vous trouvé pour cet utilisateur' });
+                if (oldAppointment.length === 0) {
+                    return res.status(404).send({ message: 'Rendez-vous non trouvé pour cet utilisateur' });
                 }
                 
-                const oldAppointment = oldAppointments[0];
-                
-                await db.promise().query(
+                // Mettre à jour les horaires de disponibilité
+                await db.query(
                     'INSERT INTO availability_hours (start_at, end_at, doctor_id, patern_id) VALUES (?, ?, ?, ?)', 
-                    [oldAppointment.start_at, oldAppointment.ends_at, oldAppointment.doctor_id, patern_id]
+                    [oldAppointment[0].start_at, oldAppointment[0].ends_at, oldAppointment[0].doctor_id, patern_id]
                 );
                 
-                await db.promise().query(
+                // Mettre à jour le rendez-vous
+                await db.query(
                     'UPDATE appointments SET start_at = ?, ends_at = ? WHERE id = ?', 
-                    [start_at, end_at, oldAppointment.id]
+                    [start_at, end_at, appointment_id]
                 );
         
                 const updatedAppointment = {
-                    ...oldAppointment,
-                    start_at: start_at,
-                    ends_at: end_at,
-                    patern_id: patern_id
+                    ...oldAppointment[0],
+                    start_at,
+                    end_at,
+                    patern_id
                 };
                 
-                const [doctorInfo] = await db.promise().query(
+                // Informations du médecin
+                const [doctorInfo] = await db.query(
                     'SELECT d.id AS doctor_id, d.name AS doctor_name, u.email AS doctor_email FROM appointments r JOIN doctors d ON r.doctor_id = d.id JOIN users u ON d.user_id = u.id WHERE r.id = ?', 
-                    [oldAppointment.id]
+                    [appointment_id]
                 );
         
                 if (doctorInfo.length === 0) {
@@ -1656,36 +1659,39 @@ const updateAppointment = async (req, res) => {
                 const doctorEmail = doctorInfo[0].doctor_email;
                 const doctorName = JSON.parse(doctorInfo[0].doctor_name).fr;
         
-                const [patientInfo] = await db.promise().query(
-                    'SELECT * FROM patients WHERE user_id= ?', 
+                // Informations du patient
+                const [patientInfo] = await db.query(
+                    'SELECT * FROM patients WHERE user_id = ?', 
                     [user_id]
                 );
                 
                 if (patientInfo.length === 0) {
                     return res.status(404).send({ message: 'Informations du patient introuvables' });
                 }
-                const [patientEmail] = await db.promise().query(
-                    'SELECT u.email, u.firstname  FROM appointments rv  JOIN users u ON rv.user_id = u.id WHERE rv.user_id = ?;', 
+        
+                const [patientEmail] = await db.query(
+                    'SELECT u.email, u.firstname FROM appointments rv JOIN users u ON rv.user_id = u.id WHERE rv.user_id = ?;', 
                     [user_id]
                 );
                 
-                
                 const patientName = patientInfo[0].first_name;
-                const emailpatient = patientEmail[0].email;   const namepatient = patientEmail[0].firstname;
+                const emailpatient = patientEmail[0].email;   
+                const namepatient = patientEmail[0].firstname;
                 const formattedStartAt = new Date(start_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
-                const formattedStartAt1 = new Date(oldAppointment.start_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+                const formattedStartAt1 = new Date(oldAppointment[0].start_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
         
+                // Envoi de l'email au médecin
                 const transporter = nodemailer.createTransport({
                     service: 'gmail',
                     port: 587,
                     secure: false,
                     auth: {
                         user: 'laajili.khouloud12@gmail.com',
-                        pass: 'lmvy ldix qtgm gbna',
+                        pass: 'lmvy ldix qtgm gbna',  // Remplacez par un mot de passe d'application
                     },
                 });
         
-                const mailOptions = {
+                const mailOptionsDoctor = {
                     from: 'laajili.khouloud12@gmail.com',
                     to: doctorEmail,
                     subject: 'Modification De Rendez-vous',
@@ -1700,20 +1706,8 @@ const updateAppointment = async (req, res) => {
                     `,
                 };
         
-                // Utiliser une promesse pour l'envoi de l'email
-                await new Promise((resolve, reject) => {
-                    transporter.sendMail(mailOptions, (error, info) => {
-                        if (error) {
-                            console.error('Erreur lors de l\'envoi de l\'email:', error);
-                            reject(error);
-                        } else {
-                            console.log('Email envoyé: ' + info.response);
-                            resolve(info);
-                        }
-                    });
-                });
-        
-                const mailOptionss = {
+                // Envoi de l'email au patient
+                const mailOptionsPatient = {
                     from: 'laajili.khouloud12@gmail.com',
                     to: emailpatient,
                     subject: 'Modification De Rendez-vous',
@@ -1721,29 +1715,22 @@ const updateAppointment = async (req, res) => {
                         <html>
                         <body>
                             <h2>Bienvenue Cher Patient ${namepatient}</h2>
-                     <p>Votre rendez-vous avec le docteur ${doctorName} a été modifié de ${formattedStartAt1} à ${formattedStartAt} avec succès.</p>
+                            <p>Votre rendez-vous avec le docteur ${doctorName} a été modifié de ${formattedStartAt1} à ${formattedStartAt} avec succès.</p>
                             <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
                         </body>
                         </html>
                     `,
                 };
         
-                // Utiliser une promesse pour l'envoi de l'email
-                await new Promise((resolve, reject) => {
-                    transporter.sendMail(mailOptionss, (error, info) => {
-                        if (error) {
-                            console.error('Erreur lors de l\'envoi de l\'email:', error);
-                            reject(error);
-                        } else {
-                            console.log('Email envoyé: ' + info.response);
-                            resolve(info);
-                        }
-                    });
-                });
-                const [resultat] = await db.promise().query(
+                // Envoi des emails
+                await transporter.sendMail(mailOptionsDoctor);
+                await transporter.sendMail(mailOptionsPatient);
+        
+                const [resultat] = await db.query(
                     'SELECT rv.*, u.email, u.firstname, s.status AS statut_nom FROM appointments rv JOIN users u ON rv.user_id = u.id JOIN appointment_statuses s ON rv.appointment_status_id = s.id WHERE rv.user_id = ?;', 
                     [user_id]
                 );
+        
                 return res.status(200).json({ 
                     message: 'Rendez-vous mis à jour avec succès et notification envoyée', 
                     appointment: resultat 
@@ -1754,6 +1741,7 @@ const updateAppointment = async (req, res) => {
                 return res.status(500).send({ message: 'Erreur lors de la mise à jour du rendez-vous', error: err });
             }
         };
+        
         
 const getDoctorById = async (req, res) => {
             const doctorId = req.params.id;
@@ -1784,17 +1772,14 @@ const getDoctorById = async (req, res) => {
             }
         };
         
- const cancelAppointment = (req, res) => {
+        const cancelAppointment = async (req, res) => {
             const appointmentId = req.params.id; // ID du rendez-vous à annuler
             const cancellationTime = new Date(); // Heure actuelle pour l'annulation
         
-            // Récupérer le rendez-vous à annuler
-            const selectQuery = 'SELECT * FROM appointments WHERE id = ?';
-            db.query(selectQuery, [appointmentId], (selectError, selectResult) => {
-                if (selectError) {
-                    console.error("Erreur lors de la récupération du rendez-vous:", selectError);
-                    return res.status(500).json({ message: "Erreur du serveur lors de la récupération du rendez-vous." });
-                }
+            try {
+                // Récupérer le rendez-vous à annuler
+                const selectQuery = 'SELECT * FROM appointments WHERE id = ?';
+                const [selectResult] = await db.query(selectQuery, [appointmentId]);
         
                 if (selectResult.length === 0) {
                     return res.status(404).json({ message: "Rendez-vous non trouvé." });
@@ -1805,114 +1790,94 @@ const getDoctorById = async (req, res) => {
                 const endAt = appointment.ends_at; // Récupérer la date de fin du rendez-vous
                 const patternId = appointment.motif_id; // Récupérer le pattern_id
         
-                // Mettre à jour le statut du rendez-vous en 4
+                // Mettre à jour le statut du rendez-vous en 7
                 const updateQuery = 'UPDATE appointments SET appointment_status_id = ? WHERE id = ?';
-                db.query(updateQuery, [7, appointmentId], async (updateError, updateResult) => {
-                    if (updateError) {
-                        console.error("Erreur lors de la mise à jour du statut du rendez-vous:", updateError);
-                        return res.status(500).json({ message: "Erreur du serveur lors de l'annulation du rendez-vous." });
-                    }
-                    const [patientEmail] = await db.promise().query(
-                        'SELECT u.email, u.firstname,rv.ends_at , rv.start_at  FROM appointments rv  JOIN users u ON rv.user_id = u.id WHERE rv.id = ?;', 
-                        [appointmentId]
-                    );
-                    // Insérer les données dans la table available_hours
-                    const insertQuery = 'INSERT INTO availability_hours (start_at, end_at, patern_id, doctor_id) VALUES (?, ?, ?, ?)';
-                    db.query(insertQuery, [patientEmail[0].start_at, patientEmail[0].ends_at, patternId, doctorId], (insertError, insertResult) => {
-                        if (insertError) {
-                            console.error("Erreur lors de l'insertion dans available_hours:", insertError);
-                            return res.status(500).json({ message: "Erreur du serveur lors de l'enregistrement de l'heure disponible." });
-                        }
+                await db.query(updateQuery, [7, appointmentId]);
         
-                        // Répondre avec succès
-                        res.status(200).json({ message: "Rendez-vous annulé avec succès." });
-                    });
-                   
-                    
-                    const [doctorInfo] = await db.promise().query(
-                        'SELECT d.id AS doctor_id, d.name AS doctor_name, u.email AS doctor_email FROM appointments r JOIN doctors d ON r.doctor_id = d.id JOIN users u ON d.user_id = u.id WHERE r.id = ?', 
-                        [appointmentId]
-                    );
-                    const doctorEmail = doctorInfo[0].doctor_email;
-                    const doctorName = JSON.parse(doctorInfo[0].doctor_name).fr;
+                // Récupérer les informations du patient
+                const [patientEmail] = await db.query(
+                    'SELECT u.email, u.firstname, rv.ends_at, rv.start_at FROM appointments rv JOIN users u ON rv.user_id = u.id WHERE rv.id = ?;', 
+                    [appointmentId]
+                );
+        
+                // Insérer les données dans la table available_hours
+                const insertQuery = 'INSERT INTO availability_hours (start_at, end_at, patern_id, doctor_id) VALUES (?, ?, ?, ?)';
+                await db.query(insertQuery, [patientEmail[0].start_at, patientEmail[0].ends_at, patternId, doctorId]);
+        
+                // Récupérer les informations du médecin
+                const [doctorInfo] = await db.query(
+                    'SELECT d.id AS doctor_id, d.name AS doctor_name, u.email AS doctor_email FROM appointments r JOIN doctors d ON r.doctor_id = d.id JOIN users u ON d.user_id = u.id WHERE r.id = ?', 
+                    [appointmentId]
+                );
+        
+                const doctorEmail = doctorInfo[0].doctor_email;
+                const doctorName = JSON.parse(doctorInfo[0].doctor_name).fr;
+                const emailpatient = patientEmail[0].email;   
+                const namepatient = patientEmail[0].firstname;
                 
-                    const emailpatient = patientEmail[0].email;   const namepatient = patientEmail[0].firstname;
-                    const formattedStartAt = new Date(patientEmail[0].ends_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
-                    const formattedStartAt1 = new Date(patientEmail[0].start_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
-                    console.log(formattedStartAt , formattedStartAt1);
-                    const transporter = nodemailer.createTransport({
-                        service: 'gmail',
-                        port: 587,
-                        secure: false,
-                        auth: {
-                            user: 'laajili.khouloud12@gmail.com',
-                            pass: 'lmvy ldix qtgm gbna',
-                        },
-                    });
-            
-                    const mailOptions = {
-                        from: 'laajili.khouloud12@gmail.com',
-                        to: emailpatient,
-                        subject: 'Modification De Rendez-vous',
-                        html: `
-                           <html>
-                                    <body>
-                                        <h2>Bienvenue Cher Patient ${namepatient}</h2>
-                                 <p>Votre rendez-vous avec le docteur ${doctorName} a été annulé de ${formattedStartAt1} à ${formattedStartAt} avec succès.</p>
-                                        <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
-                                    </body>
-                                    </html>
-                        `,
-                    };
-            
-                    // Utiliser une promesse pour l'envoi de l'email
-                    await new Promise((resolve, reject) => {
-                        transporter.sendMail(mailOptions, (error, info) => {
-                            if (error) {
-                                console.error('Erreur lors de l\'envoi de l\'email:', error);
-                                reject(error);
-                            } else {
-                                console.log('Email envoyé: ' + info.response);
-                                resolve(info);
-                            }
-                        });
-                    });
-                   
-             
-            
-                    const mailOptionss = {
-                        from: 'laajili.khouloud12@gmail.com',
-                        to: doctorEmail,
-                        subject: 'Modification De Rendez-vous',
-                        html: `
-                            <html>
+                // Formatage des dates
+                const formattedStartAt = new Date(patientEmail[0].ends_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+                const formattedStartAt1 = new Date(patientEmail[0].start_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+                
+                console.log(formattedStartAt , formattedStartAt1);
+                
+                // Créer un transporteur pour l'envoi des emails
+                const transporter = nodemailer.createTransport({
+                    service: 'gmail',
+                    port: 587,
+                    secure: false,
+                    auth: {
+                        user: 'laajili.khouloud12@gmail.com',
+                        pass: 'lmvy ldix qtgm gbna',
+                    },
+                });
+        
+                // Options d'email pour le patient
+                const mailOptionsPatient = {
+                    from: 'laajili.khouloud12@gmail.com',
+                    to: emailpatient,
+                    subject: 'Annulation de Rendez-vous',
+                    html: `
+                       <html>
                             <body>
-                                <h2>Bienvenue Cher Doctor ${doctorName}</h2>
-                         <p>Votre rendez-vous avec le patient ${namepatient} de ${formattedStartAt1} à ${formattedStartAt} a été annulé  .</p>
+                                <h2>Bienvenue Cher Patient ${namepatient}</h2>
+                                <p>Votre rendez-vous avec le docteur ${doctorName} a été annulé de ${formattedStartAt1} à ${formattedStartAt} avec succès.</p>
                                 <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
                             </body>
-                            </html>
-                        `,
-                    };
-            
-                    // Utiliser une promesse pour l'envoi de l'email
-                    await new Promise((resolve, reject) => {
-                        transporter.sendMail(mailOptionss, (error, info) => {
-                            if (error) {
-                                console.error('Erreur lors de l\'envoi de l\'email:', error);
-                                reject(error);
-                            } else {
-                                console.log('Email envoyé: ' + info.response);
-                                resolve(info);
-                            }
-                        });
-                    });
-                });
-                
-            });
-        }
+                        </html>
+                    `,
+                };
         
-    
+                // Envoi de l'email au patient
+                await transporter.sendMail(mailOptionsPatient);
+                
+                // Options d'email pour le docteur
+                const mailOptionsDoctor = {
+                    from: 'laajili.khouloud12@gmail.com',
+                    to: doctorEmail,
+                    subject: 'Annulation de Rendez-vous',
+                    html: `
+                        <html>
+                            <body>
+                                <h2>Bienvenue Cher Docteur ${doctorName}</h2>
+                                <p>Votre rendez-vous avec le patient ${namepatient} de ${formattedStartAt1} à ${formattedStartAt} a été annulé.</p>
+                                <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+                            </body>
+                        </html>
+                    `,
+                };
+        
+                // Envoi de l'email au docteur
+                await transporter.sendMail(mailOptionsDoctor);
+        
+                // Répondre avec succès
+                return res.status(200).json({ message: "Rendez-vous annulé avec succès." });
+            } catch (error) {
+                console.error("Erreur lors de l'annulation du rendez-vous:", error);
+                return res.status(500).json({ message: "Erreur du serveur lors de l'annulation du rendez-vous." });
+            }
+        };
+        
         
         
  

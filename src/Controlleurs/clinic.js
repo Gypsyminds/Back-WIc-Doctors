@@ -245,7 +245,161 @@ function decodeToken(token) {
     }
 }
 
-function insertAppointmentclinic(req, res) {
+function insertAppointmentclinics(req, res) {
+    console.log('Request Body:', req.body);
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    jwt.verify(token, SECRET_KEY, (err, decoded) => {
+        if (err) {
+            if (err.name === 'TokenExpiredError') {
+                return res.status(401).json({ message: 'Token expiré.' });
+            }
+            return res.status(401).json({ message: 'Token invalide.' });
+        }
+    
+        // Continue the request with the decoded token
+        req.user = decoded;
+    });
+
+    if (!token) {
+        return res.status(401).json({ message: 'Accès refusé, token manquant' });
+    }
+
+    const { appointment_at, ends_at, start_at, doctor_id, clinic_id, doctor, patient, address, motif_id } = req.body;
+
+    if ( !ends_at || !start_at || !doctor_id || !clinic_id || !motif_id ) {
+        return res.status(400).json({ error: 'Tous les champs sont requis.' });
+    }
+
+    let user_id;
+    try {
+        const decoded = jwt.verify(token, SECRET_KEY);
+        user_id = decoded.user_id;
+    } catch (error) {
+        return res.status(401).json({ error: 'Token invalide ou expiré.' });
+    }
+
+    const insertQuery = `
+      INSERT INTO appointments (appointment_at, ends_at, start_at, user_id, doctor_id, clinic_id, doctor, patient, address, motif_id, appointment_status_id) 
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+
+    `;
+    const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic_id, doctor, patient, address, motif_id];
+
+    const deleteAvailableHourQuery = `
+        DELETE FROM availability_hours_clinic 
+        WHERE clinic_id = ? 
+        AND start_at = ? 
+        AND end_at = ? 
+        AND doctor_id = ?
+    `;
+
+    const availableHourValues = [clinic_id, start_at, ends_at,doctor_id];
+
+    // Start by deleting available hours
+    db.query(deleteAvailableHourQuery, availableHourValues, (deleteError, deleteResults) => {
+        if (deleteError) {
+            return res.status(500).json({ error: `Erreur lors de la suppression des heures disponibles: ${deleteError.message}` });
+        }
+
+        // Now, insert the appointment
+        db.query(insertQuery, values, (error, results) => {
+            if (error) {
+                return res.status(500).json({ error: error.message });
+            }
+
+            // Email sending logic
+            const querys = `SELECT email FROM users WHERE id = ?;`;
+            db.query(querys, [user_id], (err, resul) => {
+                if (err) {
+                    console.error(err);
+                    return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
+                }
+
+                if (resul.length === 0) {
+                    return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+                }
+const qurry =  `SELECT name FROM doctors WHERE id = ?;`;
+db.query(qurry, [doctor_id], (err, resuls) => {
+    if (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
+    }
+
+    if (resul.length === 0) {
+        return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+    }
+    const qurryy =  `SELECT name FROM clinics WHERE id = ?;`;
+db.query(qurryy, [clinic_id], (err, resulss) => {
+    if (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
+    }
+
+    if (resul.length === 0) {
+        return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+    }
+    const queryss = `SELECT firstname FROM users WHERE id = ?;`;
+            db.query(queryss, [user_id], (err, resull) => {
+                if (err) {
+                    console.error(err);
+                    return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
+                }
+
+                if (resul.length === 0) {
+                    return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+                }
+                const transporter = nodemailer.createTransport({
+                    service: 'gmail',
+                    port: 587,
+                    secure: false,
+                    auth: {
+                        user: 'laajili.khouloud12@gmail.com',
+                        pass: 'lmvy ldix qtgm gbna', // Use app password for security
+                    },
+                });
+                const startDate = new Date(start_at); // Convert to JavaScript Date object
+
+                // Format to display the day in words and time without seconds
+                const formattedStartAt = startDate.toLocaleString('fr-FR', {
+                    weekday: 'long',   // Full name of the day (e.g., "lundi")
+                    hour: '2-digit',   // Two-digit hour (e.g., "14" for 2 PM)
+                    minute: '2-digit', // Two-digit minute
+                });
+                const mailOptions = {
+                    from: 'laajili.khouloud12@gmail.com',
+                    to: resul[0].email, // Ensure it's a string, assuming resul is an array of objects
+                    subject: 'Confirmation de votre Rendez-vous',
+                    html: `
+                        <html>
+                        <body>
+                            <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${resull[0].name}</h2>
+                            <p>Votre rendez-vous avec le médecin  ${JSON.parse(resuls[0].name).fr} le ${formattedStartAt} au   ${JSON.parse(resulss[0].name).fr}</p>
+                            <p>est bien confirmé</p>   
+                            <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+                        </body>
+                        </html>
+                    `,
+                };
+
+                transporter.sendMail(mailOptions, function (error, info) {
+                    if (error) {
+                        console.error('Error sending email:', error);
+                        return res.status(500).json({ error: 'Erreur lors de l\'envoi de l\'email.' });
+                    } else {
+                        console.log('Email sent: ' + info.response);
+                        return res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: results.insertId });
+                    }
+                });
+            });
+        });
+    });
+});
+    });
+});
+}
+
+function insertAppointmentcliniccopimail(req, res) {
     console.log('Request Body:', req.body);
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -396,172 +550,217 @@ db.query(qurryy, [clinic_id], (err, resulss) => {
     });
 });
 }
-function insertAppointmentclinics(req, res) {
-    console.log('Request Body:', req.body);
+
+const insertAppointmentclinic= async (req, res) => {
+    console.log('Request Body:', req.body); // Affiche le contenu de req.body
     const authHeader = req.headers['authorization'];
+
+    // Vérifier si le header contient le token
     const token = authHeader && authHeader.split(' ')[1];
-    
+
     if (!token) {
         return res.status(401).json({ message: 'Accès refusé, token manquant' });
     }
 
-    try {
-        const decoded = jwt.verify(token, SECRET_KEY);
-        req.user = decoded;
-    } catch (err) {
-        return res.status(401).json({ message: err.name === 'TokenExpiredError' ? 'Token expiré.' : 'Token invalide.' });
-    }
+    // Récupérer les paramètres depuis le corps de la requête
+    const { appointment_at , ends_at, start_at, doctor_id, clinic, doctor, patient, address, motif_id ,clinic_id} = req.body;
 
-    const { appointment_at, ends_at, start_at, doctor_id, clinic_id, doctor, patient, address, motif_id } = req.body;
-    
-    if (!ends_at || !start_at || !doctor_id || !clinic_id || !motif_id) {
+    // Vérification des paramètres requis
+    if (!ends_at || !start_at || !token || !doctor_id || !motif_id || !clinic_id) {
         return res.status(400).json({ error: 'Tous les champs sont requis.' });
     }
 
-    const user_id = req.user.user_id;
+    // Décoder le token pour récupérer user_id
+    let user_id;
+    try {
+        const decoded = jwt.verify(token, SECRET_KEY);
+        user_id = decoded.user_id; // Assurez-vous que user_id est dans le token décodé
+    } catch (error) {
+        return res.status(401).json({ error: 'Token invalide ou expiré.' });
+    }
+
+    // Préparer la requête SQL pour insérer le rendez-vous
     const insertQuery = `
-        INSERT INTO appointments (appointment_at, ends_at, start_at, user_id, doctor_id, clinic_id, doctor, patient, address, motif_id, appointment_status_id) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        INSERT INTO appointments (appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id, clinic_id ,appointment_status_id) 
+        VALUES ( ?,?, ?, ?, ?, ?, ?, ?, ?, ?,? , 1)
     `;
+    
+    const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id ,clinic_id];
+
+    // Supprimer l'heure disponible associée dans la table 'available_hours'
     const deleteAvailableHourQuery = `
-        DELETE FROM availability_hours_clinic 
-        WHERE clinic_id = ? 
+        DELETE FROM  availability_hours_clinic 
+        WHERE doctor_id = ? 
         AND start_at = ? 
-        AND end_at = ? 
+        AND end_at = ?
+        AND clinic_id = ? 
     `;
+    
+    const availableHourValues = [doctor_id, start_at, ends_at,clinic_id];
 
-    const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic_id, doctor, patient, address, motif_id];
-    const availableHourValues = [clinic_id, start_at, ends_at];
+    try {
+        // Supprimer les heures disponibles
+        await db.query(deleteAvailableHourQuery, availableHourValues);
 
-    db.query(deleteAvailableHourQuery, availableHourValues, (deleteError) => {
-        if (deleteError) {
-            console.error('Erreur lors de la suppression de l\'heure de disponibilité:', deleteError);
-            return res.status(500).json({ error: 'Erreur lors de la suppression de l\'heure de disponibilité.' });
+        // Insérer le rendez-vous
+        const [insertResult] = await db.query(insertQuery, values);
+
+        // Logique d'envoi d'e-mail
+        const emailQuery = `SELECT email FROM users WHERE id = ?;`;
+        const [userEmail] = await db.query(emailQuery, [user_id]);
+
+        if (userEmail.length === 0) {
+            return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
         }
 
-        db.query(insertQuery, values, (insertError, insertResult) => {
-            if (insertError) {
-                console.error('Erreur lors de l\'insertion du rendez-vous:', insertError);
-                return res.status(500).json({ error: 'Erreur lors de l\'insertion du rendez-vous.' });
-            }
+        const nameQuery = `SELECT firstname FROM users WHERE id = ?;`;
+        const [userName] = await db.query(nameQuery, [user_id]);
 
-            db.query('SELECT email, firstname FROM users WHERE id = ?;', [user_id], (userError, userResult) => {
-                if (userError || userResult.length === 0) {
-                    return res.status(404).json({ message: 'Utilisateur non trouvé.' });
-                }
+        if (userEmail.length === 0) {
+            return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+        }
+        const namedocQuery = `SELECT name FROM doctors WHERE id = ?;`;
+        const [docname] = await db.query(namedocQuery, [doctor_id]);
 
-                db.query('SELECT name FROM doctors WHERE id = ?;', [doctor_id], (doctorError, doctorResult) => {
-                    if (doctorError || doctorResult.length === 0) {
-                        return res.status(404).json({ message: 'Médecin non trouvé.' });
-                    }
+        if (userEmail.length === 0) {
+            return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+        }
+        const startDate = new Date(start_at);
+        const endDate = new Date(ends_at);
 
-                    db.query('SELECT name FROM clinics WHERE id = ?;', [clinic_id], (clinicError, clinicResult) => {
-                        if (clinicError || clinicResult.length === 0) {
-                            return res.status(404).json({ message: 'Clinique non trouvée.' });
-                        }
-
-                        const transporter = nodemailer.createTransport({
-                            service: 'gmail',
-                            port: 587,
-                            secure: false,
-                            auth: {
-                                user: 'laajili.khouloud12@gmail.com',
-                                pass: 'lmvy ldix qtgm gbna',
-                            },
-                        });
-
-                        const formattedStartAt = new Date(start_at).toLocaleString('fr-FR', {
-                            weekday: 'long',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                        });
-
-                        const mailOptions = {
-                            from: 'laajili.khouloud12@gmail.com',
-                            to: userResult[0].email,
-                            subject: 'Confirmation de votre Rendez-vous',
-                            html: `
-                                <html>
-                                <body>
-                                    <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${userResult[0].firstname}</h2>
-                                    <p>Votre rendez-vous avec le médecin ${JSON.parse(doctorResult[0].name).fr} le ${formattedStartAt} au ${JSON.parse(clinicResult[0].name).fr} est bien confirmé.</p>
-                                    <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
-                                </body>
-                                </html>
-                            `,
-                        };
-
-                        transporter.sendMail(mailOptions, (emailError, info) => {
-                            if (emailError) {
-                                console.error('Erreur lors de l\'envoi de l\'email:', emailError);
-                                return res.status(500).json({ error: 'Erreur lors de l\'envoi de l\'email.' });
-                            } else {
-                                console.log('Email envoyé:', info.response);
-                                return res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: insertResult.insertId });
-                            }
-                        });
-                    });
-                });
-            });
+       // Fonction pour formater la date
+       const formatDate = (date) => {
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
+        return `le ${date.toLocaleString('fr-FR', options).replace(',', '')}`; // Remplacer la virgule pour obtenir le format désiré
+    };
+  // Fonction pour formater l'heure
+  const formatTime = (date) => {
+    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`; // Formate l'heure et les minutes
+};
+    const formattedStartAt = formatDate(startDate);
+    const formattedStartAt1 = formatTime(endDate);
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            port: 587,
+            secure: false,
+            auth: {
+                user: 'laajili.khouloud12@gmail.com',
+                pass: 'lmvy ldix qtgm gbna', // Utiliser un mot de passe d'application pour plus de sécurité
+            },
         });
-    });
-}
 
+        const mailOptions = {
+            from: 'laajili.khouloud12@gmail.com',
+            to: userEmail[0].email,
+            subject: 'Confirmation de votre Rendez-vous',
+            html: `<html>
+                        <body>
+                            <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${userName[0].name}</h2>
+                            <p>Votre rendez-vous avec le médecin  ${JSON.parse(docname[0].name).fr}  ${formattedStartAt} au  ${formattedStartAt1} est bien confirmé</p>
+                            <p></p>   
+                            <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+                        </body>
+                        </html>`, // Personnalisez l'e-mail selon vos besoins
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        return res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: insertResult.insertId });
+    } catch (error) {
+        console.error('Erreur lors de l\'insertion du rendez-vous ou de l\'envoi de l\'e-mail:', error);
+        return res.status(500).json({ error: 'Erreur lors de l\'insertion du rendez-vous ou de l\'envoi de l\'e-mail.' });
+    }
+};
 
 
 
 async function insertAppointmentclinics(req, res) {
-    console.log('Request Body:', req.body);
+    console.log('Request Body:', req.body); // Affiche le contenu de req.body
     const authHeader = req.headers['authorization'];
+
+    // Vérifier si le header contient le token
     const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
         return res.status(401).json({ message: 'Accès refusé, token manquant' });
     }
 
-    let user_id;
-    try {
-        const decoded = jwt.verify(token, SECRET_KEY);
-        user_id = decoded.user_id;
-    } catch (err) {
-        return res.status(401).json({ message: err.name === 'TokenExpiredError' ? 'Token expiré.' : 'Token invalide.' });
-    }
+    // Récupérer les paramètres depuis le corps de la requête
+    const { appointment_at, ends_at, start_at, doctor_id, clinic, doctor, patient, address, motif_id ,clinic_id} = req.body;
 
-    const { appointment_at, ends_at, start_at, doctor_id, clinic_id, doctor, patient, address, motif_id } = req.body;
-
-    if (!ends_at || !start_at || !doctor_id || !clinic_id || !motif_id) {
+    // Vérification des paramètres requis
+    if (!ends_at || !start_at || !token || !doctor_id || !motif_id || !clinic_id ) {
         return res.status(400).json({ error: 'Tous les champs sont requis.' });
     }
 
+    // Décoder le token pour récupérer user_id
+    let user_id;
+    try {
+        const decoded = jwt.verify(token, SECRET_KEY);
+        user_id = decoded.user_id; // Assurez-vous que user_id est dans le token décodé
+    } catch (error) {
+        return res.status(401).json({ error: 'Token invalide ou expiré.' });
+    }
+
+    // Préparer la requête SQL pour insérer le rendez-vous
     const insertQuery = `
-        INSERT INTO appointments (appointment_at, ends_at, start_at, user_id, doctor_id, clinic_id, doctor, patient, address, motif_id, appointment_status_id) 
+        INSERT INTO appointments (appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id, clinic_id ,appointment_status_id) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     `;
+    
+    const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id,clinic_id];
+
+    // Supprimer l'heure disponible associée dans la table 'available_hours'
     const deleteAvailableHourQuery = `
         DELETE FROM availability_hours_clinic 
-        WHERE clinic_id = ? 
+        WHERE doctor_id = ? 
         AND start_at = ? 
-        AND end_at = ? 
+        AND end_at = ?
+        AND clinic_id = ?
     `;
-
-    const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic_id, doctor, patient, address, motif_id];
-    const availableHourValues = [clinic_id, start_at, ends_at];
+    
+    const availableHourValues = [doctor_id, start_at, ends_at,clinic_id];
 
     try {
+        // Supprimer les heures disponibles
         await db.query(deleteAvailableHourQuery, availableHourValues);
-        const insertResult = await db.query(insertQuery, values);
 
-        // Continue with fetching user, doctor, and clinic details...
-        const [userResult] = await db.query(`SELECT email, firstname FROM users WHERE id = ?;`, [user_id]);
-        const [doctorResult] = await db.query(`SELECT name FROM doctors WHERE id = ?;`, [doctor_id]);
-        const [clinicResult] = await db.query(`SELECT name FROM clinics WHERE id = ?;`, [clinic_id]);
+        // Insérer le rendez-vous
+        const [insertResult] = await db.query(insertQuery, values);
 
-        // Email sending logic...
+        // Logique d'envoi d'e-mail
+        const emailQuery = `SELECT email FROM users WHERE id = ?;`;
+        const [userEmail] = await db.query(emailQuery, [user_id]);
+
+        if (userEmail.length === 0) {
+            return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+        }
+
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            port: 587,
+            secure: false,
+            auth: {
+                user: 'laajili.khouloud12@gmail.com',
+                pass: 'lmvy ldix qtgm gbna', // Utiliser un mot de passe d'application pour plus de sécurité
+            },
+        });
+
+        const mailOptions = {
+            from: 'laajili.khouloud12@gmail.com',
+            to: userEmail[0].email,
+            subject: 'Confirmation de votre Rendez-vous',
+            html: `<p>Votre rendez-vous a été confirmé.</p>`, // Personnalisez l'e-mail selon vos besoins
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        return res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: insertResult.insertId });
     } catch (error) {
-        console.error('Erreur lors de l\'insertion du rendez-vous ou de l\'envoi de l\'email:', error);
-        return res.status(500).json({ error: error.message });
+        console.error('Erreur lors de l\'insertion du rendez-vous ou de l\'envoi de l\'e-mail:', error);
+        return res.status(500).json({ error: 'Erreur lors de l\'insertion du rendez-vous ou de l\'envoi de l\'e-mail.' });
     }
-}
+};
 
 const updateAppointment = async (req, res) => {
     const { start_at, end_at } = req.body;
@@ -597,8 +796,8 @@ const updateAppointment = async (req, res) => {
         console.log(oldAppointment);
 
         // Insérer l'historique
-        await db.query('INSERT INTO availability_hours_clinic (start_at, end_at, clinic_id) VALUES (?, ?, ?)', 
-            [oldAppointment.start_at, oldAppointment.ends_at, oldAppointment.clinic_id]);
+        await db.query('INSERT INTO availability_hours_clinic (start_at, end_at, clinic_id, doctor_id) VALUES (?, ?, ?, ?)', 
+            [oldAppointment.start_at, oldAppointment.ends_at, oldAppointment.clinic_id ,oldAppointment.doctor_id]);
 
         // Mettre à jour les nouvelles valeurs du rendez-vous
         await db.query('UPDATE appointments SET start_at = ?, ends_at = ? WHERE id = ?', 

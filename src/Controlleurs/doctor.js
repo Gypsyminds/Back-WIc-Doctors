@@ -1751,10 +1751,36 @@ const getDoctorById = async (req, res) => {
             }
         
             const query = `
-                SELECT d.*, u.email, u.phone_number
-                FROM doctors d
-                JOIN users u ON d.user_id = u.id
-                WHERE d.id = ?;
+                SELECT  
+    d.id AS doctor_id,
+    d.name AS name,
+    d.doctor_photo,
+    d.enable_online_consultation,
+    d.description,
+    d.horaires,
+    d.cabinet_photo,
+    d.created_at,
+    a.title AS title,
+    usr.phone_number,
+    addr.ville,
+    addr.pays,
+    JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities
+FROM 
+    doctors d 
+LEFT JOIN 
+    doctor_specialities ds ON d.id = ds.doctor_id 
+LEFT JOIN 
+    specialities s ON ds.speciality_id = s.id 
+LEFT JOIN 
+    experiences a ON d.id = a.doctor_id 
+LEFT JOIN 
+    users usr ON d.user_id = usr.id 
+LEFT JOIN 
+    addresses addr ON usr.id = addr.user_id
+WHERE 
+    d.id = 62
+GROUP BY 
+    d.id, a.title, usr.phone_number, addr.ville, addr.pays;
             `;
         
             try {

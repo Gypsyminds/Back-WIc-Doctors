@@ -9,12 +9,14 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // Configurer la connexion MySQL
-const db = mysql.createConnection({
+const promiseConnection = mysql.createConnection({
     host: '127.0.0.1',        // Remplacez par votre hôte
     user: 'root', // Remplacez par votre nouvel_utilisateurutilisateur
     password: 'StrongPassword123!', // Remplacez par votre mot de passe
     database: 'doctor-way-interactive'
 });
+const db = promiseConnection.promise();
+
 // Connecter à la base de données
 db.connect(err => {
     if (err) {

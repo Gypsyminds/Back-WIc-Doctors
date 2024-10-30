@@ -20,8 +20,8 @@ const moment = require('moment');
 
 
 
-
-const getClinic = (req, res) => {
+//
+const getClinic = async (req, res) => {
     const query =  `
 SELECT 
     MIN(clinics.id) AS clinic_id,  
@@ -53,80 +53,93 @@ GROUP BY
 ORDER BY 
     clinics.name; `
     // Exécuter la requête SQL
-    db.query(query, (err, results) => {
-      if (err) {
-        console.error('Erreur lors de la récupération des cliniques:', err.stack);
-        res.status(500).json({ error: 'Erreur interne du serveur' });
-        return;
-      }
-
-      // Retourner les résultats en JSON
-      res.status(200).json(results);
-    });
+    // Exécuter la requête SQL
+    const [results] = await db.query(query);
+        
+    // Retourner les résultats en JSON
+    res.status(200).json(results);
 }
   // Fonction pour obtenir les spécialités par clinic_id
-async function getSpecialitiesByClinicId(clinicId) {
+  const getSpecialitiesByClinicId = async (req, res) => {
+    const clinicId = req.params.clinicId; // Récupérer l'ID de la clinique depuis les paramètres de l'URL
+
+    // Vérification si clinicId est fourni
+    if (!clinicId) {
+        return res.status(400).json({ error: 'Le clinicId est requis.' });
+    }
+
+    // Préparation de la requête SQL
     const query = `
-        SELECT s.id, s.name, s.icon
+        SELECT DISTINCT s.id, s.name, s.icon
         FROM specialities s
         LEFT JOIN clinic_specialities sd ON s.id = sd.speciality_id
-        WHERE sd.clinic_id = ?
-        GROUP BY s.id, s.name, s.icon;
+        WHERE sd.clinic_id = ?;
     `;
 
     try {
-        // Établir la connexion à la base de données
-        const connection = await mysql.createConnection(dbConfig);
+        // Exécution de la requête et attente des résultats
+        const [results] = await db.query(query, [clinicId]);
 
-        // Exécuter la requête
-        const [rows] = await connection.execute(query, [clinicId]);
+        // Vérification si des résultats ont été trouvés
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucune spécialité trouvée pour cette clinique.' });
+        }
 
-        // Fermer la connexion
-        await connection.end();
-
-        return rows;
-    } catch (error) {
-        console.error('Error fetching specialities:', error);
-        throw new Error('Internal server error');
+        // Retourner les résultats
+        res.status(200).json(results);
+    } catch (err) {
+        console.error(err); // Pour le débogage
+        return res.status(500).json({ error: 'Erreur lors de la récupération des spécialités.' });
     }
 }
-// Route pour obtenir les médecins d'une clinique spécifique
-//router.get('/doctors/clinic/:clinicId',
- const getdoctosandspeciality = (req, res) => {
 
+
+// Route pour obtenir les médecins d'une clinique spécifique
+const getDoctorsAndSpeciality = async (req, res) => {
     const clinicId = req.params.clinicId;
 
     const query = `
      SELECT 
-     specialities.id AS specialty_id ,
-    specialities.name AS specialty_name,
-    GROUP_CONCAT(DISTINCT doctors.name SEPARATOR ', ') AS doctors_name,
-    GROUP_CONCAT(DISTINCT doctors.doctor_photo SEPARATOR ', ') AS doctor_photos
-FROM 
-    doctors
-JOIN 
-    clinics ON doctors.clinic_id = clinics.id
-JOIN 
-    doctor_specialities ON doctors.id = doctor_specialities.doctor_id
-JOIN 
-    specialities ON doctor_specialities.speciality_id = specialities.id
-WHERE 
-    clinics.id = ?
-GROUP BY 
-    specialities.name , specialities.id
-ORDER BY 
-    specialities.name;
+     specialities.id AS specialty_id,
+     specialities.name AS specialty_name,
+     GROUP_CONCAT(DISTINCT doctors.name SEPARATOR ', ') AS doctors_name,
+     GROUP_CONCAT(DISTINCT doctors.doctor_photo SEPARATOR ', ') AS doctor_photos
+    FROM 
+        doctors
+    JOIN 
+        clinics ON doctors.clinic_id = clinics.id
+    JOIN 
+        doctor_specialities ON doctors.id = doctor_specialities.doctor_id
+    JOIN 
+        specialities ON doctor_specialities.speciality_id = specialities.id
+    WHERE 
+        clinics.id = ?
+    GROUP BY 
+        specialities.name, specialities.id
+    ORDER BY 
+        specialities.name;
     `;
 
-    db.query(query, [clinicId], (error, results) => {
-        if (error) {
-            return res.status(500).json({ error: 'Database query error' });
+    try {
+        // Exécution de la requête SQL et attente des résultats
+        const [results] = await db.query(query, [clinicId]);
+
+        // Vérification si des résultats ont été trouvés
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucune spécialité ou médecin trouvé pour cette clinique.' });
         }
-        res.json(results);
-    });
- }
-//router.get('/specialities/clinic/:clinicId',
-const getspecialitesdeclinic =   (req, res) => {
+
+        // Retourner les résultats
+        res.status(200).json(results);
+    } catch (error) {
+        console.error(error); // Pour le débogage
+        return res.status(500).json({ error: 'Erreur lors de la récupération des médecins et spécialités.' });
+    }
+}
+
+
+
+const getspecialitesdeclinic = async (req, res) => {
     const clinicId = req.params.clinicId;
 
     const query = `
@@ -140,44 +153,58 @@ const getspecialitesdeclinic =   (req, res) => {
             clinic_specialities.clinic_id = ?;
     `;
 
-    db.query(query, [clinicId], (error, results) => {
-        if (error) {
-            return res.status(500).json({ error: 'Database query error' });
+    try {
+        // Exécution de la requête SQL
+        const [results] = await db.query(query, [clinicId]);
+        
+        // Vérification si des résultats ont été trouvés
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucune spécialité trouvée pour cette clinique.' });
         }
-        res.json(results);
-    });
-}
-const getmotifByClinicAndSpecialite = (req, res) => {
-    const clinicId = req.params.clinicId;         // Récupérer l'ID de la clinique depuis l'URL
-    const specialiteId = req.params.specialiteId; // Récupérer l'ID de la spécialité depuis l'URL
+
+        // Retourner les résultats
+        res.status(200).json(results);
+    } catch (error) {
+        console.error('Erreur lors de la requête SQL :', error);
+        return res.status(500).json({ error: 'Erreur de requête SQL' });
+    }
+};
+
+const getmotifByClinicAndSpecialite = async (req, res) => {
+    const clinicId = req.params.clinicId;
+    const specialiteId = req.params.specialiteId;
 
     const query = `
-        SELECT nom ,id 
+        SELECT nom, id 
         FROM pattern 
         WHERE clinic_id = ? AND specialite_id = ?;
     `;
 
-    // Exécution de la requête SQL
-    db.query(query, [clinicId, specialiteId], (error, results) => {
-        if (error) {
-            console.error('Erreur lors de la requête SQL :', error);
-            return res.status(500).json({ error: 'Erreur de requête SQL' });
+    try {
+        const [results] = await db.query(query, [clinicId, specialiteId]);
+        
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucun motif trouvé pour cette clinique et spécialité.' });
         }
-        // Renvoie des résultats en JSON
-        res.json(results);
-    });
-}
+
+        res.status(200).json(results);
+    } catch (error) {
+        console.error('Erreur lors de la requête SQL :', error);
+        return res.status(500).json({ error: 'Erreur de requête SQL' });
+    }
+};
+
 // Fonction pour obtenir le nom des médecins en fonction de l'ID de la spécialité, ID de la clinique et ID du pattern
- const getDoctorsBySpecialityAndClinic = (req, res) => {
-    const specialityId = req.params.specialityId; // Récupérer l'ID de la spécialité depuis l'URL
-    const clinicId = req.params.clinicId;         // Récupérer l'ID de la clinique depuis l'URL
-    const patternId = req.params.patternId;       // Récupérer l'ID du pattern depuis l'URL
+ const getDoctorsBySpecialityAndClinic = async (req, res) => {
+    const specialityId = req.params.specialityId;
+    const clinicId = req.params.clinicId;
+    const patternId = req.params.patternId;
 
     const query = `
-     SELECT 
-     doctors.id AS doctor_id ,
-            doctors.name AS doctor_name ,
-            doctors.doctor_photo AS doctoe_photo 
+        SELECT 
+            doctors.id AS doctor_id,
+            doctors.name AS doctor_name,
+            doctors.doctor_photo AS doctor_photo 
         FROM 
             doctors
         JOIN 
@@ -188,16 +215,20 @@ const getmotifByClinicAndSpecialite = (req, res) => {
             AND pattern.id = ?;
     `;
 
-    // Exécution de la requête SQL
-    db.query(query, [specialityId, clinicId, patternId], (error, results) => {
-        if (error) {
-            console.error('Erreur lors de la requête SQL :', error);
-            return res.status(500).json({ error: 'Erreur de requête SQL' });
+    try {
+        const [results] = await db.query(query, [specialityId, clinicId, patternId]);
+        
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucun médecin trouvé pour cette spécialité, clinique et motif.' });
         }
-        // Renvoie des résultats en JSON
-        res.json(results);
-    });
-}
+
+        res.status(200).json(results);
+    } catch (error) {
+        console.error('Erreur lors de la requête SQL :', error);
+        return res.status(500).json({ error: 'Erreur de requête SQL' });
+    }
+};
+
 const jwt = require('jsonwebtoken');
 
 // Remplacez 'votre_clé_secrète' par votre clé secrète utilisée pour signer les tokens
@@ -214,7 +245,7 @@ function decodeToken(token) {
     }
 }
 
-function insertAppointmentclinics(req, res) {
+function insertAppointmentclinic(req, res) {
     console.log('Request Body:', req.body);
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -365,7 +396,7 @@ db.query(qurryy, [clinic_id], (err, resulss) => {
     });
 });
 }
-async function insertAppointmentclinic(req, res) {
+function insertAppointmentclinics(req, res) {
     console.log('Request Body:', req.body);
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -402,70 +433,83 @@ async function insertAppointmentclinic(req, res) {
     const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic_id, doctor, patient, address, motif_id];
     const availableHourValues = [clinic_id, start_at, ends_at];
 
-    try {
-        await db.query(deleteAvailableHourQuery, availableHourValues);
-        const insertResult = await db.query(insertQuery, values);
-
-        const [userResult] = await db.query(`SELECT email, firstname FROM users WHERE id = ?;`, [user_id]);
-        if (userResult.length === 0) {
-            return res.status(404).json({ message: 'Utilisateur non trouvé.' });
+    db.query(deleteAvailableHourQuery, availableHourValues, (deleteError) => {
+        if (deleteError) {
+            console.error('Erreur lors de la suppression de l\'heure de disponibilité:', deleteError);
+            return res.status(500).json({ error: 'Erreur lors de la suppression de l\'heure de disponibilité.' });
         }
 
-        const [doctorResult] = await db.query(`SELECT name FROM doctors WHERE id = ?;`, [doctor_id]);
-        if (doctorResult.length === 0) {
-            return res.status(404).json({ message: 'Médecin non trouvé.' });
-        }
-       
-        const [clinicResult] = await db.query(`SELECT name FROM clinics WHERE id = ?;`, [clinic_id]);
-        if (clinicResult.length === 0) {
-            return res.status(404).json({ message: 'Clinique non trouvée.' });
-        }
-
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            port: 587,
-            secure: false,
-            auth: {
-                user: 'laajili.khouloud12@gmail.com',
-                pass: 'lmvy ldix qtgm gbna', 
-            },
-        });
-
-        const formattedStartAt = new Date(start_at).toLocaleString('fr-FR', {
-            weekday: 'long',
-            hour: '2-digit',
-            minute: '2-digit',
-        });
-
-        const mailOptions = {
-            from: 'laajili.khouloud12@gmail.com',
-            to: userResult[0].email,
-            subject: 'Confirmation de votre Rendez-vous',
-            html: `
-                <html>
-                <body>
-                    <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${userResult[0].firstname}</h2>
-                    <p>Votre rendez-vous avec le médecin ${JSON.parse(doctorResult[0].name).fr} le ${formattedStartAt} au ${JSON.parse(clinicResult[0].name).fr} est bien confirmé.</p>
-                    <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
-                </body>
-                </html>
-            `,
-        };
-
-        transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-                console.error('Erreur lors de l\'envoi de l\'email:', error);
-                return res.status(500).json({ error: 'Erreur lors de l\'envoi de l\'email.' });
-            } else {
-                console.log('Email envoyé:', info.response);
-                return res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: insertResult.insertId });
+        db.query(insertQuery, values, (insertError, insertResult) => {
+            if (insertError) {
+                console.error('Erreur lors de l\'insertion du rendez-vous:', insertError);
+                return res.status(500).json({ error: 'Erreur lors de l\'insertion du rendez-vous.' });
             }
+
+            db.query('SELECT email, firstname FROM users WHERE id = ?;', [user_id], (userError, userResult) => {
+                if (userError || userResult.length === 0) {
+                    return res.status(404).json({ message: 'Utilisateur non trouvé.' });
+                }
+
+                db.query('SELECT name FROM doctors WHERE id = ?;', [doctor_id], (doctorError, doctorResult) => {
+                    if (doctorError || doctorResult.length === 0) {
+                        return res.status(404).json({ message: 'Médecin non trouvé.' });
+                    }
+
+                    db.query('SELECT name FROM clinics WHERE id = ?;', [clinic_id], (clinicError, clinicResult) => {
+                        if (clinicError || clinicResult.length === 0) {
+                            return res.status(404).json({ message: 'Clinique non trouvée.' });
+                        }
+
+                        const transporter = nodemailer.createTransport({
+                            service: 'gmail',
+                            port: 587,
+                            secure: false,
+                            auth: {
+                                user: 'laajili.khouloud12@gmail.com',
+                                pass: 'lmvy ldix qtgm gbna',
+                            },
+                        });
+
+                        const formattedStartAt = new Date(start_at).toLocaleString('fr-FR', {
+                            weekday: 'long',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                        });
+
+                        const mailOptions = {
+                            from: 'laajili.khouloud12@gmail.com',
+                            to: userResult[0].email,
+                            subject: 'Confirmation de votre Rendez-vous',
+                            html: `
+                                <html>
+                                <body>
+                                    <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${userResult[0].firstname}</h2>
+                                    <p>Votre rendez-vous avec le médecin ${JSON.parse(doctorResult[0].name).fr} le ${formattedStartAt} au ${JSON.parse(clinicResult[0].name).fr} est bien confirmé.</p>
+                                    <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+                                </body>
+                                </html>
+                            `,
+                        };
+
+                        transporter.sendMail(mailOptions, (emailError, info) => {
+                            if (emailError) {
+                                console.error('Erreur lors de l\'envoi de l\'email:', emailError);
+                                return res.status(500).json({ error: 'Erreur lors de l\'envoi de l\'email.' });
+                            } else {
+                                console.log('Email envoyé:', info.response);
+                                return res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: insertResult.insertId });
+                            }
+                        });
+                    });
+                });
+            });
         });
-    } catch (error) {
-        console.error('Erreur lors de l\'insertion du rendez-vous ou de l\'envoi de l\'email:', error);
-        return res.status(500).json({ error: error.message });
-    }
+    });
 }
+
+
+
+
 async function insertAppointmentclinics(req, res) {
     console.log('Request Body:', req.body);
     const authHeader = req.headers['authorization'];
@@ -504,13 +548,13 @@ async function insertAppointmentclinics(req, res) {
     const availableHourValues = [clinic_id, start_at, ends_at];
 
     try {
-        await pool.query(deleteAvailableHourQuery, availableHourValues);
-        const insertResult = await pool.query(insertQuery, values);
+        await db.query(deleteAvailableHourQuery, availableHourValues);
+        const insertResult = await db.query(insertQuery, values);
 
         // Continue with fetching user, doctor, and clinic details...
-        const [userResult] = await pool.query(`SELECT email, firstname FROM users WHERE id = ?;`, [user_id]);
-        const [doctorResult] = await pool.query(`SELECT name FROM doctors WHERE id = ?;`, [doctor_id]);
-        const [clinicResult] = await pool.query(`SELECT name FROM clinics WHERE id = ?;`, [clinic_id]);
+        const [userResult] = await db.query(`SELECT email, firstname FROM users WHERE id = ?;`, [user_id]);
+        const [doctorResult] = await db.query(`SELECT name FROM doctors WHERE id = ?;`, [doctor_id]);
+        const [clinicResult] = await db.query(`SELECT name FROM clinics WHERE id = ?;`, [clinic_id]);
 
         // Email sending logic...
     } catch (error) {
@@ -519,104 +563,83 @@ async function insertAppointmentclinics(req, res) {
     }
 }
 
-const updateAppointment = (req, res) => {
+const updateAppointment = async (req, res) => {
     const { start_at, end_at } = req.body;
 
     // Vérification des champs requis
     if (!start_at || !end_at) {
-        return res.status(400).send({ message: 'Les champs start_at, end_at, new_start_at et new_end_at sont requis' });
+        return res.status(400).send({ message: 'Les champs start_at et end_at sont requis' });
     }
+
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
-    jwt.verify(token, SECRET_KEY, (err, decoded) => {
-        if (err) {
-            if (err.name === 'TokenExpiredError') {
-                return res.status(401).json({ message: 'Token expiré.' });
-            }
-            return res.status(401).json({ message: 'Token invalide.' });
-        }
-    
-        // Continue the request with the decoded token
-        req.user = decoded;
-    });
 
     if (!token) {
         return res.status(401).json({ message: 'Accès refusé, token manquant' });
     }
+
     let user_id;
     try {
         const decoded = jwt.verify(token, SECRET_KEY);
         user_id = decoded.user_id;
-      
     } catch (error) {
         return res.status(401).json({ error: 'Token invalide ou expiré.' });
     }
-    db.query('SELECT * FROM  appointments WHERE user_id = ? ORDER BY start_at DESC LIMIT 1', 
-        [user_id], 
-        (err, result) => {
-            if (err) {
-                return res.status(500).send({ message: 'Erreur lors de la récupération du rendez-vous', error: err });
-            }
 
-            if (result.length === 0) {
-                return res.status(404).send({ message: 'Aucun rendez-vous trouvé pour cet utilisateur' });
-            }
+    try {
+        const [result] = await db.query('SELECT * FROM appointments WHERE user_id = ? ORDER BY start_at DESC LIMIT 1', [user_id]);
 
-            const oldAppointment = result[0]; // Ancien rendez-vous
-            console.log(oldAppointment);
-            // Insérer l'historique
-            db.query('INSERT INTO availability_hours_clinic (start_at, end_at ,clinic_id) VALUES (?, ?, ?)', 
-                [oldAppointment.start_at, oldAppointment.ends_at , oldAppointment.clinic_id], 
-                (err, insertResult) => {
-                    if (err) {
-                        return res.status(500).send({ message: 'Erreur lors de l\'insertion dans history', error: err });
-                    }
-
-                    // Mettre à jour les nouvelles valeurs du rendez-vous
-                    db.query('UPDATE appointments SET start_at = ?, ends_at = ? WHERE id = ?', 
-                        [start_at, end_at, oldAppointment.id], 
-                        (err, updateResult) => {
-                            if (err) {
-                                return res.status(500).send({ message: 'Erreur lors de la mise à jour du rendez-vous', error: err });
-                            }
-
-                            return res.status(200).send({ message: 'Rendez-vous mis à jour avec succès' });
-                        });
-                });
-
-                
-});
+        if (result.length === 0) {
+            return res.status(404).send({ message: 'Aucun rendez-vous trouvé pour cet utilisateur' });
         }
-    
-//get availeble date pour doctors
-const getTempsClinicssById = (req, res) => {
-    const clinicId = req.query.clinic_id; // Récupérer l'ID du médecin
 
-    // Vérification si doctorId est fourni
+        const oldAppointment = result[0]; // Ancien rendez-vous
+        console.log(oldAppointment);
+
+        // Insérer l'historique
+        await db.query('INSERT INTO availability_hours_clinic (start_at, end_at, clinic_id) VALUES (?, ?, ?)', 
+            [oldAppointment.start_at, oldAppointment.ends_at, oldAppointment.clinic_id]);
+
+        // Mettre à jour les nouvelles valeurs du rendez-vous
+        await db.query('UPDATE appointments SET start_at = ?, ends_at = ? WHERE id = ?', 
+            [start_at, end_at, oldAppointment.id]);
+
+        return res.status(200).send({ message: 'Rendez-vous mis à jour avec succès' });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ message: 'Erreur lors de la mise à jour du rendez-vous', error: err });
+    }
+};
+
+//get availeble date pour doctors
+const getTempsClinicssById = async (req, res) => {
+    const clinicId = req.query.clinic_id; // Récupérer l'ID de la clinique
+
+    // Vérification si clinicId est fourni
     if (!clinicId) {
-        return res.status(400).json({ error: 'Le doctor_id est requis.' });
+        return res.status(400).json({ error: 'Le clinic_id est requis.' });
     }
 
     // Préparation de la requête SQL
-    let query = `SELECT start_at, end_at FROM  availability_hours_clinic WHERE clinic_id = ?;`;
+    const query = 'SELECT start_at, end_at FROM availability_hours_clinic WHERE clinic_id = ?;';
 
-    // Exécution de la requête
-    db.query(query, [clinicId], (err, results) => {
-        if (err) {
-            console.error(err); // Pour le débogage
-            return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
-        }
+    try {
+        const [results] = await db.query(query, [clinicId]);
 
         // Vérification si des résultats ont été trouvés
         if (results.length === 0) {
-            return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+            return res.status(404).json({ message: 'Aucune disponibilité trouvée pour cette clinique.' });
         }
 
         // Retourner les résultats
         res.json(results);
-    });
-}
-const getAvailabilityHours = (req, res) => {
+    } catch (err) {
+        console.error(err); // Pour le débogage
+        return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
+    }
+};
+
+const getAvailabilityHours = async (req, res) => {
     const { clinic_id, doctor_id } = req.params;
 
     const query = `
@@ -625,21 +648,24 @@ const getAvailabilityHours = (req, res) => {
         WHERE clinic_id = ? AND doctor_id = ?;
     `;
 
-    db.query(query, [clinic_id, doctor_id], (err, results) => {
-        if (err) {
-            console.error('Erreur lors de la récupération des heures de disponibilité:', err.stack);
-            return res.status(500).json({ error: 'Erreur interne du serveur' });
+    try {
+        const [results] = await db.query(query, [clinic_id, doctor_id]);
+
+        // Vérification si des résultats ont été trouvés
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucune disponibilité trouvée pour cette clinique et ce médecin.' });
         }
 
         // Retourner les résultats en JSON
         res.status(200).json(results);
-    });
-}
+    } catch (err) {
+        console.error('Erreur lors de la récupération des heures de disponibilité:', err.stack);
+        return res.status(500).json({ error: 'Erreur interne du serveur' });
+    }
+};
+
 
 const axios = require('axios');
-
-
-
 
 
 
@@ -782,46 +808,45 @@ const sendSMSss = async (req, res) => {
 
 
 // Function to get the closest clinic
-const getplusprocheclinic = (req, res) => {
+const getplusprocheclinic = async (req, res) => {
     const userLatitude = parseFloat(req.query.latitude);
     const userLongitude = parseFloat(req.query.longitude);
 
-    const query = `SELECT 
-        clinics.id AS clinic_id,
-        clinics.name AS clinic_name,
-        clinics.description AS description,
-        GROUP_CONCAT(DISTINCT clinics.phone_number SEPARATOR ', ') AS phone_numbers,
-        GROUP_CONCAT(DISTINCT clinics.mobile_number SEPARATOR ', ') AS mobile_numbers,
-        GROUP_CONCAT(DISTINCT clinics.horaires SEPARATOR ', ') AS horaires,
-        GROUP_CONCAT(DISTINCT clinics.clinic_photo SEPARATOR ', ') AS clinic_photos,
-        GROUP_CONCAT(DISTINCT clinic_levels.name SEPARATOR ', ') AS level_names,
-        JSON_ARRAYAGG(
-            JSON_OBJECT(
-                'address_id', addresses.id, 
-                'description', addresses.description,
-                'address', addresses.address,
-                'latitude', addresses.latitude,
-                'longitude', addresses.longitude,
-                'ville', addresses.ville,
-                'pays', addresses.pays
-            )
-        ) AS addresses
-    FROM 
-        clinics
-    JOIN 
-        clinic_levels ON clinics.clinic_level_id = clinic_levels.id
-    JOIN 
-        addresses ON addresses.id = clinics.address_id
-    GROUP BY 
-        clinics.id
-    ORDER BY 
-        clinics.name;
+    const query = `
+        SELECT 
+            clinics.id AS clinic_id,
+            clinics.name AS clinic_name,
+            clinics.description AS description,
+            GROUP_CONCAT(DISTINCT clinics.phone_number SEPARATOR ', ') AS phone_numbers,
+            GROUP_CONCAT(DISTINCT clinics.mobile_number SEPARATOR ', ') AS mobile_numbers,
+            GROUP_CONCAT(DISTINCT clinics.horaires SEPARATOR ', ') AS horaires,
+            GROUP_CONCAT(DISTINCT clinics.clinic_photo SEPARATOR ', ') AS clinic_photos,
+            GROUP_CONCAT(DISTINCT clinic_levels.name SEPARATOR ', ') AS level_names,
+            JSON_ARRAYAGG(
+                JSON_OBJECT(
+                    'address_id', addresses.id, 
+                    'description', addresses.description,
+                    'address', addresses.address,
+                    'latitude', addresses.latitude,
+                    'longitude', addresses.longitude,
+                    'ville', addresses.ville,
+                    'pays', addresses.pays
+                )
+            ) AS addresses
+        FROM 
+            clinics
+        JOIN 
+            clinic_levels ON clinics.clinic_level_id = clinic_levels.id
+        JOIN 
+            addresses ON addresses.id = clinics.address_id
+        GROUP BY 
+            clinics.id
+        ORDER BY 
+            clinics.name;
     `;
 
-    db.query(query, (err, results) => {
-        if (err) {
-            return res.status(500).json({ error: 'Erreur lors de la récupération des cliniques.' });
-        }
+    try {
+        const [results] = await db.query(query);
 
         // Calculate distance and add it to each clinic
         const clinicsWithDistance = results.map(clinic => {
@@ -858,7 +883,10 @@ const getplusprocheclinic = (req, res) => {
 
         // Return the closest clinics
         res.json(clinicsWithDistance);
-    });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des cliniques.' });
+    }
 };
 
 // Haversine distance calculation function
@@ -875,45 +903,45 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 }
 
 
-const getClinicsBySpecialityCityCountry = (req, res) => {
+const getClinicsBySpecialityCityCountry = async (req, res) => {
     const speciality_id = req.query.speciality_id;  // ID de la spécialité
     const city = req.query.city;                    // Ville
     const country = req.query.country;              // Pays
 
     // Construction de la requête SQL
     let query = `
-       SELECT 
-           c.name AS clinic_name,
-           GROUP_CONCAT(DISTINCT c.id) AS clinic_ids,
-           GROUP_CONCAT(DISTINCT c.description SEPARATOR ', ') AS descriptions,
-           GROUP_CONCAT(DISTINCT c.phone_number SEPARATOR ', ') AS phone_numbers,
-           GROUP_CONCAT(DISTINCT c.mobile_number SEPARATOR ', ') AS mobile_numbers,
-           GROUP_CONCAT(DISTINCT c.horaires SEPARATOR ', ') AS horaires,
-           GROUP_CONCAT(DISTINCT c.clinic_photo SEPARATOR ', ') AS clinic_photos,
-           GROUP_CONCAT(DISTINCT cl.name SEPARATOR ', ') AS level_names,
-           GROUP_CONCAT( DISTINCT JSON_OBJECT(
-               'address_id', a.id,
-               'description', a.description,
-               'address', a.address,
-               'latitude', a.latitude,
-               'longitude', a.longitude,
-               'ville', a.ville,
-               'pays', a.pays
-           )) AS addresses,
-           JSON_ARRAYAGG(JSON_OBJECT(
-               'speciality_id', s.id,
-               'name', s.name
-           )) AS specialities
-       FROM 
-           clinics c
-       LEFT JOIN 
-           clinic_specialities cs ON c.id = cs.clinic_id 
-       LEFT JOIN 
-           specialities s ON cs.speciality_id = s.id 
+        SELECT 
+            c.name AS clinic_name,
+            GROUP_CONCAT(DISTINCT c.id) AS clinic_ids,
+            GROUP_CONCAT(DISTINCT c.description SEPARATOR ', ') AS descriptions,
+            GROUP_CONCAT(DISTINCT c.phone_number SEPARATOR ', ') AS phone_numbers,
+            GROUP_CONCAT(DISTINCT c.mobile_number SEPARATOR ', ') AS mobile_numbers,
+            GROUP_CONCAT(DISTINCT c.horaires SEPARATOR ', ') AS horaires,
+            GROUP_CONCAT(DISTINCT c.clinic_photo SEPARATOR ', ') AS clinic_photos,
+            GROUP_CONCAT(DISTINCT cl.name SEPARATOR ', ') AS level_names,
+            GROUP_CONCAT( DISTINCT JSON_OBJECT(
+                'address_id', a.id,
+                'description', a.description,
+                'address', a.address,
+                'latitude', a.latitude,
+                'longitude', a.longitude,
+                'ville', a.ville,
+                'pays', a.pays
+            )) AS addresses,
+            JSON_ARRAYAGG(JSON_OBJECT(
+                'speciality_id', s.id,
+                'name', s.name
+            )) AS specialities
+        FROM 
+            clinics c
+        LEFT JOIN 
+            clinic_specialities cs ON c.id = cs.clinic_id 
+        LEFT JOIN 
+            specialities s ON cs.speciality_id = s.id 
         JOIN 
-           addresses a ON a.id = c.address_id  -- Assurez-vous que c'est la bonne colonne ici
-       LEFT JOIN 
-           clinic_levels cl ON c.clinic_level_id = cl.id 
+            addresses a ON a.id = c.address_id  
+        LEFT JOIN 
+            clinic_levels cl ON c.clinic_level_id = cl.id 
     `;
 
     const queryParams = [];
@@ -950,19 +978,21 @@ const getClinicsBySpecialityCityCountry = (req, res) => {
             c.name ;       
     `;
 
-    // Exécution de la requête
-    db.query(query, queryParams, (err, results) => {
-        if (err) {
-            console.error(err);  // Débogage
-            return res.status(500).json({ error: 'Erreur lors de la récupération des cliniques.' });
-        }
+    try {
+        const [results] = await db.query(query, queryParams);
+
         // Vérification si des résultats ont été trouvés
         if (results.length === 0) {
             return res.status(404).json({ message: 'Aucune clinique trouvée avec ces critères.' });
         }
+
         res.json(results);
-    });
-}
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des cliniques.' });
+    }
+};
+
 
 const sendSMS4MinBefore = async (req, res) => {
     const { apiKey, from, userId, to, message } = req.body;
@@ -1061,6 +1091,6 @@ const sendSMS4MinBefore = async (req, res) => {
 }
               
   module.exports = {
-    getClinic , getSpecialitiesByClinicId , getdoctosandspeciality,getspecialitesdeclinic,getmotifByClinicAndSpecialite , getDoctorsBySpecialityAndClinic, insertAppointmentclinic ,getTempsClinicssById
+    getClinic , getSpecialitiesByClinicId , getDoctorsAndSpeciality,getspecialitesdeclinic,getmotifByClinicAndSpecialite , getDoctorsBySpecialityAndClinic, insertAppointmentclinic ,getTempsClinicssById
     ,updateAppointment , getAvailabilityHours , sendSMS , getplusprocheclinic , getClinicsBySpecialityCityCountry ,sendSMS4MinBefore
   }

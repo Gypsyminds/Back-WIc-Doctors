@@ -55,7 +55,7 @@ router.get('/api/clinicsparposition', clinicController.getplusprocheclinic);
 
 router.get('/getclinics', clinicController.getClinic);
 router.get('/doctors/clinic/:clinicId',clinicController.getSpecialitiesByClinicId);
-router.get('/getspecialitiesparclinics/:clinicId', clinicController.getdoctosandspeciality);
+router.get('/getspecialitiesparclinics/:clinicId', clinicController.getDoctorsAndSpeciality);
 router.get('/appointments/:patientId', authController.getAppointmentsByPatientId);
 router.get('/specialitiesclinic/:clinicId',clinicController.getspecialitesdeclinic);
 router.get('/patternsclinic/:clinicId/:specialiteId', clinicController.getmotifByClinicAndSpecialite);

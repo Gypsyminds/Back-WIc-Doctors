@@ -448,58 +448,62 @@ const getalldoctorss = (req, res) => {
         res.json(results);
     });
 };
-const getalldoctors = (req, res) => {
+const getalldoctors = async (req, res) => {
     let query = `
-   SELECT  
-        d.id AS doctor_id,
-        d.name AS name,
-        d.doctor_photo,
-        d.enable_online_consultation,
-        d.description,
-        d.horaires,
-        d.cabinet_photo,
-        d.created_at,
-        a.title AS title,
-        JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
-        usr.phone_number,  
-        addr.ville
-  
-    FROM 
-        doctors d 
-    LEFT JOIN 
-        doctor_specialities ds ON d.id = ds.doctor_id 
-    LEFT JOIN 
-        specialities s ON ds.speciality_id = s.id 
-    JOIN 
-        experiences a ON d.id = a.doctor_id 
-    JOIN 
-        users usr ON d.user_id = usr.id 
-    JOIN 
-        addresses addr ON usr.id = addr.user_id 
-    GROUP BY  
-        d.id, 
-        d.name, 
-        d.doctor_photo,
-        d.enable_online_consultation,
-        d.description,
-        d.horaires,
-        d.cabinet_photo,
-        d.created_at,
-        a.title,
-        usr.phone_number,  
-        addr.ville
-   ORDER BY RAND()
-   `;
+        SELECT  
+            d.id AS doctor_id,
+            d.name AS name,
+            d.doctor_photo,
+            d.enable_online_consultation,
+            d.description,
+            d.horaires,
+            d.cabinet_photo,
+            d.created_at,
+            a.title AS title,
+            JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
+            usr.phone_number,  
+            addr.ville
+        FROM 
+            doctors d 
+        LEFT JOIN 
+            doctor_specialities ds ON d.id = ds.doctor_id 
+        LEFT JOIN 
+            specialities s ON ds.speciality_id = s.id 
+        LEFT JOIN 
+            experiences a ON d.id = a.doctor_id 
+        LEFT JOIN 
+            users usr ON d.user_id = usr.id 
+        LEFT JOIN 
+            addresses addr ON usr.id = addr.user_id 
+        GROUP BY  
+            d.id, 
+            d.name, 
+            d.doctor_photo,
+            d.enable_online_consultation,
+            d.description,
+            d.horaires,
+            d.cabinet_photo,
+            d.created_at,
+            a.title,
+            usr.phone_number,  
+            addr.ville
+        ORDER BY RAND();
+    `;
 
-    db.query(query, (err, results) => {
-        if (err) {
-            return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs.' });
-        }
+    try {
+        // Execute the query
+        const [results] = await db.query(query);
+
+        // Return the results
         res.json(results);
-    });
+    } catch (err) {
+        console.error(err); // For debugging
+        return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs.' });
+    }
 };
 
-const getDoctorsparvillepaysspecialites = (req, res) => {
+
+const getDoctorsparvillepaysspecialites = async (req, res) => {
     const speciality_id = req.query.speciality_id;
     const ville = req.query.ville; // Ville
     const pays = req.query.pays; // Pays
@@ -577,213 +581,216 @@ const getDoctorsparvillepaysspecialites = (req, res) => {
         ORDER BY RAND()
     `;
 
-    db.query(query, queryParams, (err, results) => {
-        if (err) {
-            console.error(err); // Debugging
-            return res.status(500).json({ error: 'Erreur lors de la récupération des médecins.' });
-        }
+    try {
+        const [results] = await db.query(query, queryParams);
         // Check if results were found
         if (results.length === 0) {
             return res.status(404).json({ message: 'Aucun médecin trouvé avec ces critères.' });
         }
         res.json(results);
-    });
-}
+    } catch (err) {
+        console.error(err); // Debugging
+        return res.status(500).json({ error: 'Erreur lors de la récupération des médecins.' });
+    }
+};
 
 
-//get availeble date pour doctors
-const getDoctorsById = (req, res) => {
-    const doctorId = req.query.doctor_id; // Récupérer l'ID du médecin
+// Get available dates for doctors
+const getDoctorsById = async (req, res) => {
+    const doctorId = req.query.doctor_id; // Retrieve the doctor's ID
 
-    // Vérification si doctorId est fourni
+    // Check if doctorId is provided
     if (!doctorId) {
         return res.status(400).json({ error: 'Le doctor_id est requis.' });
     }
 
-    // Préparation de la requête SQL
-    let query = `SELECT day, start_at, end_at FROM availability_hours WHERE doctor_id = ?;`;
+    // Prepare the SQL query
+    const query = `SELECT day, start_at, end_at FROM availability_hours WHERE doctor_id = ?;`;
 
-    // Exécution de la requête
-    db.query(query, [doctorId], (err, results) => {
-        if (err) {
-            console.error(err); // Pour le débogage
-            return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
-        }
+    try {
+        // Execute the query
+        const [results] = await db.query(query, [doctorId]);
 
-        // Vérification si des résultats ont été trouvés
+        // Check if any results were found
         if (results.length === 0) {
             return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
         }
 
-        // Retourner les résultats
+        // Return the results
         res.json(results);
-    });
-}
-//Voir les spécialité les plus existantes avec nombre des doctors 
-const specialitespardoctor =(req, res) => {
-    const query = `
-      SELECT  s.id,s.name,s.icon, COUNT(sd.doctor_id) AS doctor_count
-        FROM specialities s
-        LEFT JOIN  doctor_specialities sd ON s.id = sd.speciality_id
-        GROUP BY s.id, s.name
-        ORDER BY doctor_count DESC;
-    `;
-
-    db.query(query, (err, results) => {
-        if (err) {
-            return res.status(500).json({ error: 'Erreur lors de la récupération des spécialités.' });
-        }
-        res.json(results);
-    });
-}
-// Lire tous les positions des doctors pour maps
-const getadressempas =(req, res) => {
-    db.query(`SELECT  addresses.latitude, addresses.longitude, addresses.description AS adresse_description, CONCAT(doctors.name) AS doctor_name, GROUP_CONCAT(DISTINCT specialities.name SEPARATOR ', ') AS specialty_names 
-FROM 
-    addresses
-JOIN 
-    users ON addresses.user_id = users.id  
-JOIN 
-    doctors ON users.id = doctors.user_id  
-JOIN 
-    clinics ON doctors.clinic_id = clinics.id 
-JOIN 
-    doctor_specialities ON doctors.id = doctor_specialities.doctor_id 
-JOIN 
-    specialities ON doctor_specialities.speciality_id = specialities.id  
-GROUP BY 
-    addresses.latitude, addresses.longitude, addresses.description, doctors.name;`, (err, results) => {
-        if (err) throw err;
-        res.send(results);
-    });
-}
-//getvilles
-const getvilles = (req,res)=> {
-    db.query('SELECT ville FROM addresses',(err , results)=> {
-       if(err) throw err ;
-       res.send(results); 
-    });
-}
-const getville = (req, res) => {
-    db.query('SELECT ville FROM addresses', (err, results) => {
-        if (err) {
-            // Gestion des erreurs
-            return res.status(500).json({ error: 'Erreur lors de la récupération des données' });
-        }
-
-        // Normaliser les noms de villes
-        const normalizedResults = results.map(row => {
-            return {
-                ville: row.ville
-                    .replace(/\s+/g, '_')    // Remplace les espaces par des underscores
-                    .normalize('NFD')       // Décompose les caractères accentués
-                    .replace(/[\u0300-\u036f]/g, '') // Supprime les accents
-                    .toLowerCase()          // Convertit en minuscules
-            };
-        });
-
-        // Envoi des résultats normalisés
-        res.json(normalizedResults);
-    });
+    } catch (err) {
+        console.error(err); // For debugging
+        return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
+    }
 };
 
-//getpays
-const getpays = (req,res)=> {
-    db.query('SELECT DISTINCT pays FROM addresses',(err , results)=> {
-       if(err) throw err ;
-       res.send(results); 
-    });
-}
-const getmotifs = (req,res)=>{
-   
+const specialitespardoctor = async (req, res) => {
+    const query = `
+      SELECT s.id, s.name, s.icon, COUNT(sd.doctor_id) AS doctor_count
+      FROM specialities s
+      LEFT JOIN doctor_specialities sd ON s.id = sd.speciality_id
+      GROUP BY s.id, s.name
+      ORDER BY doctor_count DESC;
+    `;
 
-     const specialiteid = req.query.specialite_id; // Récupérer l'ID du médecin
+    try {
+        const [results] = await db.query(query);
+        res.json(results);
+    } catch (err) {
+        console.error(err); // Debugging
+        return res.status(500).json({ error: 'Erreur lors de la récupération des spécialités.' });
+    }
+};
 
-    // Vérification si doctorId est fourni
+const getadressempas = async (req, res) => {
+    const query = `
+        SELECT addresses.latitude, addresses.longitude, addresses.description AS adresse_description, 
+               CONCAT(doctors.name) AS doctor_name, 
+               GROUP_CONCAT(DISTINCT specialities.name SEPARATOR ', ') AS specialty_names 
+        FROM addresses
+        JOIN users ON addresses.user_id = users.id  
+        JOIN doctors ON users.id = doctors.user_id  
+        JOIN clinics ON doctors.clinic_id = clinics.id 
+        JOIN doctor_specialities ON doctors.id = doctor_specialities.doctor_id 
+        JOIN specialities ON doctor_specialities.speciality_id = specialities.id  
+        GROUP BY addresses.latitude, addresses.longitude, addresses.description, doctors.name;
+    `;
+
+    try {
+        const [results] = await db.query(query);
+        res.send(results);
+    } catch (err) {
+        console.error(err); // Pour le débogage
+        res.status(500).json({ error: 'Erreur lors de la récupération des adresses pour les cartes.' });
+    }
+};
+
+//getvilles
+const getvilles = async (req, res) => {
+    try {
+        const [results] = await db.query('SELECT ville FROM addresses');
+        res.send(results);
+    } catch (err) {
+        console.error(err); // Pour le débogage
+        res.status(500).json({ error: 'Erreur lors de la récupération des villes.' });
+    }
+};
+
+const getville = async (req, res) => {
+    try {
+        const [results] = await db.query('SELECT ville FROM addresses');
+        const normalizedResults = results.map(row => ({
+            ville: row.ville
+                .replace(/\s+/g, '_')    // Remplace les espaces par des underscores
+                .normalize('NFD')       // Décompose les caractères accentués
+                .replace(/[\u0300-\u036f]/g, '') // Supprime les accents
+                .toLowerCase()          // Convertit en minuscules
+        }));
+
+        res.json(normalizedResults);
+    } catch (err) {
+        console.error(err); // Pour le débogage
+        res.status(500).json({ error: 'Erreur lors de la récupération des données des villes.' });
+    }
+};
+
+const getpays = async (req, res) => {
+    try {
+        const [results] = await db.query('SELECT DISTINCT pays FROM addresses');
+        res.send(results);
+    } catch (err) {
+        console.error(err); // Pour le débogage
+        res.status(500).json({ error: 'Erreur lors de la récupération des pays.' });
+    }
+};
+
+const getmotifs = async (req, res) => {
+    const specialiteid = req.query.specialite_id; // Récupérer l'ID de la spécialité
+
+    // Vérification si specialiteid est fourni
     if (!specialiteid) {
         return res.status(400).json({ error: 'Le specialiteid est requis.' });
     }
 
     // Préparation de la requête SQL
-    let query = `SELECT id,nom,price FROM pattern WHERE specialite_id = ?`;
+    const query = `SELECT id, nom, price FROM pattern WHERE specialite_id = ?`;
 
-    // Exécution de la requête
-    db.query(query, [specialiteid], (err, results) => {
-        if (err) {
-            console.error(err); // Pour le débogage
-            return res.status(500).json({ error: 'Erreur lors de la récupération des motifs de spécialités.' });
-        }
-
+    try {
+        const [results] = await db.query(query, [specialiteid]);
+        
         // Vérification si des résultats ont été trouvés
         if (results.length === 0) {
-            return res.status(404).json({ message: 'Aucun motif trouvée pour cette spécialité.' });
+            return res.status(404).json({ message: 'Aucun motif trouvé pour cette spécialité.' });
         }
 
         // Retourner les résultats
         res.json(results);
-    });
+    } catch (err) {
+        console.error(err); // Pour le débogage
+        return res.status(500).json({ error: 'Erreur lors de la récupération des motifs de spécialités.' });
     }
-    const getmotif = (req, res) => {
-        const doctorId = req.query.doctor_id; // Récupérer l'ID du médecin
-        const specialiteId = req.query.specialite_id; // Récupérer l'ID de la spécialité
-    
-        // Vérification si doctorId et specialiteId sont fournis
-        if (!doctorId || !specialiteId) {
-            return res.status(400).json({ error: 'Les paramètres doctor_id et specialite_id sont requis.' });
-        }
-    
-        // Préparation de la requête SQL
-        let query = `SELECT id, nom, price FROM pattern WHERE specialite_id = ? AND doctor_id = ?`;
-    
-        // Exécution de la requête
-        db.query(query, [specialiteId, doctorId], (err, results) => {
-            if (err) {
-                console.error(err); // Pour le débogage
-                return res.status(500).json({ error: 'Erreur lors de la récupération des motifs de spécialités.' });
-            }
-    
-            // Vérification si des résultats ont été trouvés
-            if (results.length === 0) {
-                return res.status(404).json({ message: 'Aucun motif trouvé pour cette spécialité et ce médecin.' });
-            }
-    
-            // Retourner les résultats
-            res.json(results);
-        });
-    };
-    
-//historique des rendez_vour pour chaque patient
-///Historiquedesrendez_vous'
-const gethistoriqu = (req, res) => {const nodemailer = require('nodemailer');
-    const crypto = require('crypto');
-    app.use(express.json());
-    
-    const userId = req.query.userId;
-    
+};
 
-    // Vérifier si au moins l'un des paramètres est fourni
-    if (!userId) {
-        return res.status(400).json({ error: 'L\'ID de spécialité ou l\'adresse est requis.' });
+const getmotif = async (req, res) => {
+    const doctorId = req.query.doctor_id; // Récupérer l'ID du médecin
+    const specialiteId = req.query.specialite_id; // Récupérer l'ID de la spécialité
+
+    // Vérification si doctorId et specialiteId sont fournis
+    if (!doctorId || !specialiteId) {
+        return res.status(400).json({ error: 'Les paramètres doctor_id et specialite_id sont requis.' });
     }
-let query = `
-      SELECT 
-    a.appointment_at, a.id ,
-    a.start_at, a.doctor_id ,
-    a.ends_at, a.clinic ,
-    d.name AS doctor_name
-FROM 
-    appointments a
-JOIN 
-    doctors d ON a.doctor_id = d.id
-WHERE 
-    a.user_id = ?;`;
-    db.query(query, [userId], (err, results) => {
-        if (err) {
-            return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs.' });
+
+    // Préparation de la requête SQL
+    const query = `SELECT id, nom, price FROM pattern WHERE specialite_id = ? AND doctor_id = ?`;
+
+    try {
+        const [results] = await db.query(query, [specialiteId, doctorId]);
+        
+        // Vérification si des résultats ont été trouvés
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucun motif trouvé pour cette spécialité et ce médecin.' });
         }
+
+        // Retourner les résultats
         res.json(results);
-    });
-}
+    } catch (err) {
+        console.error(err); // Pour le débogage
+        return res.status(500).json({ error: 'Erreur lors de la récupération des motifs de spécialités.' });
+    }
+};
+
+    
+const gethistoriqu = async (req, res) => {
+    const userId = req.query.userId;
+
+    // Vérifier si l'ID de l'utilisateur est fourni
+    if (!userId) {
+        return res.status(400).json({ error: 'L\'ID de l\'utilisateur est requis.' });
+    }
+
+    const query = `
+        SELECT 
+            a.appointment_at, a.id,
+            a.start_at, a.doctor_id,
+            a.ends_at, a.clinic,
+            d.name AS doctor_name
+        FROM 
+            appointments a
+        JOIN 
+            doctors d ON a.doctor_id = d.id
+        WHERE 
+            a.user_id = ?;
+    `;
+
+    try {
+        const [results] = await db.query(query, [userId]);
+        res.json(results);
+    } catch (err) {
+        console.error(err); // Pour le débogage
+        return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs.' });
+    }
+};
+
 async function getAppointmentsByPatientId(req, res) {
     const patientId = req.params.patientId;  // Get the patient ID from request parameters
 
@@ -794,7 +801,7 @@ SELECT
     a.ends_at AS end_date, a.id ,
     c.name AS clinic_name,
     c.clinic_photo AS clinic_photo,
-    d.name AS doctor_name, d.id AS iddoctor , -- Ici, on assigne le nom du médecin à doctor_name
+    d.name AS doctor_name, d.id AS iddoctor, -- Ici, on assigne le nom du médecin à doctor_name
     d.doctor_photo AS doctor_photo,  -- Corrigé pour utiliser doctor_photo
     s.status AS appointment_status,
     p.amount AS payment_amount,
@@ -842,7 +849,7 @@ function insertAppointments(req, res) {
     const { appointment_at, ends_at, start_at, doctor_id, clinic, doctor, patient, address, motif_id } = req.body;
 
     // Vérification des paramètres requis
-    if (!appointment_at || !ends_at || !start_at || !token || !doctor_id || !clinic || !doctor || !patient || !address ) {
+    if (!appointment_at || !ends_at || !start_at || !token || !doctor_id ) {
         return res.status(400).json({ error: 'Tous les champs sont requis.' });
     }
 
@@ -946,135 +953,92 @@ transporter.sendMail(mailOptions, function(error, info) {
 })
 }
 
-function insertAppointment(req, res) {
-    console.log('Request Body:', req.body);
+const insertAppointment= async (req, res) => {
+    console.log('Request Body:', req.body); // Affiche le contenu de req.body
     const authHeader = req.headers['authorization'];
+
+    // Vérifier si le header contient le token
     const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
         return res.status(401).json({ message: 'Accès refusé, token manquant' });
     }
 
+    // Récupérer les paramètres depuis le corps de la requête
     const { appointment_at, ends_at, start_at, doctor_id, clinic, doctor, patient, address, motif_id } = req.body;
 
-    if (!appointment_at || !ends_at || !start_at || !doctor_id || !clinic || !doctor || !patient || !address) {
+    // Vérification des paramètres requis
+    if (!ends_at || !start_at || !token || !doctor_id ) {
         return res.status(400).json({ error: 'Tous les champs sont requis.' });
     }
 
+    // Décoder le token pour récupérer user_id
     let user_id;
     try {
         const decoded = jwt.verify(token, SECRET_KEY);
-        user_id = decoded.user_id;
+        user_id = decoded.user_id; // Assurez-vous que user_id est dans le token décodé
     } catch (error) {
         return res.status(401).json({ error: 'Token invalide ou expiré.' });
     }
 
+    // Préparer la requête SQL pour insérer le rendez-vous
     const insertQuery = `
         INSERT INTO appointments (appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id, appointment_status_id) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     `;
+    
     const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id];
 
+    // Supprimer l'heure disponible associée dans la table 'available_hours'
     const deleteAvailableHourQuery = `
         DELETE FROM availability_hours 
         WHERE doctor_id = ? 
         AND start_at = ? 
-        AND end_at = ? 
+        AND end_at = ?
     `;
-
+    
     const availableHourValues = [doctor_id, start_at, ends_at];
 
-    // Start by deleting available hours
-    db.query(deleteAvailableHourQuery, availableHourValues, (deleteError, deleteResults) => {
-        if (deleteError) {
-            return res.status(500).json({ error: `Erreur lors de la suppression des heures disponibles: ${deleteError.message}` });
+    try {
+        // Supprimer les heures disponibles
+        await db.query(deleteAvailableHourQuery, availableHourValues);
+
+        // Insérer le rendez-vous
+        const [insertResult] = await db.query(insertQuery, values);
+
+        // Logique d'envoi d'e-mail
+        const emailQuery = `SELECT email FROM users WHERE id = ?;`;
+        const [userEmail] = await db.query(emailQuery, [user_id]);
+
+        if (userEmail.length === 0) {
+            return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
         }
 
-        // Now, insert the appointment
-        db.query(insertQuery, values, (error, results) => {
-            if (error) {
-                return res.status(500).json({ error: error.message });
-            }
-
-            // Email sending logic
-            const querys = `SELECT email FROM users WHERE id = ?;`;
-            db.query(querys, [user_id], (err, resul) => {
-                if (err) {
-                    console.error(err);
-                    return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
-                }
-
-                if (resul.length === 0) {
-                    return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
-                }
-const qurry =  `SELECT name FROM doctors WHERE id = ?;`;
-db.query(qurry, [doctor_id], (err, resuls) => {
-    if (err) {
-        console.error(err);
-        return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
-    }
-
-    if (resul.length === 0) {
-        return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
-    }
-    const queryss = `SELECT name FROM users WHERE id = ?;`;
-            db.query(queryss, [user_id], (err, resull) => {
-                if (err) {
-                    console.error(err);
-                    return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
-                }
-
-                if (resul.length === 0) {
-                    return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
-                }
-                const transporter = nodemailer.createTransport({
-                    service: 'gmail',
-                    port: 587,
-                    secure: false,
-                    auth: {
-                        user: 'laajili.khouloud12@gmail.com',
-                        pass: 'lmvy ldix qtgm gbna', // Use app password for security
-                    },
-                });
-                const startDate = new Date(start_at); // Convert to JavaScript Date object
-
-                // Format to display the day in words and time without seconds
-                const formattedStartAt = startDate.toLocaleString('fr-FR', {
-                    weekday: 'long',   // Full name of the day (e.g., "lundi")
-                    hour: '2-digit',   // Two-digit hour (e.g., "14" for 2 PM)
-                    minute: '2-digit', // Two-digit minute
-                });
-                const mailOptions = {
-                    from: 'laajili.khouloud12@gmail.com',
-                    to: resul[0].email, // Ensure it's a string, assuming resul is an array of objects
-                    subject: 'Confirmation de votre Rendez-vous',
-                    html: `
-                        <html>
-                        <body>
-                            <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${resull[0].name}</h2>
-                            <p>Votre rendez-vous avec le médecin  ${JSON.parse(resuls[0].name).fr} le ${formattedStartAt}</p>
-                            <p>est bien confirmé</p>   
-                            <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
-                        </body>
-                        </html>
-                    `,
-                };
-
-                transporter.sendMail(mailOptions, function (error, info) {
-                    if (error) {
-                        console.error('Error sending email:', error);
-                        return res.status(500).json({ error: 'Erreur lors de l\'envoi de l\'email.' });
-                    } else {
-                        console.log('Email sent: ' + info.response);
-                        return res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: results.insertId });
-                    }
-                });
-            });
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            port: 587,
+            secure: false,
+            auth: {
+                user: 'laajili.khouloud12@gmail.com',
+                pass: 'lmvy ldix qtgm gbna', // Utiliser un mot de passe d'application pour plus de sécurité
+            },
         });
-    });
-});
-    });
-}
+
+        const mailOptions = {
+            from: 'laajili.khouloud12@gmail.com',
+            to: userEmail[0].email,
+            subject: 'Confirmation de votre Rendez-vous',
+            html: `<p>Votre rendez-vous a été confirmé.</p>`, // Personnalisez l'e-mail selon vos besoins
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        return res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: insertResult.insertId });
+    } catch (error) {
+        console.error('Erreur lors de l\'insertion du rendez-vous ou de l\'envoi de l\'e-mail:', error);
+        return res.status(500).json({ error: 'Erreur lors de l\'insertion du rendez-vous ou de l\'envoi de l\'e-mail.' });
+    }
+};
 
 const jwt = require('jsonwebtoken');
 
@@ -1629,7 +1593,7 @@ const updateAppointments = (req, res) => {
                     });
 });
         }
-        const updateAppointment = async (req, res) => {
+const updateAppointment = async (req, res) => {
             const { start_at, end_at, patern_id } = req.body;
             
             if (!start_at || !end_at || !patern_id) {
@@ -1791,7 +1755,7 @@ const updateAppointments = (req, res) => {
             }
         };
         
-        const getDoctorById = (req, res) => {
+const getDoctorById = async (req, res) => {
             const doctorId = req.params.id;
         
             if (!doctorId) {
@@ -1805,11 +1769,8 @@ const updateAppointments = (req, res) => {
                 WHERE d.id = ?;
             `;
         
-            db.query(query, [doctorId], (error, results) => {
-                if (error) {
-                    console.error("Erreur lors de la récupération des informations du docteur:", error);
-                    return res.status(500).json({ message: "Erreur du serveur lors de la récupération du docteur." });
-                }
+            try {
+                const [results] = await db.query(query, [doctorId]);
         
                 if (results.length === 0) {
                     return res.status(404).json({ message: "Docteur non trouvé." });
@@ -1817,10 +1778,13 @@ const updateAppointments = (req, res) => {
         
                 // Renvoyer les informations du docteur
                 res.status(200).json(results[0]);
-            });
+            } catch (error) {
+                console.error("Erreur lors de la récupération des informations du docteur:", error);
+                return res.status(500).json({ message: "Erreur du serveur lors de la récupération du docteur." });
+            }
         };
         
-        const cancelAppointment = (req, res) => {
+ const cancelAppointment = (req, res) => {
             const appointmentId = req.params.id; // ID du rendez-vous à annuler
             const cancellationTime = new Date(); // Heure actuelle pour l'annulation
         

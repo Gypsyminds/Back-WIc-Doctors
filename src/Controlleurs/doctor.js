@@ -794,7 +794,7 @@ SELECT
     a.ends_at AS end_date, a.id ,
     c.name AS clinic_name,
     c.clinic_photo AS clinic_photo,
-    d.name AS doctor_name,  -- Ici, on assigne le nom du médecin à doctor_name
+    d.name AS doctor_name, d.id AS iddoctor , -- Ici, on assigne le nom du médecin à doctor_name
     d.doctor_photo AS doctor_photo,  -- Corrigé pour utiliser doctor_photo
     s.status AS appointment_status,
     p.amount AS payment_amount,
@@ -817,7 +817,7 @@ WHERE
     `;
 
     try {
-        const [results] = await db.promise().execute(query, [patientId]);
+        const [results] = await db.execute(query, [patientId]);
         if (results.length === 0) {
             return res.status(404).json({ error: 'No appointments found for this patient.' });
         }

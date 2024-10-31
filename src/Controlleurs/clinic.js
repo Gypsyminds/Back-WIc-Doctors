@@ -869,7 +869,7 @@ const axios = require('axios');
 
 
 // Fonction pour envoyer un SMS
-const sendSMS = async (req, res) => {
+const sendSMSs = async (req, res) => {
     const { apiKey, from, to, message } = req.body;
 
     // Validation des paramètres
@@ -911,101 +911,62 @@ const sendSMS = async (req, res) => {
 }
 
 
+
+
 // Fonction pour envoyer un SMS
-const sendSMSs = async (req, res) => {
-    const { apiKey, from, to, message } = req.body;
-
-    // Validation des paramètres
-    if (!apiKey || !from || !to || !message) {
-        return res.status(400).json({
-            success: false,
-            message: 'Tous les champs (apiKey, from, to, message) sont requis.',
-        });
-    }
-
-    // Construire l'URL avec les paramètres
-    const url = `https://wicsms.com/apis/smscontact/?apikey=${encodeURIComponent(apiKey)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&message=${encodeURIComponent(message)}`;
-
+async function sendSMS(req, res) {
+    const { api_key, from, to, message, rotate } = req.body;  // Extraction des paramètres du corps de la requête
+    const url = 'https://sms.way-interactive-convergence.com/apis/smsgroup/';
+    const data = {
+      apikey: api_key,
+      from: from,
+      to: to,
+      message: message,
+      rotate: rotate,
+    };
+  
     try {
-        // Faire la requête GET vers l'API SMS
-        const response = await axios.get(url);
-
-        // Vérifier si la réponse contient une erreur
-        if (response.data[0].status && response.data[0].status !== '1') {
-            return res.status(400).json({
-                success: false,
-                message: response.data[0].msg,
-            });
-        }
-
-        // Envoyer la réponse de l'API au client
-        return res.status(200).json({
-            success: true,
-            data: response.data,
-        });
+      // Envoi de la requête POST
+      const response = await axios.post(url, new URLSearchParams(data), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+      // Réponse en cas de succès
+      res.status(200).json({ success: true, data: response.data });
     } catch (error) {
-        // Gérer les erreurs
-        return res.status(500).json({
-            success: false,
-            message: 'Erreur lors de l\'envoi du SMS',
-            error: error.message,
-        });
+      console.error('Erreur lors de l\'envoi du SMS:', error);
+      // Réponse en cas d'erreur
+      res.status(500).json({ success: false, error: error.message });
     }
-};
-const sendSMSss = async (req, res) => {
-    const { apiKey, from, to, message } = req.body;
+  }
 
-    // Validation des paramètres
-    if (!apiKey || !from || !to || !message) {
-        return res.status(400).json({
-            success: false,
-            message: 'Tous les champs (apiKey, from, to, message) sont requis.',
-        });
-    }
 
-    // Construire l'URL avec les paramètres
-    const url = `https://wicsms.com/apis/smscontact/?apikey=${encodeURIComponent(apiKey)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&message=${encodeURIComponent(message)}`;
-
+const sendSMScontact = async (req, res) => {
+    const { api_key, from, to, message, alphasender } = req.body;
+    
+    const url = 'https://sms.way-interactive-convergence.com/apis/smscontact/';
+    const fields = {
+      apikey: api_key,
+      from: from,
+      to: to,
+      message: message,
+      alphasender: alphasender,
+    };
+  
     try {
-        // Faire la requête GET vers l'API SMS
-        const response = await axios.get(url);
-        console.log('Réponse brute de l\'API SMS:', response.data);
-
-        // Vérifier la structure de la réponse pour identifier les erreurs
-        const responseData = response.data;
-
-        // Assurez-vous que la réponse est un tableau ou un objet, et vérifiez le statut
-        if (Array.isArray(responseData)) {
-            if (responseData[0]?.status !== '1') {
-                return res.status(400).json({
-                    success: false,
-                    message: responseData[0]?.msg || 'Erreur inconnue de l\'API SMS',
-                });
-            }
-        } else if (responseData.status !== '1') {
-            return res.status(400).json({
-                success: false,
-                message: responseData.msg || 'Erreur inconnue de l\'API SMS',
-            });
-        }
-
-        // Envoyer la réponse de succès
-        return res.status(200).json({
-            success: true,
-            message: 'SMS envoyé avec succès.',
-            data: responseData,
-        });
+      const response = await axios.post(url, new URLSearchParams(fields), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+      
+      res.json(response.data);
     } catch (error) {
-        // Gérer les erreurs inattendues
-        return res.status(500).json({
-            success: false,
-            message: 'Erreur lors de l\'envoi du SMS',
-            error: error.message,
-        });
+      console.error('Error sending SMS:', error);
+      res.status(500).json({ error: 'Failed to send SMS' });
     }
-};
-
-
+  };
 // Function to get the closest clinic
 const getplusprocheclinic = async (req, res) => {
     const userLatitude = parseFloat(req.query.latitude);
@@ -1291,5 +1252,5 @@ const sendSMS4MinBefore = async (req, res) => {
               
   module.exports = {
     getClinic , getSpecialitiesByClinicId , getDoctorsAndSpeciality,getspecialitesdeclinic,getmotifByClinicAndSpecialite , getDoctorsBySpecialityAndClinic, insertAppointmentclinic ,getTempsClinicssById
-    ,updateAppointment , getAvailabilityHours , sendSMS , getplusprocheclinic , getClinicsBySpecialityCityCountry ,sendSMS4MinBefore
+    ,updateAppointment , getAvailabilityHours , sendSMS , getplusprocheclinic , getClinicsBySpecialityCityCountry ,sendSMS4MinBefore , sendSMScontact
   }

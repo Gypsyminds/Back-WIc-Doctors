@@ -44,7 +44,7 @@ router.get('/availability/:clinic_id/:doctor_id', clinicController.getAvailabili
 router.delete('/appointmentscancel/:id', authController.cancelAppointment);
 
 
-router.post('/send-sms', clinicController.sendSMS);
+router.post('/send-sms', clinicController.sendSMScontact);
 router.post('/api/login',loginController.signin);
 // Route pour démarrer l'authentification avec Google
 router.get('http://localhost:3000/auth/google', passport.authenticate('google'));

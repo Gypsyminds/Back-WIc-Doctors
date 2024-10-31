@@ -1778,7 +1778,7 @@ LEFT JOIN
 LEFT JOIN 
     addresses addr ON usr.id = addr.user_id
 WHERE 
-    d.id = 62
+    d.id = ?
 GROUP BY 
     d.id, a.title, usr.phone_number, addr.ville, addr.pays;
             `;

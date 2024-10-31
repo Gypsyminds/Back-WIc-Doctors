@@ -278,6 +278,31 @@ async function signupss(req, res) {
         });
     });
 }
+const sendSMScontact = async (req, res) => {
+    const { api_key, from, to, message, alphasender } = req.body;
+    
+    const url = 'https://sms.way-interactive-convergence.com/apis/smscontact/';
+    const fields = {
+      apikey: api_key,
+      from: from,
+      to: to,
+      message: message,
+      alphasender: alphasender,
+    };
+  
+    try {
+      const response = await axios.post(url, new URLSearchParams(fields), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+      
+      res.json(response.data);
+    } catch (error) {
+      console.error('Error sending SMS:', error);
+      res.status(500).json({ error: 'Failed to send SMS' });
+    }
+  };
 // Function to handle patient signup
 async function signuppatient(req, res) {
     const { email, phone, lastname, firstname } = req.body;
@@ -304,7 +329,7 @@ async function signuppatient(req, res) {
 
         // Send confirmation email
         sendConfirmationEmail(firstname + lastname, email, password, res, userId);
-
+        //sendSMScontact(INS757364498 ,33743134488,phone ,   <p>Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : <strong>${password}</strong></p> )
     } catch (error) {
         console.error('Error during patient signup:', error);
         return res.status(500).json({ error: 'Une erreur est survenue lors de l\'inscription.' });

@@ -952,7 +952,33 @@ transporter.sendMail(mailOptions, function(error, info) {
 
 })
 }
-
+const axios = require('axios');
+const sendSMScontactinscrit = async (phone, message) => {
+    const api_key = 'INS757364498'; // Replace with your actual API key
+    const from = '33743134488'; // Replace with your sender ID
+    const alphasender = 'wic doctor'; // Replace with your alpha sender
+  
+    const url = 'https://sms.way-interactive-convergence.com/apis/smscontact/';
+    const fields = {
+      apikey: api_key,
+      from: from,
+      to: phone,
+      message: message,
+      alphasender: alphasender,
+    };
+  
+    try {
+      const response = await axios.post(url, new URLSearchParams(fields), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error sending SMS:', error);
+      throw new Error('Failed to send SMS');
+    }
+  };
 const insertAppointment= async (req, res) => {
     console.log('Request Body:', req.body); // Affiche le contenu de req.body
     const authHeader = req.headers['authorization'];
@@ -1010,10 +1036,32 @@ const insertAppointment= async (req, res) => {
         const emailQuery = `SELECT email FROM users WHERE id = ?;`;
         const [userEmail] = await db.query(emailQuery, [user_id]);
 
+        const phoneQuery = `SELECT phone_number FROM users WHERE id = ?;`;
+        const [userphone] = await db.query(phoneQuery, [user_id]);
         if (userEmail.length === 0) {
             return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
         }
+        const namedocQuery = `SELECT name FROM doctors WHERE id = ?;`;
+        const [docname] = await db.query(namedocQuery, [doctor_id]);
+        const nameQuery = `SELECT firstname FROM users WHERE id = ?;`;
+        const [userName] = await db.query(nameQuery, [user_id]);
+        if (userEmail.length === 0) {
+            return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+        }
+        const startDate = new Date(start_at);
+        const endDate = new Date(ends_at);
 
+       // Fonction pour formater la date
+       const formatDate = (date) => {
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
+        return `le ${date.toLocaleString('fr-FR', options).replace(',', '')}`; // Remplacer la virgule pour obtenir le format désiré
+    };
+  // Fonction pour formater l'heure
+  const formatTime = (date) => {
+    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`; // Formate l'heure et les minutes
+};
+    const formattedStartAt = formatDate(startDate);
+    const formattedStartAt1 = formatTime(endDate);
         const transporter = nodemailer.createTransport({
             service: 'gmail',
             port: 587,
@@ -1028,11 +1076,25 @@ const insertAppointment= async (req, res) => {
             from: 'laajili.khouloud12@gmail.com',
             to: userEmail[0].email,
             subject: 'Confirmation de votre Rendez-vous',
-            html: `<p>Votre rendez-vous a été confirmé.</p>`, // Personnalisez l'e-mail selon vos besoins
-        };
+            html: `<html>
+            <body>
+                <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${userName[0].firstname}</h2>
+                <p>Votre rendez-vous avec le médecin  ${JSON.parse(docname[0].name).fr}  ${formattedStartAt} au  ${formattedStartAt1} est bien confirmé</p>
+                <p></p>   
+                <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+            </body>
+            </html>`, // Personnalisez l'e-mail selon vos besoins
+};
+
+const message = `Bienvenue Cher Patient(e)${userName[0].firstname}\n` +
+       `Votre rendez-vous avec le médecin  ${JSON.parse(docname[0].name).fr}  ${formattedStartAt} au  ${formattedStartAt1}  est bien confirmé` +
+       `Cordialement,\nL'équipe de Wic-Doctor.`;
+
+await transporter.sendMail(mailOptions);
 
         await transporter.sendMail(mailOptions);
-
+await sendSMScontactinscrit(userphone[0].phone_number,message);
+console.log(userphone[0].phone_number);
         return res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: insertResult.insertId });
     } catch (error) {
         console.error('Erreur lors de l\'insertion du rendez-vous ou de l\'envoi de l\'e-mail:', error);
@@ -1822,7 +1884,7 @@ GROUP BY
         
                 // Récupérer les informations du patient
                 const [patientEmail] = await db.query(
-                    'SELECT u.email, u.firstname, rv.ends_at, rv.start_at FROM appointments rv JOIN users u ON rv.user_id = u.id WHERE rv.id = ?;', 
+                    'SELECT u.email, u.firstname,u.phone_number , rv.ends_at, rv.start_at FROM appointments rv JOIN users u ON rv.user_id = u.id WHERE rv.id = ?;', 
                     [appointmentId]
                 );
         
@@ -1832,7 +1894,7 @@ GROUP BY
         
                 // Récupérer les informations du médecin
                 const [doctorInfo] = await db.query(
-                    'SELECT d.id AS doctor_id, d.name AS doctor_name, u.email AS doctor_email FROM appointments r JOIN doctors d ON r.doctor_id = d.id JOIN users u ON d.user_id = u.id WHERE r.id = ?', 
+                    'SELECT d.id AS doctor_id, d.name AS doctor_name, u.email AS doctor_email   FROM appointments r JOIN doctors d ON r.doctor_id = d.id JOIN users u ON d.user_id = u.id WHERE r.id = ?', 
                     [appointmentId]
                 );
         
@@ -1840,6 +1902,7 @@ GROUP BY
                 const doctorName = JSON.parse(doctorInfo[0].doctor_name).fr;
                 const emailpatient = patientEmail[0].email;   
                 const namepatient = patientEmail[0].firstname;
+                const phonepatient = patientEmail[0].phone_number;
                 
                 // Formatage des dates
                 const formattedStartAt = new Date(patientEmail[0].ends_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
@@ -1867,7 +1930,7 @@ GROUP BY
                        <html>
                             <body>
                                 <h2>Bienvenue Cher Patient ${namepatient}</h2>
-                                <p>Votre rendez-vous avec le docteur ${doctorName} a été annulé de ${formattedStartAt1} à ${formattedStartAt} avec succès.</p>
+                                <p>Votre rendez-vous avec le docteur ${doctorName} de ${formattedStartAt1} à ${formattedStartAt}  a été annulé  .</p>
                                 <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
                             </body>
                         </html>
@@ -1892,10 +1955,13 @@ GROUP BY
                         </html>
                     `,
                 };
-        
+                const message = `Bienvenue Cher Patient ${namepatient}
+                                Votre rendez-vous avec le docteur ${doctorName} de ${formattedStartAt1} à ${formattedStartAt}  a été annulé 
+                                Cordialement,L'équipe de Wic-Doctor.`;
                 // Envoi de l'email au docteur
                 await transporter.sendMail(mailOptionsDoctor);
-        
+                console.log(phonepatient);
+        await sendSMScontactinscrit(phonepatient,message);
                 // Répondre avec succès
                 return res.status(200).json({ message: "Rendez-vous annulé avec succès." });
             } catch (error) {
@@ -1903,13 +1969,7 @@ GROUP BY
                 return res.status(500).json({ message: "Erreur du serveur lors de l'annulation du rendez-vous." });
             }
         };
-        
-        
-        
- 
-        
-        
-
+     
 module.exports = {
     specialitespardoctor,
     getalldoctors,

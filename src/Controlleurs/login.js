@@ -13,6 +13,7 @@ app.use(cors());
 // Middleware
 app.use(bodyParser.json());
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
 
 app.use(express.json());
 // Configuration du transporteur Nodemailer
@@ -304,7 +305,7 @@ const sendSMScontact = async (req, res) => {
     }
   };
 // Function to handle patient signup
-async function signuppatient(req, res) {
+async function signuppatientsanssms(req, res) {
     const { email, phone, lastname, firstname } = req.body;
 
     // Validate input
@@ -588,7 +589,81 @@ async function updateprofilpatient(req, res) {
         res.status(500).json({ error: 'Erreur interne du serveur.', details: error.message });
     }
 }
-
+// Function to send SMS
+const sendSMScontactinscrit = async (phone, message) => {
+    const api_key = 'INS757364498'; // Replace with your actual API key
+    const from = '33743134488'; // Replace with your sender ID
+    const alphasender = 'wic doctor'; // Replace with your alpha sender
+  
+    const url = 'https://sms.way-interactive-convergence.com/apis/smscontact/';
+    const fields = {
+      apikey: api_key,
+      from: from,
+      to: phone,
+      message: message,
+      alphasender: alphasender,
+    };
+  
+    try {
+      const response = await axios.post(url, new URLSearchParams(fields), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error sending SMS:', error);
+      throw new Error('Failed to send SMS');
+    }
+  };
+  
+  // Function to handle patient signup
+  const signuppatient = async (req, res) => {
+    const { email, phone, lastname, firstname } = req.body;
+  
+    // Validate input
+    if (!firstname || !lastname || !email || !phone) {
+      return res.status(400).json({ error: 'Tous les champs sont requis.' });
+    }
+  
+    try {
+      const password = generatePassword(); // Ensure this function generates a valid password
+      const hashedPassword = await bcrypt.hash(password, 10);
+  
+      // Insert the user into the `users` table
+      const userSql = 'INSERT INTO users (firstname, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+      const [userResults] = await db.execute(userSql, [firstname, lastname, email, phone, hashedPassword]);
+  
+      const userId = userResults.insertId; // ID of the newly inserted user
+  
+      // Insert into the `patients` table
+      const insertSql = 'INSERT INTO patients (user_id, first_name, last_name, phone_number, created_at) VALUES (?, ?, ?, ?, NOW())';
+      const values = [userId, firstname, lastname, phone];
+      await db.execute(insertSql, values);
+  
+      // Prepare the confirmation message
+      const message = `Bienvenue ${firstname}!\n` +
+                   `Vous êtes inscrit chez Wic-Doctor.\n` +
+                   `Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : ${password}\n` +
+                   `Veuillez compléter votre fiche, s'il vous plaît.\n` +
+            
+                   `Si vous n'avez pas demandé cette inscription, ignorez simplement ce message.\n` +
+                   `Cordialement,\nL'équipe de Wic-Doctor.`;
+    
+      // Send confirmation email
+      sendConfirmationEmail(`${firstname} ${lastname}`, email, password, res, userId);
+      
+      // Send SMS with the same message
+      await sendSMScontactinscrit(phone, message);
+  
+      // Respond with success
+      return res.status(201).json({ message: 'Inscription réussie et confirmation envoyée.' });
+  
+    } catch (error) {
+      console.error('Error during patient signup:', error);
+      return res.status(500).json({ error: 'Une erreur est survenue lors de l\'inscription.' });
+    }
+  }
 
 
 

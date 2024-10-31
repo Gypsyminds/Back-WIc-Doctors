@@ -550,7 +550,32 @@ db.query(qurryy, [clinic_id], (err, resulss) => {
     });
 });
 }
-
+const sendSMScontactinscrit = async (phone, message) => {
+    const api_key = 'INS757364498'; // Replace with your actual API key
+    const from = '33743134488'; // Replace with your sender ID
+    const alphasender = 'wic doctor'; // Replace with your alpha sender
+  
+    const url = 'https://sms.way-interactive-convergence.com/apis/smscontact/';
+    const fields = {
+      apikey: api_key,
+      from: from,
+      to: phone,
+      message: message,
+      alphasender: alphasender,
+    };
+  
+    try {
+      const response = await axios.post(url, new URLSearchParams(fields), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error sending SMS:', error);
+      throw new Error('Failed to send SMS');
+    }
+  };
 const insertAppointmentclinic= async (req, res) => {
     console.log('Request Body:', req.body); // Affiche le contenu de req.body
     const authHeader = req.headers['authorization'];
@@ -616,11 +641,19 @@ const insertAppointmentclinic= async (req, res) => {
         const nameQuery = `SELECT firstname FROM users WHERE id = ?;`;
         const [userName] = await db.query(nameQuery, [user_id]);
 
+        const phoneQuery = `SELECT phone_number FROM users WHERE id = ?;`;
+        const [userphone] = await db.query(phoneQuery, [user_id]);
         if (userEmail.length === 0) {
             return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
         }
         const namedocQuery = `SELECT name FROM doctors WHERE id = ?;`;
         const [docname] = await db.query(namedocQuery, [doctor_id]);
+
+        if (userEmail.length === 0) {
+            return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+        }
+        const nameclinicQuery = `SELECT name FROM clinics WHERE id = ?;`;
+        const [clinicname] = await db.query(nameclinicQuery, [clinic_id]);
 
         if (userEmail.length === 0) {
             return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
@@ -655,16 +688,21 @@ const insertAppointmentclinic= async (req, res) => {
             subject: 'Confirmation de votre Rendez-vous',
             html: `<html>
                         <body>
-                            <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${userName[0].name}</h2>
-                            <p>Votre rendez-vous avec le médecin  ${JSON.parse(docname[0].name).fr}  ${formattedStartAt} au  ${formattedStartAt1} est bien confirmé</p>
+                            <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${userName[0].firstname}</h2>
+                            <p>Votre rendez-vous avec le médecin  ${JSON.parse(docname[0].name).fr}  ${formattedStartAt} au  ${formattedStartAt1} au ${JSON.parse(clinicname[0].name).fr} est bien confirmé</p>
                             <p></p>   
                             <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
                         </body>
                         </html>`, // Personnalisez l'e-mail selon vos besoins
         };
 
+      const message = `Bienvenue Cher Patient(e)${userName[0].firstname}\n` +
+                   `Votre rendez-vous avec le médecin  ${JSON.parse(docname[0].name).fr}  ${formattedStartAt} au  ${formattedStartAt1} au ${JSON.parse(clinicname[0].name).fr} est bien confirmé` +
+                   `Cordialement,\nL'équipe de Wic-Doctor.`;
+    
         await transporter.sendMail(mailOptions);
-
+        console.log(userphone[0].phone_number);
+        await sendSMScontactinscrit(userphone[0].phone_number,message);
         return res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: insertResult.insertId });
     } catch (error) {
         console.error('Erreur lors de l\'insertion du rendez-vous ou de l\'envoi de l\'e-mail:', error);
@@ -756,12 +794,15 @@ async function insertAppointmentclinics(req, res) {
         await transporter.sendMail(mailOptions);
 
         return res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: insertResult.insertId });
+        await sendSMScontactinscrit(phone, message);
+
     } catch (error) {
         console.error('Erreur lors de l\'insertion du rendez-vous ou de l\'envoi de l\'e-mail:', error);
         return res.status(500).json({ error: 'Erreur lors de l\'insertion du rendez-vous ou de l\'envoi de l\'e-mail.' });
     }
 };
 
+  
 const updateAppointment = async (req, res) => {
     const { start_at, end_at } = req.body;
 
@@ -854,7 +895,7 @@ const getAvailabilityHours = async (req, res) => {
         if (results.length === 0) {
             return res.status(404).json({ message: 'Aucune disponibilité trouvée pour cette clinique et ce médecin.' });
         }
-
+console.log(results);
         // Retourner les résultats en JSON
         res.status(200).json(results);
     } catch (err) {

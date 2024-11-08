@@ -1,18 +1,37 @@
 const express = require('express');
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 const authRoutes = require('./Router/router');
-const cors = require('cors');
+//const cors = require('cors');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const passport = require('passport');
 require('./config/auth');
 require('./config/facebook');
 // Configuration de CORS et du body parser
-app.use(cors());
+//app.use(cors());
+const cors = require('cors');
+app.use(cors({ origin: 'https://wic-doctor.com' }));
 app.use(bodyParser.json());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+const fs = require('fs');
+const https = require('https');
+app.use(express.urlencoded({ extended: true }));
+const cron = require('node-cron'); // Pour planifier la vérification des rendez-vous
+
+const { sendSMSBeforeAppointment } = require('./Controlleurs/doctor');
+
+
+
+// Charger les certificats SSL
+const sslOptions = {
+    key: fs.readFileSync('/etc/letsencrypt/live/wic-doctor.com/privkey.pem'),
+    cert: fs.readFileSync('/etc/letsencrypt/live/wic-doctor.com/fullchain.pem')
+};
+
+
 // Configuration de la session
 app.use(session({
     secret: 'koukou',
@@ -95,8 +114,16 @@ app.post('/inscription', async (req, res) => {
         res.status(500).json({ message: 'Erreur lors de l\'inscription.' });
     }
 });
-
+// Planification de la vérification toutes les minutes
+cron.schedule('* * * * *', async () => {
+    await sendSMSBeforeAppointment();
+    console.log('Vérification des rendez-vous pour les SMS');
+  });
 // Démarrer le serveur
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
+});
+
+https.createServer(sslOptions, app).listen(3003, () => {
+    console.log('Serveur HTTPS lancé sur le port 3002');
 });

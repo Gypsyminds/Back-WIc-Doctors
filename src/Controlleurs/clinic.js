@@ -638,7 +638,7 @@ const insertAppointmentclinic= async (req, res) => {
             return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
         }
 
-        const nameQuery = `SELECT firstname FROM users WHERE id = ?;`;
+        const nameQuery = `SELECT name FROM users WHERE id = ?;`;
         const [userName] = await db.query(nameQuery, [user_id]);
 
         const phoneQuery = `SELECT phone_number FROM users WHERE id = ?;`;
@@ -688,7 +688,7 @@ const insertAppointmentclinic= async (req, res) => {
             subject: 'Confirmation de votre Rendez-vous',
             html: `<html>
                         <body>
-                            <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${userName[0].firstname}</h2>
+                            <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${userName[0].name}</h2>
                             <p>Votre rendez-vous avec le médecin  ${JSON.parse(docname[0].name).fr}  ${formattedStartAt} au  ${formattedStartAt1} au ${JSON.parse(clinicname[0].name).fr} est bien confirmé</p>
                             <p></p>   
                             <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
@@ -696,7 +696,7 @@ const insertAppointmentclinic= async (req, res) => {
                         </html>`, // Personnalisez l'e-mail selon vos besoins
         };
 
-      const message = `Bienvenue Cher Patient(e)${userName[0].firstname}\n` +
+      const message = `Bienvenue Cher Patient(e)${userName[0].name}\n` +
                    `Votre rendez-vous avec le médecin  ${JSON.parse(docname[0].name).fr}  ${formattedStartAt} au  ${formattedStartAt1} au ${JSON.parse(clinicname[0].name).fr} est bien confirmé` +
                    `Cordialement,\nL'équipe de Wic-Doctor.`;
     

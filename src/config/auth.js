@@ -1,13 +1,13 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-require('dotenv').config()
+require('dotenv').config();
 const db = require('../config/db'); // Importer la connexion à la base de données
 const bcrypt = require('bcrypt');
 const nodemailer = require('nodemailer');
 
 passport.use(new GoogleStrategy({
-    clientID :process.env.GOOGLE_CLIENT_ID,
-    clientSecret :process.env.GOOGLE_CLIENT_SECRET,
+    clientID: process.env.GOOGLE_CLIENT_ID, // Utiliser la variable d'environnement
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackURL :'http://localhost:3001/auth/google/callback',
     passReqToCallback : true,
     scope: ['email', 'profile'] 

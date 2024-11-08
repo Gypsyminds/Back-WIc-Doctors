@@ -2,6 +2,8 @@ const express = require('express');
 const mysql = require('mysql2');
 const bodyParser = require('body-parser');
 const cors = require('cors'); // Importer cors
+require('dotenv').config();
+
 const app = express();
 const port = 3000;
 const db = require('../config/db'); // Importer la connexion à la base de données
@@ -17,7 +19,6 @@ const crypto = require('crypto');
 app.use(express.json());
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment');
-
 
 
 // Lire les horaires de chaque  docteur par ID doctor
@@ -717,6 +718,7 @@ const getmotifs = async (req, res) => {
 
     try {
         const [results] = await db.query(query, [specialiteid]);
+
         
         // Vérification si des résultats ont été trouvés
         if (results.length === 0) {
@@ -994,9 +996,7 @@ const insertAppointment= async (req, res) => {
     const { appointment_at, ends_at, start_at, doctor_id, clinic, doctor, patient, address, motif_id } = req.body;
 
     // Vérification des paramètres requis
-    if (!ends_at || !start_at || !token || !doctor_id || !motif_id ) {
-        return res.status(400).json({ error: 'Tous les champs sont requis.' });
-    }
+   
 
     // Décoder le token pour récupérer user_id
     let user_id;
@@ -1036,6 +1036,7 @@ const insertAppointment= async (req, res) => {
         const emailQuery = `SELECT email FROM users WHERE id = ?;`;
         const [userEmail] = await db.query(emailQuery, [user_id]);
 
+
         const phoneQuery = `SELECT phone_number FROM users WHERE id = ?;`;
         const [userphone] = await db.query(phoneQuery, [user_id]);
         if (userEmail.length === 0) {
@@ -1043,11 +1044,12 @@ const insertAppointment= async (req, res) => {
         }
         const namedocQuery = `SELECT name FROM doctors WHERE id = ?;`;
         const [docname] = await db.query(namedocQuery, [doctor_id]);
-        const nameQuery = `SELECT firstname FROM users WHERE id = ?;`;
+        const nameQuery = `SELECT name FROM users WHERE id = ?;`;
         const [userName] = await db.query(nameQuery, [user_id]);
         if (userEmail.length === 0) {
             return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
         }
+console.log(userName);
         const startDate = new Date(start_at);
         const endDate = new Date(ends_at);
 
@@ -1078,15 +1080,15 @@ const insertAppointment= async (req, res) => {
             subject: 'Confirmation de votre Rendez-vous',
             html: `<html>
             <body>
-                <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${userName[0].firstname}</h2>
+                <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${userName[0].name}</h2>
                 <p>Votre rendez-vous avec le médecin  ${JSON.parse(docname[0].name).fr}  ${formattedStartAt} au  ${formattedStartAt1} est bien confirmé</p>
                 <p></p>   
                 <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
             </body>
             </html>`, // Personnalisez l'e-mail selon vos besoins
 };
-
-const message = `Bienvenue Cher Patient(e)${userName[0].firstname}\n` +
+console.log(userName[0].name);  
+const message = `Bienvenue Cher Patient(e)${userName[0].name}\n` +
        `Votre rendez-vous avec le médecin  ${JSON.parse(docname[0].name).fr}  ${formattedStartAt} au  ${formattedStartAt1}  est bien confirmé` +
        `Cordialement,\nL'équipe de Wic-Doctor.`;
 
@@ -1457,45 +1459,53 @@ const { error } = require('console');
         });
     }
     //app.get('/api/doctors', 
-    const getplusprochedoc = (req, res) => {
+   const getplusprochedoc = async (req, res) => {
+    try {
         const userLatitude = parseFloat(req.query.latitude);
         const userLongitude = parseFloat(req.query.longitude);
-    
-        const query = 'SELECT * FROM addresses'; // Récupérer tous les médecins
-    
-        db.query(query, (err, results) => {
-            if (err) {
-                return res.status(500).json({ error: 'Erreur lors de la récupération des médecins.' });
-            }
-    
-            // Calculer la distance et ajouter à chaque médecin
-            const doctorsWithDistance = results.map(doctor => {
-                const distance = haversineDistance(userLatitude, userLongitude, doctor.latitude, doctor.longitude);
-                return {
-                    ...doctor,
-                    distance: distance // Ajouter la distance
-                };
-            });
-    
-            // Trier par distance
-            doctorsWithDistance.sort((a, b) => a.distance - b.distance);
-    
-            // Retourner les médecins les plus proches
-            res.json(doctorsWithDistance);
-        });
-    }
 
-    function haversineDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371; // Rayon de la Terre en kilomètres
-        const dLat = (lat2 - lat1) * (Math.PI / 180);
-        const dLon = (lon2 - lon1) * (Math.PI / 180);
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c; // Distance en kilomètres
+        const query = 'SELECT * FROM addresses'; // Récupérer tous les médecins
+
+        // Wrap db.query in a Promise to use it with async/await
+        const results = await new Promise((resolve, reject) => {
+            db.query(query, (err, results) => {
+                if (err) {
+                    return reject(new Error('Erreur lors de la récupération des médecins.'));
+                }
+                resolve(results);
+            });
+        });
+
+        // Calculer la distance et ajouter à chaque médecin
+        const doctorsWithDistance = results.map(doctor => {
+            const distance = haversineDistance(userLatitude, userLongitude, doctor.latitude, doctor.longitude);
+            return {
+                ...doctor,
+                distance: distance // Ajouter la distance
+            };
+        });
+
+        // Trier par distance
+        doctorsWithDistance.sort((a, b) => a.distance - b.distance);
+
+        // Retourner les médecins les plus proches
+        res.json(doctorsWithDistance);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-    
+};
+
+function haversineDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Rayon de la Terre en kilomètres
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance en kilomètres
+}
+
 // Middleware pour vérifier le token JWT
 function verifyToken(req, res, next) {
     const token = req.headers['authorization'];
@@ -1732,11 +1742,11 @@ const updateAppointments = (req, res) => {
                 }
         
                 const [patientEmail] = await db.query(
-                    'SELECT u.email, u.firstname FROM appointments rv JOIN users u ON rv.user_id = u.id WHERE rv.user_id = ?;', 
+                    'SELECT u.email, u.name FROM appointments rv JOIN users u ON rv.user_id = u.id WHERE rv.user_id = ?;', 
                     [user_id]
                 );
                 
-                const patientName = patientInfo[0].first_name;
+                const patientName = patientInfo[0].name;
                 const emailpatient = patientEmail[0].email;   
                 const namepatient = patientEmail[0].firstname;
                 const formattedStartAt = new Date(start_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
@@ -1789,7 +1799,7 @@ const updateAppointments = (req, res) => {
                 await transporter.sendMail(mailOptionsPatient);
         
                 const [resultat] = await db.query(
-                    'SELECT rv.*, u.email, u.firstname, s.status AS statut_nom FROM appointments rv JOIN users u ON rv.user_id = u.id JOIN appointment_statuses s ON rv.appointment_status_id = s.id WHERE rv.user_id = ?;', 
+                    'SELECT rv.*, u.email, u.name, s.status AS statut_nom FROM appointments rv JOIN users u ON rv.user_id = u.id JOIN appointment_statuses s ON rv.appointment_status_id = s.id WHERE rv.user_id = ?;', 
                     [user_id]
                 );
         
@@ -1884,7 +1894,7 @@ GROUP BY
         
                 // Récupérer les informations du patient
                 const [patientEmail] = await db.query(
-                    'SELECT u.email, u.firstname,u.phone_number , rv.ends_at, rv.start_at FROM appointments rv JOIN users u ON rv.user_id = u.id WHERE rv.id = ?;', 
+                    'SELECT u.email, u.name,u.phone_number , rv.ends_at, rv.start_at FROM appointments rv JOIN users u ON rv.user_id = u.id WHERE rv.id = ?;', 
                     [appointmentId]
                 );
         
@@ -1901,7 +1911,7 @@ GROUP BY
                 const doctorEmail = doctorInfo[0].doctor_email;
                 const doctorName = JSON.parse(doctorInfo[0].doctor_name).fr;
                 const emailpatient = patientEmail[0].email;   
-                const namepatient = patientEmail[0].firstname;
+                const namepatient = patientEmail[0].name;
                 const phonepatient = patientEmail[0].phone_number;
                 
                 // Formatage des dates
@@ -1969,14 +1979,79 @@ GROUP BY
                 return res.status(500).json({ message: "Erreur du serveur lors de l'annulation du rendez-vous." });
             }
         };
-     
+
+// Fonction pour récupérer les rendez-vous dans les 15 prochaines minutes
+const getUpcomingAppointments = async () => {
+    try {
+      const [appointments] = await db.query(
+        `SELECT a.*, u.phone_number FROM appointments a LEFT JOIN users u ON a.user_id = u.id WHERE a.start_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 15 MINUTE);`
+      );
+      return appointments;
+    } catch (err) {
+      console.error("Erreur lors de la récupération des rendez-vous", err);
+      throw new Error('Failed to retrieve upcoming appointments');
+    }
+  };
+  
+  // Fonction principale pour envoyer des SMS avant les rendez-vous
+  const sendSMSBeforeAppointment = async () => {
+    const appointments = await getUpcomingAppointments();
+  
+    for (const appointment of appointments) {
+      const appointmentStartTime = new Date(appointment.start_at);
+      const now = new Date();
+  
+      // Calculer la différence en millisecondes (15 minutes avant le rendez-vous)
+      const timeDiff = appointmentStartTime - now - 15 * 60 * 1000;
+  
+      // Si la différence est positive, planifier l'envoi du SMS
+      if (timeDiff > 0) {
+        setTimeout(async () => {
+          const message = `Votre rendez-vous est prévu dans 15 minutes.`;
+          try {
+            await sendSMScontactinscrit(appointment.phone_numbre, message);
+            console.log(`SMS envoyé à ${appointment.phone_numbre}`);
+          } catch (error) {
+            console.error('Erreur lors de l\'envoi du SMS:', error);
+          }
+        }, timeDiff);
+      }
+    }
+  }
+
+  const sendSMSdertapelle = async (phone, message) => {
+    const api_key = 'INS757364498'; // Replace with your actual API key
+    const from = '33743134488'; // Replace with your sender ID
+    const alphasender = 'wic doctor'; // Replace with your alpha sender
+  
+    const url = 'https://sms.way-interactive-convergence.com/apis/smscontact/';
+    const fields = {
+      apikey: api_key,
+      from: from,
+      to: phone,
+      message: message,
+      alphasender: alphasender,
+    };
+  
+    try {
+      const response = await axios.post(url, new URLSearchParams(fields), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error sending SMS:', error);
+      throw new Error('Failed to send SMS');
+    }
+  };     
 module.exports = {
     specialitespardoctor,
     getalldoctors,
     getDoctorsparvillepaysspecialites,
     getDoctorsById,
     getadressempas,
-    getvilles,getpays,getmotif,gethistoriqu,
+    getvilles,getpays,getmotif,gethistoriqu,sendSMSBeforeAppointment ,
     insertAppointment,getville,
     forgs,rests,insertAppointment,getplusprochedoc
     ,getAppointmentsByPatientId , updateAppointment , getDoctorById , cancelAppointment

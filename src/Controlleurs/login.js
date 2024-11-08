@@ -306,10 +306,10 @@ const sendSMScontact = async (req, res) => {
   };
 // Function to handle patient signup
 async function signuppatientsanssms(req, res) {
-    const { email, phone, lastname, firstname } = req.body;
+    const { email, phone, lastname, name } = req.body;
 
     // Validate input
-    if (!firstname || !lastname || !email || !phone) {
+    if (!name || !lastname || !email || !phone) {
         return res.status(400).json({ error: 'Tous les champs sont requis.' });
     }
 
@@ -318,18 +318,18 @@ async function signuppatientsanssms(req, res) {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         // Insert the user into the `users` table
-        const userSql = 'INSERT INTO users (firstname, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
-        const [userResults] = await db.execute(userSql, [firstname, lastname, email, phone, hashedPassword]);
+        const userSql = 'INSERT INTO users (name, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+        const [userResults] = await db.execute(userSql, [name, lastname, email, phone, hashedPassword]);
 
         const userId = userResults.insertId; // ID of the newly inserted user
 
         // Insert into the `patients` table
         const insertSql = 'INSERT INTO patients (user_id, first_name, last_name, phone_number, created_at) VALUES (?, ?, ?, ?, NOW())';
-        const values = [userId, firstname, lastname, phone];
+        const values = [userId, name, lastname, phone];
         await db.execute(insertSql, values);
 
         // Send confirmation email
-        sendConfirmationEmail(firstname + lastname, email, password, res, userId);
+        sendConfirmationEmail(name , email, password, res, userId);
         //sendSMScontact(INS757364498 ,33743134488,phone ,   <p>Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : <strong>${password}</strong></p> )
     } catch (error) {
         console.error('Error during patient signup:', error);
@@ -496,7 +496,7 @@ const resetPassword = async (req, res) => {
 async function updateprofilpatient(req, res) {
     const patientId = req.params.id;
     const {
-        first_name,
+        name,
         last_name,
         phone_number,
         mobile_number,
@@ -520,8 +520,8 @@ async function updateprofilpatient(req, res) {
         const values = [];
 
         // Préparer les mises à jour avec des valeurs nulles si non fournies
-        updates.push('first_name = ?');
-        values.push(first_name !== undefined ? first_name : currentData.first_name);
+        updates.push('name = ?');
+        values.push(name !== undefined ? name : currentData.name);
 
         updates.push('last_name = ?');
         values.push(last_name !== undefined ? last_name : currentData.last_name);
@@ -619,10 +619,10 @@ const sendSMScontactinscrit = async (phone, message) => {
   
   // Function to handle patient signup
   const signuppatient = async (req, res) => {
-    const { email, phone, lastname, firstname } = req.body;
+    const { email, phone, lastname, name } = req.body;
   
     // Validate input
-    if (!firstname || !lastname || !email || !phone) {
+    if (!name || !lastname || !email || !phone) {
       return res.status(400).json({ error: 'Tous les champs sont requis.' });
     }
   
@@ -631,18 +631,18 @@ const sendSMScontactinscrit = async (phone, message) => {
       const hashedPassword = await bcrypt.hash(password, 10);
   
       // Insert the user into the `users` table
-      const userSql = 'INSERT INTO users (firstname, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
-      const [userResults] = await db.execute(userSql, [firstname, lastname, email, phone, hashedPassword]);
+      const userSql = 'INSERT INTO users (name, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+      const [userResults] = await db.execute(userSql, [name, lastname, email, phone, hashedPassword]);
   
       const userId = userResults.insertId; // ID of the newly inserted user
   
       // Insert into the `patients` table
       const insertSql = 'INSERT INTO patients (user_id, first_name, last_name, phone_number, created_at) VALUES (?, ?, ?, ?, NOW())';
-      const values = [userId, firstname, lastname, phone];
+      const values = [userId, name, lastname, phone];
       await db.execute(insertSql, values);
   
       // Prepare the confirmation message
-      const message = `Bienvenue ${firstname}!\n` +
+      const message = `Bienvenue ${name}!\n` +
                    `Vous êtes inscrit chez Wic-Doctor.\n` +
                    `Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : ${password}\n` +
                    `Veuillez compléter votre fiche, s'il vous plaît.\n` +
@@ -651,7 +651,7 @@ const sendSMScontactinscrit = async (phone, message) => {
                    `Cordialement,\nL'équipe de Wic-Doctor.`;
     
       // Send confirmation email
-      sendConfirmationEmail(`${firstname} ${lastname}`, email, password, res, userId);
+      sendConfirmationEmail(`${name}`, email, password, res, userId);
       
       // Send SMS with the same message
       await sendSMScontactinscrit(phone, message);

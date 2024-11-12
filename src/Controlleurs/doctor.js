@@ -1016,19 +1016,20 @@ const insertAppointment= async (req, res) => {
     const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id];
 
     // Supprimer l'heure disponible associée dans la table 'available_hours'
-    const deleteAvailableHourQuery = `
-        DELETE FROM availability_hours 
-        WHERE doctor_id = ? 
-        AND start_at = ? 
-        AND end_at = ?
-    `;
-    
-    const availableHourValues = [doctor_id, start_at, ends_at];
+  const deleteAvailableHourQuery = `
+    DELETE FROM availability_hours 
+    WHERE doctor_id = ? 
+    AND DATE_FORMAT(start_at, '%Y-%m-%d %H:%i') = DATE_FORMAT(?, '%Y-%m-%d %H:%i') 
+    AND DATE_FORMAT(end_at, '%Y-%m-%d %H:%i') = DATE_FORMAT(?, '%Y-%m-%d %H:%i')
+`;
+const availableHourValues = [doctor_id, start_at, ends_at];
 
-    try {
+try {
+    // Exécuter la requête pour supprimer les heures disponibles
+    const [deleteResult] = await db.query(deleteAvailableHourQuery, availableHourValues);
+    console.log('Heures disponibles supprimées:', deleteResult.affectedRows);
         // Supprimer les heures disponibles
-        await db.query(deleteAvailableHourQuery, availableHourValues);
-
+    
         // Insérer le rendez-vous
         const [insertResult] = await db.query(insertQuery, values);
 
@@ -1666,8 +1667,9 @@ const updateAppointments = (req, res) => {
 });
         }
         const updateAppointment = async (req, res) => {
-            const { appointment_id, start_at, end_at, patern_id } = req.body;
-            
+            const {  start_at, end_at, patern_id } = req.body;
+              const appointment_id = req.params.appointment_id;  // Récupération de appointment_id depuis les paramètres d'URL
+           
             // Vérifiez si les champs requis sont fournis
             if (!appointment_id || !start_at || !end_at || !patern_id) {
                 return res.status(400).send({ message: 'Les champs appointment_id, start_at, end_at et patern_id sont requis' });
@@ -1689,7 +1691,7 @@ const updateAppointments = (req, res) => {
             }
             
             try {
-                // Vérifiez si le rendez-vous existe pour cet utilisateur
+                 // Vérifiez si le rendez-vous existe pour cet utilisateur
                 const [oldAppointment] = await db.query(
                     'SELECT * FROM appointments WHERE id = ? AND user_id = ?', 
                     [appointment_id, user_id]
@@ -1748,8 +1750,10 @@ const updateAppointments = (req, res) => {
                 
                 const patientName = patientInfo[0].name;
                 const emailpatient = patientEmail[0].email;   
-                const namepatient = patientEmail[0].firstname;
+                const namepatient = patientEmail[0].name;
                 const formattedStartAt = new Date(start_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+
+console.log(patientName);
                 const formattedStartAt1 = new Date(oldAppointment[0].start_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
         
                 // Envoi de l'email au médecin

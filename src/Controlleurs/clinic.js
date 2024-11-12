@@ -612,20 +612,22 @@ const insertAppointmentclinic= async (req, res) => {
     
     const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id ,clinic_id];
 
-    // Supprimer l'heure disponible associée dans la table 'available_hours'
-    const deleteAvailableHourQuery = `
-        DELETE FROM  availability_hours_clinic 
-        WHERE doctor_id = ? 
-        AND start_at = ? 
-        AND end_at = ?
-        AND clinic_id = ? 
-    `;
-    
-    const availableHourValues = [doctor_id, start_at, ends_at,clinic_id];
+    // Supprimer l'heure disponible associée dans la table 'available_hours
+const deleteAvailableHourQuery = `
+    DELETE FROM availability_hours_clinic
+    WHERE doctor_id = ? 
+    AND  clinic_id = ? 
+    AND DATE_FORMAT(start_at, '%Y-%m-%d %H:%i') = DATE_FORMAT(?, '%Y-%m-%d %H:%i') 
+    AND DATE_FORMAT(end_at, '%Y-%m-%d %H:%i') = DATE_FORMAT(?, '%Y-%m-%d %H:%i')
+`;
+const availableHourValues = [doctor_id,clinic_id, start_at, ends_at];
 
-    try {
+try {
+    // Exécuter la requête pour supprimer les heures disponibles
+    const [deleteResult] = await db.query(deleteAvailableHourQuery, availableHourValues);
+    console.log('Heures disponibles supprimées:', deleteResult.affectedRows);
         // Supprimer les heures disponibles
-        await db.query(deleteAvailableHourQuery, availableHourValues);
+    
 
         // Insérer le rendez-vous
         const [insertResult] = await db.query(insertQuery, values);

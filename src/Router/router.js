@@ -38,7 +38,10 @@ router.post('/api/logupb2b',loginController.signupb2b);
 router.put('/update/patient/:id',loginController.updateprofilpatient);
 router.get('/getdocbyid/:id',authController.getDoctorById);
 
-router.put('/updateappointement',authController.updateAppointment);
+router.put('/updateappointement/:appointment_id',authController.updateAppointment);
+
+router.put('/updateappointementclinic/:appointment_id',clinicController.updateAppointment);
+
 router.put('/updateappointementclinic',clinicController.updateAppointment);
 router.get('/availability/:clinic_id/:doctor_id', clinicController.getAvailabilityHours);
 router.delete('/appointmentscancel/:id', authController.cancelAppointment);

@@ -2069,7 +2069,7 @@ module.exports = {
     getadressempas,
     getvilles,getpays,getmotif,gethistoriqu,sendSMSBeforeAppointment ,
     insertAppointment,getville,
-    forgs,rests,insertAppointment,getplusprochedoc
+    forgs,rests,insertAppointment,getplusprochedoc ,getAllAnnuaires ,
     ,getAppointmentsByPatientId , updateAppointment , getDoctorById , cancelAppointment
 }
 

@@ -2045,6 +2045,22 @@ const getUpcomingAppointments = async () => {
       throw new Error('Failed to send SMS');
     }
   };     
+  // Fonction pour récupérer tous les cardiologues
+const  getAllAnnuaires = async (req, res) =>{
+    let connection;
+    
+    try {
+      const [rows] = await db.execute('SELECT * FROM `cardiologues-nabeul`');
+      res.json(rows);  // Envoie les résultats en réponse au client
+    } catch (error) {
+      console.error('Erreur lors de la récupération des cardiologues:', error);
+      res.status(500).json({ error: 'Erreur lors de la récupération des données' });
+    } finally {
+      if (db) {
+        await db.end();
+      }
+    }
+  }
 module.exports = {
     specialitespardoctor,
     getalldoctors,

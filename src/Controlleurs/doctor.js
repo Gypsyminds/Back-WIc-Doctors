@@ -20,6 +20,8 @@ const moment = require('moment');
 
 
 
+// Configurer body-parser pour les requêtes JSON
+
 // Lire les horaires de chaque  docteur par ID doctor
 app.get('/availability/:doctorId', (req, res) => {
     const doctorId = req.params.doctorId;
@@ -674,7 +676,7 @@ const getvilles = async (req, res) => {
         console.error(err); // Pour le débogage
         res.status(500).json({ error: 'Erreur lors de la récupération des villes.' });
     }
-};
+}
 
 const getville = async (req, res) => {
     try {
@@ -1457,7 +1459,7 @@ const { error } = require('console');
         });
     }
     //app.get('/api/doctors', 
-    const getplusprochedoc = (req, res) => {
+    const getplusprochedocs = (req, res) => {
         const userLatitude = parseFloat(req.query.latitude);
         const userLongitude = parseFloat(req.query.longitude);
     
@@ -1484,7 +1486,39 @@ const { error } = require('console');
             res.json(doctorsWithDistance);
         });
     }
+    const { promisify } = require('util');
 
+    const getplusprochedoc = async (req, res) => {
+        try {
+            const userLatitude = parseFloat(req.query.latitude);
+            const userLongitude = parseFloat(req.query.longitude);
+    
+            const query = 'SELECT * FROM addresses'; // Récupérer tous les médecins
+    
+            // Si db est un client MySQL2, par exemple, utilisez db.promise().query pour supporter async/await
+            const [results] = await db.query(query);
+    
+            // Calculer la distance et ajouter à chaque médecin
+            const doctorsWithDistance = results.map(doctor => {
+                const distance = haversineDistance(userLatitude, userLongitude, doctor.latitude, doctor.longitude);
+                return {
+                    ...doctor,
+                    distance: distance // Ajouter la distance
+                };
+            });
+    
+            // Trier par distance
+            doctorsWithDistance.sort((a, b) => a.distance - b.distance);
+    
+            // Retourner les médecins les plus proches
+            res.json(doctorsWithDistance);
+        } catch (err) {
+            // Retourner le message d'erreur en cas d'échec
+            res.status(500).json({ error: 'Erreur lors de la récupération des médecins.', details: err.message });
+        }
+    }
+    
+    
     function haversineDistance(lat1, lon1, lat2, lon2) {
         const R = 6371; // Rayon de la Terre en kilomètres
         const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -1656,13 +1690,11 @@ const updateAppointments = (req, res) => {
 });
         }
         const updateAppointment = async (req, res) => {
-            const { appointment_id, start_at, end_at, patern_id } = req.body;
+            const { start_at, end_at, patern_id } = req.body;
+    const appointment_id = req.params.appointment_id;  // Récupération de appointment_id depuis les paramètres d'URL
+
             
-            // Vérifiez si les champs requis sont fournis
-            if (!appointment_id || !start_at || !end_at || !patern_id) {
-                return res.status(400).send({ message: 'Les champs appointment_id, start_at, end_at et patern_id sont requis' });
-            }
-            
+         
             const authHeader = req.headers['authorization'];
             const token = authHeader && authHeader.split(' ')[1];
             
@@ -1710,7 +1742,7 @@ const updateAppointments = (req, res) => {
                 
                 // Informations du médecin
                 const [doctorInfo] = await db.query(
-                    'SELECT d.id AS doctor_id, d.name AS doctor_name, u.email AS doctor_email FROM appointments r JOIN doctors d ON r.doctor_id = d.id JOIN users u ON d.user_id = u.id WHERE r.id = ?', 
+                    'SELECT d.id AS doctor_id, d.name AS doctor_name, u.email AS doctor_email ,u.phone_number AS doc_number FROM appointments r JOIN doctors d ON r.doctor_id = d.id JOIN users u ON d.user_id = u.id WHERE r.id = ?', 
                     [appointment_id]
                 );
         
@@ -1720,8 +1752,7 @@ const updateAppointments = (req, res) => {
         
                 const doctorEmail = doctorInfo[0].doctor_email;
                 const doctorName = JSON.parse(doctorInfo[0].doctor_name).fr;
-        
-                // Informations du patient
+                const doctorphone = doctorInfo[0].phone_number;                // Informations du patient
                 const [patientInfo] = await db.query(
                     'SELECT * FROM patients WHERE user_id = ?', 
                     [user_id]
@@ -1732,13 +1763,14 @@ const updateAppointments = (req, res) => {
                 }
         
                 const [patientEmail] = await db.query(
-                    'SELECT u.email, u.firstname FROM appointments rv JOIN users u ON rv.user_id = u.id WHERE rv.user_id = ?;', 
+                    'SELECT u.email, u.firstname ,u.phone_number FROM appointments rv JOIN users u ON rv.user_id = u.id WHERE rv.user_id = ?;', 
                     [user_id]
                 );
                 
                 const patientName = patientInfo[0].first_name;
                 const emailpatient = patientEmail[0].email;   
                 const namepatient = patientEmail[0].firstname;
+                const phone_number = patientEmail[0].phone_number;
                 const formattedStartAt = new Date(start_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
                 const formattedStartAt1 = new Date(oldAppointment[0].start_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
         
@@ -1792,7 +1824,24 @@ const updateAppointments = (req, res) => {
                     'SELECT rv.*, u.email, u.firstname, s.status AS statut_nom FROM appointments rv JOIN users u ON rv.user_id = u.id JOIN appointment_statuses s ON rv.appointment_status_id = s.id WHERE rv.user_id = ?;', 
                     [user_id]
                 );
-        
+              // Prepare the confirmation message
+      const message = `Bienvenue ${patientName}!\n` +
+      `Votre rendez-vous avec le docteur ${doctorName}  a été modifié de ${formattedStartAt1} à ${formattedStartAt} avec succès. ` +
+      `Si vous n'avez pas demandé cette inscription, ignorez simplement ce message.\n` +
+      `Cordialement,\nL'équipe de Wic-Doctor.`;
+
+      const messagedotor = `Bienvenue Cher Docteur ${doctorName}!\n` +
+      `Votre patient ${patientName} a modifié son rendez-vous de ${formattedStartAt1} à ${formattedStartAt} ` +
+      `Cordialement,\nL'équipe de Wic-Doctor.`;
+
+// Send confirmation email
+//sendConfirmationEmail(doctorName, doctorEmail, password, res, userId);
+//sendConfirmationEmail(patientName,emailpatient,)
+console.log(patientEmail[0].phone_number);
+console.log(doctorphone);
+// Send SMS with the same message
+await sendSMScontactinscrit(phone_number, message);
+await sendSMScontactinscrit(doctorphone,messagedotor);
                 return res.status(200).json({ 
                     message: 'Rendez-vous mis à jour avec succès et notification envoyée', 
                     appointment: resultat 
@@ -1860,7 +1909,7 @@ GROUP BY
             }
         };
         
-        const cancelAppointment = async (req, res) => {
+const cancelAppointment = async (req, res) => {
             const appointmentId = req.params.id; // ID du rendez-vous à annuler
             const cancellationTime = new Date(); // Heure actuelle pour l'annulation
         
@@ -1959,6 +2008,9 @@ GROUP BY
                                 Votre rendez-vous avec le docteur ${doctorName} de ${formattedStartAt1} à ${formattedStartAt}  a été annulé 
                                 Cordialement,L'équipe de Wic-Doctor.`;
                 // Envoi de l'email au docteur
+                const messagedoc = `Bienvenue Cher Patient ${namepatient}
+                Votre rendez-vous avec le docteur ${doctorName} de ${formattedStartAt1} à ${formattedStartAt}  a été annulé 
+                Cordialement,L'équipe de Wic-Doctor.`;
                 await transporter.sendMail(mailOptionsDoctor);
                 console.log(phonepatient);
         await sendSMScontactinscrit(phonepatient,message);
@@ -1970,15 +2022,107 @@ GROUP BY
             }
         };
      
+
+// Fonction pour récupérer les rendez-vous dans les 15 prochaines minutes
+const getUpcomingAppointments = async () => {
+    try {
+      const [appointments] = await db.query(
+        `SELECT a.*, u.phone_number FROM appointments a LEFT JOIN users u ON a.user_id = u.id WHERE a.start_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 15 MINUTE);`
+      );
+      return appointments;
+    } catch (err) {
+      console.error("Erreur lors de la récupération des rendez-vous", err);
+      throw new Error('Failed to retrieve upcoming appointments');
+    }
+  };
+  
+  // Fonction principale pour envoyer des SMS avant les rendez-vous
+  const sendSMSBeforeAppointment = async () => {
+    const appointments = await getUpcomingAppointments();
+  
+    for (const appointment of appointments) {
+      const appointmentStartTime = new Date(appointment.start_at);
+      const now = new Date();
+  
+      // Calculer la différence en millisecondes (15 minutes avant le rendez-vous)
+      const timeDiff = appointmentStartTime - now - 15 * 60 * 1000;
+  
+      // Si la différence est positive, planifier l'envoi du SMS
+      if (timeDiff > 0) {
+        setTimeout(async () => {
+          const message = `Votre rendez-vous est prévu dans 15 minutes.`;
+          try {
+            await sendSMSdertapelle(appointment.phone_numbre, message);
+            console.log(`SMS envoyé à ${appointment.phone_numbre}`);
+
+          } catch (error) {
+            console.error('Erreur lors de l\'envoi du SMS:', error);
+          }
+        }, timeDiff);
+        const numbersSent = [];
+        for (const appointment of appointments) {
+          if (appointment.phone_numbre) {
+            await sendSMSdertapelle(appointment.phone_numbre, 'Rappel : Vous avez un rendez-vous bientôt');
+            numbersSent.push(appointment.phone_numbre);
+          }
+        }
+      
+        return numbersSent;  // Re
+      }
+    }
+  }
+
+  const sendSMSdertapelle = async (phone, message) => {
+    const api_key = 'INS757364498'; // Replace with your actual API key
+    const from = '33743134488'; // Replace with your sender ID
+    const alphasender = 'wic doctor'; // Replace with your alpha sender
+  
+    const url = 'https://sms.way-interactive-convergence.com/apis/smscontact/';
+    const fields = {
+      apikey: api_key,
+      from: from,
+      to: phone,
+      message: message,
+      alphasender: alphasender,
+    };
+  
+    try {
+      const response = await axios.post(url, new URLSearchParams(fields), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error sending SMS:', error);
+      throw new Error('Failed to send SMS');
+    }
+  }
+  // Fonction pour récupérer tous les cardiologues
+const  getAllAnnuaires = async (req, res) =>{
+    let connection;
+    
+    try {
+      const [rows] = await db.execute('SELECT * FROM `cardiologues-nabeul`');
+      res.json(rows);  // Envoie les résultats en réponse au client
+    } catch (error) {
+      console.error('Erreur lors de la récupération des cardiologues:', error);
+      res.status(500).json({ error: 'Erreur lors de la récupération des données' });
+    } finally {
+      if (db) {
+        await db.end();
+      }
+    }
+  }
 module.exports = {
     specialitespardoctor,
     getalldoctors,
     getDoctorsparvillepaysspecialites,
     getDoctorsById,
-    getadressempas,
+    getadressempas,getAllAnnuaires,
     getvilles,getpays,getmotif,gethistoriqu,
     insertAppointment,getville,
     forgs,rests,insertAppointment,getplusprochedoc
-    ,getAppointmentsByPatientId , updateAppointment , getDoctorById , cancelAppointment
+    ,getAppointmentsByPatientId , updateAppointment , getDoctorById , cancelAppointment , sendSMSBeforeAppointment
 }
 

@@ -5,6 +5,7 @@ const bodyParser = require('body-parser');
 const clinicController =require ('../Controlleurs/clinic');
 
 const { getdoctorsbyid } = require('../Controlleurs/doctor');
+const {sendSMSBeforeAppointment} = require ('../Controlleurs/doctor');
 const app = express();
 
 const passport = require('passport');
@@ -37,11 +38,14 @@ router.post('/api/logup',loginController.signuppatient);
 router.post('/api/logupb2b',loginController.signupb2b);
 router.put('/update/patient/:id',loginController.updateprofilpatient);
 router.get('/getdocbyid/:id',authController.getDoctorById);
+router.get('/getannuaire',authController.getAllAnnuaires);
 
-router.put('/updateappointement',authController.updateAppointment);
+
+router.put('/updateappointement/:appointment_id',authController.updateAppointment);
 router.put('/updateappointementclinic',clinicController.updateAppointment);
 router.get('/availability/:clinic_id/:doctor_id', clinicController.getAvailabilityHours);
 router.delete('/appointmentscancel/:id', authController.cancelAppointment);
+router.delete('/appointmentscancelclinic/:id', clinicController.cancelAppointment);
 
 
 router.post('/send-sms', clinicController.sendSMScontact);
@@ -61,6 +65,22 @@ router.get('/specialitiesclinic/:clinicId',clinicController.getspecialitesdeclin
 router.get('/patternsclinic/:clinicId/:specialiteId', clinicController.getmotifByClinicAndSpecialite);
 router.get('/doctorsspeciality/:specialityId/:clinicId/:patternId', clinicController.getDoctorsBySpecialityAndClinic);
 
+
+// Configurer body-parser pour les requêtes JSON
+
+// Route pour vérifier manuellement les rendez-vous et envoyer des SMS
+router.post('/send-reminders', async (req, res) => {
+  try {
+    const numbersSent = await sendSMSBeforeAppointment();
+    res.status(200).json({
+      message: 'Rappels SMS envoyés avec succès',
+      recipients: numbersSent  // Liste des numéros de téléphone des destinataires
+    });
+  } catch (error) {
+    console.error('Erreur lors de l\'envoi des rappels SMS:', error);
+    res.status(500).json({ message: 'Erreur lors de l\'envoi des rappels SMS' });
+  }
+});
 // Route de rappel (callback) après l'authauthentification réussie
 router.get('http://localhost:3000/auth/google/callback', 
     passport.authenticate('google', { failureRedirect: '/' }),

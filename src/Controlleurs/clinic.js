@@ -603,6 +603,8 @@ const insertAppointmentclinic= async (req, res) => {
     } catch (error) {
         return res.status(401).json({ error: 'Token invalide ou expiré.' });
     }
+    const emailQuerys = `SELECT name FROM clinics WHERE id = ?;`;
+    const [clinicnames] = await db.query(emailQuerys, [clinic_id]);
 
     // Préparer la requête SQL pour insérer le rendez-vous
     const insertQuery = `
@@ -610,24 +612,25 @@ const insertAppointmentclinic= async (req, res) => {
         VALUES ( ?,?, ?, ?, ?, ?, ?, ?, ?, ?,? , 1)
     `;
     
-    const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id ,clinic_id];
+    const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinicnames[0].name, doctor, patient, address, motif_id ,clinic_id];
 
-    // Supprimer l'heure disponible associée dans la table 'available_hours'
-    const deleteAvailableHourQuery = `
-        DELETE FROM  availability_hours_clinic 
-        WHERE doctor_id = ? 
-        AND start_at = ? 
-        AND end_at = ?
-        AND clinic_id = ? 
-    `;
-    
-    const availableHourValues = [doctor_id, start_at, ends_at,clinic_id];
+       // Supprimer l'heure disponible associée dans la table 'available_hours
+const deleteAvailableHourQuery = `
+DELETE FROM availability_hours_clinic
+WHERE doctor_id = ? 
+AND  clinic_id = ? 
+AND DATE_FORMAT(start_at, '%Y-%m-%d %H:%i') = DATE_FORMAT(?, '%Y-%m-%d %H:%i') 
+AND DATE_FORMAT(end_at, '%Y-%m-%d %H:%i') = DATE_FORMAT(?, '%Y-%m-%d %H:%i')
+`;
+const availableHourValues = [doctor_id,clinic_id, start_at, ends_at];
 
-    try {
-        // Supprimer les heures disponibles
-        await db.query(deleteAvailableHourQuery, availableHourValues);
+try {
+// Exécuter la requête pour supprimer les heures disponibles
+const [deleteResult] = await db.query(deleteAvailableHourQuery, availableHourValues);
+console.log('Heures disponibles supprimées:', deleteResult.affectedRows);
+    // Supprimer les heures disponibles
 
-        // Insérer le rendez-vous
+
         const [insertResult] = await db.query(insertQuery, values);
 
         // Logique d'envoi d'e-mail
@@ -803,7 +806,7 @@ async function insertAppointmentclinics(req, res) {
 };
 
   
-const updateAppointment = async (req, res) => {
+const updateAppointments = async (req, res) => {
     const { start_at, end_at } = req.body;
 
     // Vérification des champs requis
@@ -850,7 +853,171 @@ const updateAppointment = async (req, res) => {
         return res.status(500).send({ message: 'Erreur lors de la mise à jour du rendez-vous', error: err });
     }
 };
+const updateAppointment = async (req, res) => {
+    const { appointment_id, start_at, end_at, patern_id } = req.body;
+    
+ 
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    
+    if (!token) {
+        return res.status(401).json({ message: 'Accès refusé, token manquant' });
+    }
+    
+    let user_id;
+    try {
+        const decoded = jwt.verify(token, SECRET_KEY);
+        user_id = decoded.user_id;
+    } catch (error) {
+        return res.status(401).json({ error: 'Token invalide ou expiré.' });
+    }
+    
+    try {
+        // Vérifiez si le rendez-vous existe pour cet utilisateur
+        const [oldAppointment] = await db.query(
+            'SELECT * FROM appointments WHERE id = ? AND user_id = ?', 
+            [appointment_id, user_id]
+        );
+        
+        if (oldAppointment.length === 0) {
+            return res.status(404).send({ message: 'Rendez-vous non trouvé pour cet utilisateur' });
+        }
+        
+        // Mettre à jour les horaires de disponibilité
+        await db.query(
+            'INSERT INTO availability_hours_clinic (start_at, end_at, doctor_id, pattern_id , clinic_id) VALUES (?, ?, ?, ?, ?)', 
+            [oldAppointment[0].start_at, oldAppointment[0].ends_at, oldAppointment[0].doctor_id, patern_id, oldAppointment[0].clinic_id]
+        );
+        
+        // Mettre à jour le rendez-vous
+        await db.query(
+            'UPDATE appointments SET start_at = ?, ends_at = ? WHERE id = ?', 
+            [start_at, end_at, appointment_id]
+        );
 
+        const updatedAppointment = {
+            ...oldAppointment[0],
+            start_at,
+            end_at,
+            patern_id
+        };
+        
+        // Informations du médecin
+        const [doctorInfo] = await db.query(
+            'SELECT d.id AS doctor_id, d.name AS doctor_name, u.email AS doctor_email ,u.phone_number AS doc_number  FROM appointments r JOIN doctors d ON r.doctor_id = d.id JOIN users u ON d.user_id = u.id WHERE r.id = ?', 
+            [appointment_id]
+        );
+
+        if (doctorInfo.length === 0) {
+            return res.status(404).send({ message: 'Informations du médecin introuvables' });
+        }
+        const [clinicInfo] = await db.query(
+            'SELECT name FROM clinics WHERE id = ?', 
+            [oldAppointment[0].clinic_id]
+        );
+        const doctorEmail = doctorInfo[0].doctor_email;
+        const doctorName = JSON.parse(doctorInfo[0].doctor_name).fr;
+        const clinicname = JSON.parse(clinicInfo[0].name).fr;
+        const doctorphone = doctorInfo[0].phone_number;  
+            // Informations du patient
+        const [patientInfo] = await db.query(
+            'SELECT * FROM patients WHERE user_id = ?', 
+            [user_id]
+        );
+        console.log(clinicInfo);
+        if (patientInfo.length === 0) {
+            return res.status(404).send({ message: 'Informations du patient introuvables' });
+        }
+
+        const [patientEmail] = await db.query(
+            'SELECT u.email, u.firstname ,u.phone_number FROM appointments rv JOIN users u ON rv.user_id = u.id WHERE rv.user_id = ?;', 
+            [user_id]
+        );
+        
+        const patientName = patientInfo[0].first_name;
+        const emailpatient = patientEmail[0].email;   
+        const namepatient = patientEmail[0].firstname;
+        const phone_number = patientEmail[0].phone_number;
+        const formattedStartAt = new Date(start_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+        const formattedStartAt1 = new Date(oldAppointment[0].start_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+
+        // Envoi de l'email au médecin
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            port: 587,
+            secure: false,
+            auth: {
+                user: 'laajili.khouloud12@gmail.com',
+                pass: 'lmvy ldix qtgm gbna',  // Remplacez par un mot de passe d'application
+            },
+        });
+
+        const mailOptionsDoctor = {
+            from: 'laajili.khouloud12@gmail.com',
+            to: doctorEmail,
+            subject: 'Modification De Rendez-vous',
+            html: `
+                <html>
+                <body>
+                    <h2>Bienvenue Cher Docteur ${doctorName}</h2>
+                    <p>Votre patient ${patientName} a modifié son rendez-vous de ${formattedStartAt1} à ${formattedStartAt} au ${clinicname}</p>
+                    <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+                </body>
+                </html>
+            `,
+        };
+
+        // Envoi de l'email au patient
+        const mailOptionsPatient = {
+            from: 'laajili.khouloud12@gmail.com',
+            to: emailpatient,
+            subject: 'Modification De Rendez-vous',
+            html: `
+                <html>
+                <body>
+                    <h2>Bienvenue Cher Patient ${namepatient}</h2>
+                    <p>Votre rendez-vous avec le docteur ${doctorName} a été modifié de ${formattedStartAt1} à ${formattedStartAt} au ${clinicname} avec succès.</p>
+                    <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+                </body>
+                </html>
+            `,
+        };
+
+        // Envoi des emails
+        await transporter.sendMail(mailOptionsDoctor);
+        await transporter.sendMail(mailOptionsPatient);
+
+        const [resultat] = await db.query(
+            'SELECT rv.*, u.email, u.firstname, s.status AS statut_nom FROM appointments rv JOIN users u ON rv.user_id = u.id JOIN appointment_statuses s ON rv.appointment_status_id = s.id WHERE rv.user_id = ?;', 
+            [user_id]
+        );
+      // Prepare the confirmation message
+const message = `Bienvenue ${patientName}!\n` +
+`Votre rendez-vous avec le docteur ${doctorName}  a été modifié de ${formattedStartAt1} à ${formattedStartAt} au ${clinicname} avec succès. ` +
+`Si vous n'avez pas demandé cette inscription, ignorez simplement ce message.\n` +
+`Cordialement,\nL'équipe de Wic-Doctor.`;
+
+const messagedotor = `Bienvenue Cher Docteur ${doctorName}!\n` +
+`Votre patient ${patientName} a modifié son rendez-vous de ${formattedStartAt1} à ${formattedStartAt} au ${clinicname} ` +
+`Cordialement,\nL'équipe de Wic-Doctor.`;
+
+// Send confirmation email
+//sendConfirmationEmail(doctorName, doctorEmail, password, res, userId);
+//sendConfirmationEmail(patientName,emailpatient,)
+console.log(patientEmail[0].phone_number);
+// Send SMS with the same message
+await sendSMScontactinscrit(phone_number, message);
+await sendSMScontactinscrit(messagedotor,doctorphone);
+        return res.status(200).json({ 
+            message: 'Rendez-vous mis à jour avec succès et notification envoyée', 
+            appointment: resultat 
+        });
+
+    } catch (err) {
+        console.error('Erreur lors de la mise à jour du rendez-vous:', err);
+        return res.status(500).send({ message: 'Erreur lors de la mise à jour du rendez-vous', error: err });
+    }
+};
 //get availeble date pour doctors
 const getTempsClinicssById = async (req, res) => {
     const clinicId = req.query.clinic_id; // Récupérer l'ID de la clinique
@@ -904,7 +1071,115 @@ console.log(results);
     }
 };
 
+const cancelAppointment = async (req, res) => {
+    const appointmentId = req.params.id; // ID du rendez-vous à annuler
+    const cancellationTime = new Date(); // Heure actuelle pour l'annulation
 
+    try {
+        // Récupérer le rendez-vous à annuler
+        const selectQuery = 'SELECT * FROM appointments WHERE id = ?';
+        const [selectResult] = await db.query(selectQuery, [appointmentId]);
+
+        if (selectResult.length === 0) {
+            return res.status(404).json({ message: "Rendez-vous non trouvé." });
+        }
+
+        const appointment = selectResult[0]; // Obtenir le premier rendez-vous
+        const doctorId = appointment.doctor_id; // Récupérer l'ID du docteur
+        const endAt = appointment.ends_at; // Récupérer la date de fin du rendez-vous
+        const patternId = appointment.motif_id; // Récupérer le pattern_id
+        const clinicname = appointment.clinic_id;
+        // Mettre à jour le statut du rendez-vous en 7
+        const updateQuery = 'UPDATE appointments SET appointment_status_id = ? WHERE id = ?';
+        await db.query(updateQuery, [7, appointmentId]);
+
+        // Récupérer les informations du patient
+        const [patientEmail] = await db.query(
+            'SELECT u.email, u.firstname,u.phone_number , rv.ends_at, rv.start_at FROM appointments rv JOIN users u ON rv.user_id = u.id WHERE rv.id = ?;', 
+            [appointmentId]
+        );
+
+        // Insérer les données dans la table available_hours
+        const insertQuery = 'INSERT INTO availability_hours_clinic (start_at, end_at, patern_id, doctor_id , clinic_id) VALUES (?, ?, ?, ?, ?)';
+        await db.query(insertQuery, [patientEmail[0].start_at, patientEmail[0].ends_at, patternId, doctorId,appointment.clinic_id ]);
+
+        // Récupérer les informations du médecin
+        const [doctorInfo] = await db.query(
+            'SELECT d.id AS doctor_id, d.name AS doctor_name, u.email AS doctor_email   FROM appointments r JOIN doctors d ON r.doctor_id = d.id JOIN users u ON d.user_id = u.id WHERE r.id = ?', 
+            [appointmentId]
+        );
+
+        const doctorEmail = doctorInfo[0].doctor_email;
+        const doctorName = JSON.parse(doctorInfo[0].doctor_name).fr;
+        const emailpatient = patientEmail[0].email;   
+        const namepatient = patientEmail[0].firstname;
+        const phonepatient = patientEmail[0].phone_number;
+        
+        // Formatage des dates
+        const formattedStartAt = new Date(patientEmail[0].ends_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+        const formattedStartAt1 = new Date(patientEmail[0].start_at).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+        
+        console.log(formattedStartAt , formattedStartAt1);
+        
+        // Créer un transporteur pour l'envoi des emails
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            port: 587,
+            secure: false,
+            auth: {
+                user: 'laajili.khouloud12@gmail.com',
+                pass: 'lmvy ldix qtgm gbna',
+            },
+        });
+
+        // Options d'email pour le patient
+        const mailOptionsPatient = {
+            from: 'laajili.khouloud12@gmail.com',
+            to: emailpatient,
+            subject: 'Annulation de Rendez-vous',
+            html: `
+               <html>
+                    <body>
+                        <h2>Bienvenue Cher Patient ${namepatient}</h2>
+                        <p>Votre rendez-vous avec le docteur ${doctorName} de ${formattedStartAt1} à ${formattedStartAt} au ${clinicname} a été annulé  .</p>
+                        <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+                    </body>
+                </html>
+            `,
+        };
+
+        // Envoi de l'email au patient
+        await transporter.sendMail(mailOptionsPatient);
+        
+        // Options d'email pour le docteur
+        const mailOptionsDoctor = {
+            from: 'laajili.khouloud12@gmail.com',
+            to: doctorEmail,
+            subject: 'Annulation de Rendez-vous',
+            html: `
+                <html>
+                    <body>
+                        <h2>Bienvenue Cher Docteur ${doctorName}</h2>
+                        <p>Votre rendez-vous avec le patient ${namepatient} de ${formattedStartAt1} à ${formattedStartAt}  au ${clinicname}  a été annulé.</p>
+                        <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+                    </body>
+                </html>
+            `,
+        };
+        const message = `Bienvenue Cher Patient ${namepatient}
+                        Votre rendez-vous avec le docteur ${doctorName} de ${formattedStartAt1} à ${formattedStartAt}   au ${clinicname} a été annulé 
+                        Cordialement,L'équipe de Wic-Doctor.`;
+        // Envoi de l'email au docteur
+        await transporter.sendMail(mailOptionsDoctor);
+        console.log(phonepatient);
+        await sendSMScontactinscrit(phonepatient,message);
+        // Répondre avec succès
+        return res.status(200).json({ message: "Rendez-vous annulé avec succès." });
+    } catch (error) {
+        console.error("Erreur lors de l'annulation du rendez-vous:", error);
+        return res.status(500).json({ message: "Erreur du serveur lors de l'annulation du rendez-vous." });
+    }
+};
 const axios = require('axios');
 
 
@@ -1120,15 +1395,16 @@ const getClinicsBySpecialityCityCountry = async (req, res) => {
             GROUP_CONCAT(DISTINCT c.horaires SEPARATOR ', ') AS horaires,
             GROUP_CONCAT(DISTINCT c.clinic_photo SEPARATOR ', ') AS clinic_photos,
             GROUP_CONCAT(DISTINCT cl.name SEPARATOR ', ') AS level_names,
-            GROUP_CONCAT( DISTINCT JSON_OBJECT(
-                'address_id', a.id,
-                'description', a.description,
-                'address', a.address,
-                'latitude', a.latitude,
-                'longitude', a.longitude,
-                'ville', a.ville,
-                'pays', a.pays
-            )) AS addresses,
+              JSON_ARRAYAGG(
+        JSON_OBJECT(
+            'description', addresses.description,
+            'address', addresses.address,
+            'latitude', addresses.latitude,
+            'longitude', addresses.longitude,
+            'ville', addresses.ville,
+            'pays', addresses.pays
+        )
+    ) AS addresses, 
             JSON_ARRAYAGG(JSON_OBJECT(
                 'speciality_id', s.id,
                 'name', s.name
@@ -1139,8 +1415,9 @@ const getClinicsBySpecialityCityCountry = async (req, res) => {
             clinic_specialities cs ON c.id = cs.clinic_id 
         LEFT JOIN 
             specialities s ON cs.speciality_id = s.id 
-        JOIN 
-            addresses a ON a.id = c.address_id  
+    JOIN 
+    addresses ON c.address_id = addresses.id
+
         LEFT JOIN 
             clinic_levels cl ON c.clinic_level_id = cl.id 
     `;
@@ -1293,5 +1570,5 @@ const sendSMS4MinBefore = async (req, res) => {
               
   module.exports = {
     getClinic , getSpecialitiesByClinicId , getDoctorsAndSpeciality,getspecialitesdeclinic,getmotifByClinicAndSpecialite , getDoctorsBySpecialityAndClinic, insertAppointmentclinic ,getTempsClinicssById
-    ,updateAppointment , getAvailabilityHours , sendSMS , getplusprocheclinic , getClinicsBySpecialityCityCountry ,sendSMS4MinBefore , sendSMScontact
+    ,updateAppointment , getAvailabilityHours , sendSMS , getplusprocheclinic , getClinicsBySpecialityCityCountry ,sendSMS4MinBefore , sendSMScontact,cancelAppointment
   }

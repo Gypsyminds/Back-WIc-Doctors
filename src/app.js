@@ -13,6 +13,9 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+const cron = require('node-cron'); // Pour planifier la vérification des rendez-vous
+
+const {sendSMSBeforeAppointment} = require('./Controlleurs/doctor');
 // Configuration de la session
 app.use(session({
     secret: 'koukou',
@@ -95,7 +98,12 @@ app.post('/inscription', async (req, res) => {
         res.status(500).json({ message: 'Erreur lors de l\'inscription.' });
     }
 });
-
+// Planification de la vérification toutes les minutes
+cron.schedule('* * * * *', async () => {
+    await sendSMSBeforeAppointment();
+    console.log('Vérification des rendez-vous pour les SMS');
+  });
+  
 // Démarrer le serveur
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

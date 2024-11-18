@@ -46,7 +46,9 @@ router.put('/updateappointementclinic',clinicController.updateAppointment);
 router.get('/availability/:clinic_id/:doctor_id', clinicController.getAvailabilityHours);
 router.delete('/appointmentscancel/:id', authController.cancelAppointment);
 router.delete('/appointmentscancelclinic/:id', clinicController.cancelAppointment);
+router.get('/confirm/:appointmentId', authController.confirmerRendezVous);
 
+router.get('/cancel/:appointmentId', authController.annulerRendezVous);
 
 router.post('/send-sms', clinicController.sendSMScontact);
 router.post('/api/login',loginController.signin);
@@ -65,7 +67,7 @@ router.get('/specialitiesclinic/:clinicId',clinicController.getspecialitesdeclin
 router.get('/patternsclinic/:clinicId/:specialiteId', clinicController.getmotifByClinicAndSpecialite);
 router.get('/doctorsspeciality/:specialityId/:clinicId/:patternId', clinicController.getDoctorsBySpecialityAndClinic);
 
-
+router.post('/send-email-with-link', authController.sendEmail);
 // Configurer body-parser pour les requêtes JSON
 
 // Route pour vérifier manuellement les rendez-vous et envoyer des SMS
@@ -117,5 +119,17 @@ router.get('/profile', (req, res) => {
         return res.redirect('/'); // Redirige si l'utilisateur n'est pas authentifié
     }
     res.json(req.user); // Affiche les informations de l'utilisateur
+});
+
+const { verifierEtEnvoyerRappels } = require('../Controlleurs/doctor');
+
+// Route pour vérifier et envoyer les rappels (facultatif, utilisé si vous voulez une route manuelle)
+router.get('/send-reminders', async (req, res) => {
+  try {
+    await verifierEtEnvoyerRappels();
+    res.status(200).send('Rappels envoyés avec succès');
+  } catch (error) {
+    res.status(500).send('Erreur lors de l\'envoi des rappels');
+  }
 });
 module.exports = router;

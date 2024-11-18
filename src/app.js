@@ -99,11 +99,38 @@ app.post('/inscription', async (req, res) => {
     }
 });
 // Planification de la vérification toutes les minutes
-cron.schedule('* * * * *', async () => {
-    await sendSMSBeforeAppointment();
-    console.log('Vérification des rendez-vous pour les SMS');
+//cron.schedule('* * * * *', async () => {
+  //  await sendSMSBeforeAppointment();
+    //console.log('Vérification des rendez-vous pour les SMS');
+  //});
+ 
+
+  const { verifierEtEnvoyerRappels } = require('./Controlleurs/doctor');  // Vérifiez que le chemin est correct
+  
+  // Planifiez la tâche pour qu'elle s'exécute toutes les minutes
+  cron.schedule('* * * * *', async () => {
+      console.log('Vérification des rendez-vous et envoi des rappels...');
+      try {
+          await verifierEtEnvoyerRappels();  // Exécutez la fonction sans passer par une route
+          console.log('Rappels envoyés avec succès');
+      } catch (error) {
+          console.error('Erreur lors de l\'exécution de la tâche cron:', error);
+      }
   });
   
+  console.log('Le serveur fonctionne et le cron est en marche...');
+
+  const {verifierEtEnvoyerSmsRappels } = require('./Controlleurs/doctor');
+   // Planifiez la tâche pour qu'elle s'exécute toutes les minutes
+   cron.schedule('* * * * *', async () => {
+    console.log('Vérification des rendez-vous et envoi des rappels...');
+    try {
+        await verifierEtEnvoyerSmsRappels();  // Exécutez la fonction sans passer par une route
+        console.log('Rappels  sms envoyés avec succès');
+    } catch (error) {
+        console.error('Erreur lors de l\'exécution de la tâche cron:', error);
+    }
+});
 // Démarrer le serveur
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

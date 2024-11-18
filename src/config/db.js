@@ -15,7 +15,7 @@ const pool = mysql.createPool({
     password: 'StrongPassword123!',
     database: 'doctor-way-interactive',
     waitForConnections: true,
-    connectionLimit: 10, // Maximum number of connections in the pool
+    connectionLimit: 10000000000000, // Maximum number of connections in the pool
     queueLimit: 0       // No limit on the queued connection requests
 });
 

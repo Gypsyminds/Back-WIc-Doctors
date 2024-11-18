@@ -21,7 +21,9 @@ router.get('/affalldoctors', authController.getalldoctors);
 router.get('/doctorsadd', authController.getDoctorsparvillepaysspecialites);
 router.get('/getclinicsspcitypay', clinicController.getClinicsBySpecialityCityCountry);
 
+router.get('/confirm/:appointmentId', authController.confirmerRendezVous);
 
+router.get('/cancel/:appointmentId', authController.annulerRendezVous);
 router.get('/specialties' ,authController.specialitespardoctor);
 router.get('/doctorspos',authController.getadressempas);
 router.get('/getvilles',authController.getvilles);
@@ -63,6 +65,8 @@ router.get('/appointments/:patientId', authController.getAppointmentsByPatientId
 router.get('/specialitiesclinic/:clinicId',clinicController.getspecialitesdeclinic);
 router.get('/patternsclinic/:clinicId/:specialiteId', clinicController.getmotifByClinicAndSpecialite);
 router.get('/doctorsspeciality/:specialityId/:clinicId/:patternId', clinicController.getDoctorsBySpecialityAndClinic);
+
+router.get('/getannuaire',authController.getAllAnnuaires);
 
 // Route de rappel (callback) après l'authauthentification réussie
 router.get('http://localhost:3000/auth/google/callback', 

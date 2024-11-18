@@ -1,28 +1,49 @@
 const express = require('express');
-const mysql = require('mysql2');
+const mysql = require('mysql2/promise'); // Use mysql2 with promise support
 const bodyParser = require('body-parser');
-const cors = require('cors'); // Importer cors
+const cors = require('cors');
 const app = express();
 const port = 3001;
+
 app.use(cors());
-// Middleware
 app.use(bodyParser.json());
 
-// Configurer la connexion MySQL
-const db = mysql.createConnection({
-    host: 'localhost',        // Remplacez par votre hôte
-    user: 'root', // Remplacez par votre nouvel_utilisateurutilisateur
-    password: 'P@ssw0rd1982', // Remplacez par votre mot de passe
-    database: 'doctor-way-interactive'
-}).promise();
-//const db = promiseConnection.promise();
-
-// Connecter à la base de données
-db.connect(err => {
-    if (err) {
-        throw err;
-    }
-    console.log('MySQL connected...');
+// Configure the MySQL connection pool
+const pool = mysql.createPool({
+    host: 'localhost',
+    user: 'root',
+    password: 'P@ssw0rd1982',
+    database: 'doctor-way-interactive',
+    waitForConnections: true,
+    connectionLimit: 10, // Maximum number of connections in the pool
+    queueLimit: 0       // No limit on the queued connection requests
 });
 
-module.exports = db;
+// Sample endpoint to test the database connection
+app.get('/test-db', async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT 1 + 1 AS solution');
+        res.json({ message: 'Database connected successfully', solution: rows[0].solution });
+    } catch (err) {
+        console.error('Database connection error:', err);
+        res.status(500).json({ error: 'Database connection failed' });
+    }
+});
+
+// Example query function to retrieve data
+async function getSomeData() {
+    try {
+        const [rows] = await pool.query('SELECT * FROM some_table'); // Replace with your query
+        return rows;
+    } catch (err) {
+        console.error('Database query error:', err);
+        throw err;
+    }
+}
+
+app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+});
+
+module.exports = pool; // Export the pool instead of a single connection
+

@@ -91,8 +91,7 @@ async function signups(req, res) {
                         <p>Vous êtes inscrit chez Wic-Doctor.</p>
                         <p>Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : <strong>${password}</strong></p>
                         <p>Veuillez compléter votre fiche patient, s'il vous plaît.</p>
-                        <a href="http://localhost:3001/api/login" style="display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;">Connexion</a>
-                        <p>Si vous n'avez pas demandé cette inscription, ignorez simplement cet e-mail.</p>
+                  <p>Si vous n'avez pas demandé cette inscription, ignorez simplement cet e-mail.</p>
                         <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
                     </body>
                     </html>
@@ -257,7 +256,6 @@ async function signupss(req, res) {
                         <p>Vous êtes inscrit chez Wic-Doctor.</p>
                         <p>Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : <strong>${password}</strong></p>
                         <p>Veuillez compléter votre fiche, s'il vous plaît.</p>
-                        <a href="http://localhost:3001/api/login" style="display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;">Connexion</a>
                         <p>Si vous n'avez pas demandé cette inscription, ignorez simplement cet e-mail.</p>
                         <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
                     </body>
@@ -359,8 +357,7 @@ function sendConfirmationEmail(name, email, password, res, userId) {
                 <p>Vous êtes inscrit chez Wic-Doctor.</p>
                 <p>Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : <strong>${password}</strong></p>
                 <p>Veuillez compléter votre fiche, s'il vous plaît.</p>
-                <a href="http://localhost:3001/api/login" style="display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;">Connexion</a>
-                <p>Si vous n'avez pas demandé cette inscription, ignorez simplement cet e-mail.</p>
+                 <p>Si vous n'avez pas demandé cette inscription, ignorez simplement cet e-mail.</p>
                 <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
             </body>
             </html>
@@ -496,7 +493,7 @@ const resetPassword = async (req, res) => {
 async function updateprofilpatient(req, res) {
     const patientId = req.params.id;
     const {
-        name,
+        first_name,
         last_name,
         phone_number,
         mobile_number,
@@ -520,8 +517,8 @@ async function updateprofilpatient(req, res) {
         const values = [];
 
         // Préparer les mises à jour avec des valeurs nulles si non fournies
-        updates.push('name = ?');
-        values.push(name !== undefined ? name : currentData.name);
+        updates.push('first_name = ?');
+        values.push(first_name !== undefined ? first_name : currentData.name);
 
         updates.push('last_name = ?');
         values.push(last_name !== undefined ? last_name : currentData.last_name);

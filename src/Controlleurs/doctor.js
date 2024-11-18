@@ -18,7 +18,8 @@ const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 app.use(express.json());
 const { v4: uuidv4 } = require('uuid');
-const moment = require('moment');
+//const moment = require('moment');
+const moment = require('moment-timezone');
 
 
 // Lire les horaires de chaque  docteur par ID doctor
@@ -2048,7 +2049,210 @@ const getUpcomingAppointments = async () => {
       console.error('Error sending SMS:', error);
       throw new Error('Failed to send SMS');
     }
-  };     
+  }; 
+const  getAllAnnuaires = async (req, res) =>{
+    let connection;
+    
+    try {
+      const [rows] = await db.execute('SELECT * FROM `cardiologues-nabeul`');
+      res.json(rows);  // Envoie les résultats en réponse au client
+    } catch (error) {
+      console.error('Erreur lors de la récupération des cardiologues:', error);
+      res.status(500).json({ error: 'Erreur lors de la récupération des données' });
+    } 
+  }; 
+
+
+// Configurer Nodemailer pour l'envoi des emails
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: 'laajili.khouloud12@gmail.com', 
+        pass: 'lmvy ldix qtgm gbna', 
+    }
+  });
+
+
+async function envoyerRappelEmail(emailDestinataire, patientName, startAt , appointmentId ,doctorName) {
+    try {
+        console.log(`Envoi de l'e-mail à ${emailDestinataire} pour le rendez-vous à ${startAt}`);
+        const confirmationLink =`https://wic-doctor.com:3004/confirm/${appointmentId}`;
+        const cancelationLink = `https://wic-doctor.com:3004/cancel/${appointmentId}`;
+ //const doctorNameData = JSON.parse(doctorNameJson);
+   //         doctorName = doctorNameData.fr;        
+
+
+        const appointmentTime = moment(startAt).tz("Africa/Tunis").locale('fr'); ; // Assurez-vous que l'heure est dans le bon fuseau horaire
+        const formattedStartAt = appointmentTime.format('dddd D MMMM YYYY [à] HH:mm'); // Formatage de la date et de l'heure
+
+        const mailOptions = {
+            from: 'laajili.khouloud12@gmail.com',
+            to: emailDestinataire,
+            subject: 'Rappel de votre rendez-vous',
+            html: `
+            <p>Bonjour ${patientName},</p>
+
+                        <p>Ceci est un rappel pour votre rendez-vous prévu à ${formattedStartAt}. Veuillez confirmer ou annuler votre rendez-vous  avec le Dr ${JSON.parse(doctorName).fr} </p>
+
+            <a href="${confirmationLink}" style="background-color: green; color: white; padding: 10px 20px; text-decoration: none; margin-right: 10px;">Confirmer</a>
+            <a href="${cancelationLink}" style="background-color: red; color: white; padding: 10px 20px; text-decoration: none;">Annuler</a>
+            <p>Merci !</p>
+         `
+        };
+        let info = await transporter.sendMail(mailOptions);
+        console.log(`Rappel envoyé à ${emailDestinataire} :`, info.messageId);
+    } catch (error) {
+        console.error('Erreur lors de l\'envoi du rappel par e-mail:', error);
+    }
+}
+
+
+//
+// Fonction pour vérifier les rendez-vous à venir et envoyer des rappels
+const verifierEtEnvoyerRappels = async () => {
+    try {
+        const now = moment().tz("Africa/Tunis"); // Récupérer l'heure locale de la Tunisie
+        const futureTime = moment(now).add(48, 'hours');  // 15 minutes après l'heure actuelle
+
+        const formattedNow = now.format('HH:mm');
+        const formattedFutureTime = futureTime.format('HH:mm');
+
+        console.log(`Comparaison entre ${formattedNow} et ${formattedFutureTime}`);
+
+        // Requête pour récupérer les rendez-vous avec un `start_at` supérieur à 15 minutes par rapport à maintenant
+        const [rows] = await db.query(`
+            SELECT u.email, u.name AS patient_name, a.start_at, a.id AS appointment_id, d.name AS doctorname
+            FROM appointments a
+            JOIN users u ON a.user_id = u.id
+     JOIN doctors d ON a.doctor_id = d.id 
+            WHERE DATE_FORMAT(a.start_at, '%H:%i') > ? 
+            AND a.email_sent = FALSE
+        `, [formattedNow]);
+
+        console.log('Rendez-vous trouvés :', rows);
+
+        if (rows.length === 0) {
+            console.log('Aucun rendez-vous trouvé dans la période spécifiée.');
+        } else {
+            // Envoi des rappels et mise à jour de l'état de l'e-mail
+            for (let row of rows) {
+                // Convertir `start_at` en moment et ajuster à l'heure de la Tunisie
+                const appointmentTime = moment(row.start_at).tz("Africa/Tunis").add(1, 'hour'); ;  // Convertir `start_at` en heure locale
+                const localStartAt = appointmentTime.format('HH:mm');
+
+                console.log(`Comparaison: localStartAt = ${localStartAt}, formattedFutureTime = ${formattedFutureTime}`);
+
+                // Vérifier si l'heure du rendez-vous est supérieure à l'heure actuelle de 15 minutes
+                if (localStartAt > formattedFutureTime) {
+                    await envoyerRappelEmail(row.email, row.patient_name, row.start_at ,row.appointment_id ,row.doctorname);
+                    
+                    // Mettre à jour la base de données pour marquer l'e-mail comme envoyé
+                    await db.query(`
+                        UPDATE appointments 
+                        SET email_sent = TRUE 
+                        WHERE id = ?
+                    `, [row.appointment_id]);
+
+                    console.log(`Rappel envoyé à ${row.email} pour le rendez-vous ${row.start_at}`);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Erreur lors de la vérification des rendez-vous:', error);
+    }
+};
+
+// Fonction pour annuler le rendez-vous
+const annulerRendezVous = async (req, res) => {
+    const appointmentId = req.params.appointmentId;
+    
+    try {
+        // Mettre à jour le statut du rendez-vous à "annulé"
+        await db.query(`
+            UPDATE appointments
+            SET appointment_status_id = 7
+            WHERE id = ?
+        `, [appointmentId]);
+        
+        res.send('Votre rendez-vous a été annulé.');
+    } catch (error) {
+        console.error('Erreur lors de l\'annulation du rendez-vous:', error);
+        res.status(500).send('Erreur lors de l\'annulation du rendez-vous.');
+    }
+};
+
+// Fonction pour confirmer le rendez-vous
+const confirmerRendezVous = async (req, res) => {
+    const appointmentId = req.params.appointmentId;
+
+    try {
+        // Vérification si le rendez-vous existe avant de le confirmer
+        const [appointment] = await db.query('SELECT * FROM appointments WHERE id = ?', [appointmentId]);
+        if (appointment.length === 0) {
+            return res.status(404).send('Rendez-vous non trouvé.');
+        }
+
+        // Mettre à jour le statut du rendez-vous à "confirmé"
+        await db.query(`
+           UPDATE appointments
+            SET appointment_status_id = 5
+            WHERE id = ?
+        `, [appointmentId]);
+        
+        res.send('Votre rendez-vous a été confirmé avec succès.');
+    } catch (error) {
+        console.error('Erreur lors de la confirmation du rendez-vous:', error);
+        res.status(500).send('Erreur lors de la confirmation du rendez-vous.');
+    }
+};
+
+const verifierEtEnvoyerSmsRappels = async () => {
+    try {
+        const now = moment().tz("Africa/Tunis");
+        const futureTime = moment(now).add(48, 'hours'); 
+
+        console.log(`Heure actuelle: ${now.format('YYYY-MM-DD HH:mm')}`);
+        console.log(`Fenêtre de rappel jusqu'à: ${futureTime.format('YYYY-MM-DD HH:mm')}`);
+
+        const [rows] = await db.query(`
+            SELECT u.email, u.phone_number, u.name AS patient_name, a.start_at, a.id AS appointment_id, d.name AS doctorname
+            FROM appointments a
+            JOIN users u ON a.user_id = u.id
+            JOIN doctors d ON a.doctor_id = d.id 
+            WHERE a.start_at BETWEEN ? AND ? 
+            AND a.email_sent = FALSE
+        `, [now.format('YYYY-MM-DD HH:mm:ss'), futureTime.format('YYYY-MM-DD HH:mm:ss')]);
+
+        console.log('Rendez-vous trouvés :', rows);
+
+        if (rows.length === 0) {
+            console.log('Aucun rendez-vous trouvé dans les 48 heures.');
+        } else {
+            for (let row of rows) {
+                // Envoi de l'email
+              //  await envoyerRappelEmail(row.email, row.patient_name, row.start_at, row.appointment_id, row.doctorname);
+              const api_key = 'INS9057194100'
+              const from = '33743134488'; // Replace with your sender ID
+             
+                // Envoi du SMS
+                const smsMessage = `Bonjour ${row.patient_name}, votre rendez-vous avec le Dr. ${row.doctorname} est prévu le ${moment(row.start_at).format('DD/MM/YYYY à HH:mm')}. Merci !`;
+                await sendSMScontactinscrit(row.phone_number, smsMessage);
+                
+
+                // Mettre à jour la base de données pour marquer l'email/SMS comme envoyé
+                await db.query(`
+                    UPDATE appointments 
+                    SET email_sent = TRUE 
+                    WHERE id = ?
+                `, [row.appointment_id]);
+
+                console.log(`Rappel envoyé à ${row.email} et SMS envoyé à ${row.phone_number} pour le rendez-vous ${row.start_at}`);
+            }
+        }
+    } catch (error) {
+        console.error('Erreur lors de la vérification des rendez-vous:', error);
+    }
+}   
 module.exports = {
     specialitespardoctor,
     getalldoctors,
@@ -2056,8 +2260,10 @@ module.exports = {
     getDoctorsById,
     getadressempas,
     getvilles,getpays,getmotif,gethistoriqu,sendSMSBeforeAppointment ,
-    insertAppointment,getville,
+    insertAppointment,getville,getAllAnnuaires ,
     forgs,rests,insertAppointment,getplusprochedoc
     ,getAppointmentsByPatientId , updateAppointment , getDoctorById , cancelAppointment
-}
+    ,verifierEtEnvoyerRappels , annulerRendezVous
+    ,confirmerRendezVous , verifierEtEnvoyerSmsRappels
 
+}

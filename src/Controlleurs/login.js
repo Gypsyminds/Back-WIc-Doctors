@@ -637,9 +637,9 @@ const sendSMScontactinscrit = async (phone, message) => {
       const userId = userResults.insertId; // ID of the newly inserted user
   
       // Insert into the `patients` table
-      const insertSql = 'INSERT INTO patients (user_id, first_name, last_name, phone_number, created_at) VALUES (?, ?, ?, ?, NOW())';
-      const values = [userId, firstname, lastname, phone];
-      await db.execute(insertSql, values);
+      //const insertSql = 'INSERT INTO patients (user_id, first_name, last_name, phone_number, created_at) VALUES (?, ?, ?, ?, NOW())';
+     // const values = [userId, firstname, lastname, phone];
+      //await db.execute(insertSql, values);
   
       // Prepare the confirmation message
       const message = `Bienvenue ${firstname}!\n` +
@@ -665,9 +665,79 @@ const sendSMScontactinscrit = async (phone, message) => {
     }
   }
 
-
-
+ 
+const ajouterPatient = async (req, res) => {
+    try {
+      const {
+        user_id,
+        first_name,
+        last_name,
+        phone_number,
+        mobile_number,
+        age,
+        gender,
+        weight,
+        height,
+        medical_history,
+        notes,
+      } = req.body;
+  
+      // Vérifier si l'utilisateur existe
+      const queryUser = 'SELECT * FROM users WHERE id = ?';
+      const [users] = await db.query(queryUser, [user_id]);
+  
+      if (users.length === 0) {
+        return res.status(404).json({ error: 'Utilisateur introuvable.' });
+      }
+  
+      // Ajouter le patient
+      const queryPatient = `
+        INSERT INTO patients (
+          user_id, first_name, last_name, phone_number, mobile_number, age, gender, weight, height,
+          medical_history, notes, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      `;
+      const [result] = await db.query(queryPatient, [
+        user_id,
+        first_name,
+        last_name,
+        phone_number,
+        mobile_number,
+        age,
+        gender,
+        weight,
+        height,
+        medical_history,
+        notes,
+      ]);
+  
+      res.status(201).json({ message: 'Patient ajouté avec succès.', patientId: result.insertId });
+    } catch (err) {
+      console.error('Erreur :', err);
+      res.status(500).json({ error: 'Erreur interne du serveur.' });
+    }
+  }
+  const obtenirPatientsParUtilisateur = async (req, res) => {
+    try {
+      const { user_id } = req.params; // Récupérer l'ID utilisateur depuis les paramètres de la requête
+  
+      // Exécuter la requête SQL
+      const query = 'SELECT * FROM patients WHERE user_id = ?';
+      const [patients] = await db.query(query, [user_id]);
+  
+      // Vérifier si des patients existent pour cet utilisateur
+      if (patients.length === 0) {
+        return res.status(404).json({ message: 'Aucun patient trouvé pour cet utilisateur.' });
+      }
+  
+      // Retourner les résultats
+      res.status(200).json({ patients });
+    } catch (err) {
+      console.error('Erreur lors de la récupération des patients :', err);
+      res.status(500).json({ error: 'Erreur interne du serveur.' });
+    }
+  }
 module.exports = {
-    signuppatient,signin,signupb2b,updateprofilpatient,logout,resetPassword
+    signuppatient,signin,signupb2b,updateprofilpatient,logout,resetPassword , ajouterPatient , obtenirPatientsParUtilisateur
 }
   

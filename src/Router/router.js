@@ -68,6 +68,10 @@ router.get('/patternsclinic/:clinicId/:specialiteId', clinicController.getmotifB
 router.get('/doctorsspeciality/:specialityId/:clinicId/:patternId', clinicController.getDoctorsBySpecialityAndClinic);
 
 router.post('/send-email-with-link', authController.sendEmail);
+router.get('/patients/:user_id', loginController.obtenirPatientsParUtilisateur);
+
+router.post('/ajoutpatients', loginController.ajouterPatient);
+
 // Configurer body-parser pour les requêtes JSON
 
 // Route pour vérifier manuellement les rendez-vous et envoyer des SMS

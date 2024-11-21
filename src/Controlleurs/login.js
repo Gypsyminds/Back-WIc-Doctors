@@ -717,7 +717,7 @@ const ajouterPatient = async (req, res) => {
       res.status(500).json({ error: 'Erreur interne du serveur.' });
     }
   }
-  const obtenirPatientsParUtilisateur = async (req, res) => {
+const obtenirPatientsParUtilisateur = async (req, res) => {
     try {
       const { user_id } = req.params; // Récupérer l'ID utilisateur depuis les paramètres de la requête
   

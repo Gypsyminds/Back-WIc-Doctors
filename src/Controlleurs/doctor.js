@@ -723,7 +723,7 @@ const getDoctorsparvillepaysspecialitesss = async (req, res) => {
     }
 };
 const getDoctorsparvillepaysspecialites = async (req, res) => {
-    const speciality_name = req.query.speciality_name; // Nom de la spécialité
+    const speciality_id = req.query.speciality_id; // Nom de la spécialité
     const ville = req.query.ville; // Ville
     const pays = req.query.pays; // Pays
 
@@ -760,9 +760,9 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
         addresses addr ON usr.id = addr.user_id
     `;
 
-    if (speciality_name) {
+    if (speciality_id) {
         conditionsDoctors.push('s.name LIKE ?');
-        queryParams.push(`%${speciality_name}%`); // Partial match for speciality name
+        queryParams.push(`%${speciality_id}%`); // Partial match for speciality name
     }
 
     if (ville) {
@@ -813,9 +813,9 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
         docteurs_tunisie dt
     `;
 
-    if (speciality_name) {
+    if (speciality_id) {
         conditionsDocteursTunisie.push('dt.Sector LIKE ?');
-        queryParams.push(`%${speciality_name}%`); // Partial match for speciality name
+        queryParams.push(`%${speciality_id}%`); // Partial match for speciality name
     }
 
     if (ville) {

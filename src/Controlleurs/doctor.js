@@ -878,7 +878,9 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
             usr.phone_number,
             addr.ville,
             addr.pays,
-            JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities
+            JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities ,
+            'conventionné' AS type
+
         FROM 
             doctors d 
         LEFT JOIN 
@@ -943,7 +945,9 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
             dt.Phone AS phone_number,
             dt.adresse AS ville,
             dt.Location AS pays,
-            dt.Sector AS specialities
+            dt.Sector AS specialities,
+                        'non-conventionné' AS type
+
         FROM 
             docteurs_tunisie dt
     `;
@@ -982,15 +986,16 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
 
     try {
         const [results] = await db.query(finalQuery, queryParams);
-
+console.log(queryParams);
         // Vérifier s'il y a des résultats
         if (results.length === 0) {
             return res.status(404).json({ message: 'Aucun médecin trouvé avec ces critères.' });
         }
         let countDocteursTunisie = `
         SELECT COUNT(*) AS total
-        FROM docteurs_tunisie dt
+        FROM docteurs_tunisie dt WHERE Sector  LIKE ?
     `;
+
     let countDoctors = `
     SELECT COUNT(DISTINCT d.id) AS total
     FROM 
@@ -1003,6 +1008,7 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
         users usr ON d.user_id = usr.id 
     LEFT JOIN 
         addresses addr ON usr.id = addr.user_id
+    WHERE s.name  LIKE ?
 `;
         const totalCountQuery = `
         SELECT SUM(total) AS total FROM (
@@ -1011,7 +1017,9 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
             (${countDocteursTunisie})
         ) AS counts
     `;
-    const [[{ total }]] = await db.query(totalCountQuery, countParams);
+    const countParams = [`%${speciality_id}%`, `%${speciality_id}%`];
+
+    const [[{ total }]] = await db.query( totalCountQuery, countParams);
 
     // Récupération des résultats paginés
 //  const [results] = await db.query(finalQuery, queryParams);
@@ -1021,7 +1029,6 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
 
     const totalPages = Math.ceil(total / limit);
     const currentPage = Math.floor(offset / limit) + 1;
-
     // Retour des résultats avec pagination
    return res.json({
         total,
@@ -1444,10 +1451,10 @@ const insertAppointment= async (req, res) => {
     }
 
     // Récupérer les paramètres depuis le corps de la requête
-    const { appointment_at, ends_at, start_at, doctor_id, clinic, doctor, patient, address, motif_id } = req.body;
+    const { appointment_at, ends_at, start_at, doctor_id, clinic, doctor, patient, address, motif_id , patient_id } = req.body;
 
     // Vérification des paramètres requis
-    if (!ends_at || !start_at || !token || !doctor_id || !motif_id ) {
+    if (!ends_at || !start_at || !token || !doctor_id || !motif_id ||  !patient_id ) {
         return res.status(400).json({ error: 'Tous les champs sont requis.' });
     }
 
@@ -1462,11 +1469,11 @@ const insertAppointment= async (req, res) => {
 
     // Préparer la requête SQL pour insérer le rendez-vous
     const insertQuery = `
-        INSERT INTO appointments (appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id, appointment_status_id) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        INSERT INTO appointments (appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id, appointment_status_id , patient_id) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1 ,?)
     `;
     
-    const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id];
+    const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id , patient_id];
 
     // Supprimer l'heure disponible associée dans la table 'available_hours'
     const deleteAvailableHourQuery = `
@@ -1489,17 +1496,24 @@ const insertAppointment= async (req, res) => {
         const emailQuery = `SELECT email FROM users WHERE id = ?;`;
         const [userEmail] = await db.query(emailQuery, [user_id]);
 
+        const emailpQuery = `SELECT email FROM patients WHERE id = ?;`;
+        const [patientmail] = await db.query(emailpQuery, [patient_id]);
+
         const phoneQuery = `SELECT phone_number FROM users WHERE id = ?;`;
         const [userphone] = await db.query(phoneQuery, [user_id]);
-        if (userEmail.length === 0) {
+
+        const phonepQuery = `SELECT phone_number FROM patients WHERE id = ?;`;
+        const [patientphone] = await db.query(phoneQuery, [patient_id]);
+        if (patientmail.length === 0) {
             return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+           // return patientmail[0].email == userEmail[0] ;
         }
         const namedocQuery = `SELECT name FROM doctors WHERE id = ?;`;
         const [docname] = await db.query(namedocQuery, [doctor_id]);
-        const nameQuery = `SELECT firstname FROM users WHERE id = ?;`;
-        const [userName] = await db.query(nameQuery, [user_id]);
+        const nameQuery = `SELECT first_name FROM patients WHERE id = ?;`;
+        const [userName] = await db.query(nameQuery, [patient_id]);
         if (userEmail.length === 0) {
-            return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+            return res.status(404).json({ message: 'Aucune mail pour ce user.' });
         }
         const startDate = new Date(start_at);
         const endDate = new Date(ends_at);
@@ -1531,7 +1545,7 @@ const insertAppointment= async (req, res) => {
             subject: 'Confirmation de votre Rendez-vous',
             html: `<html>
             <body>
-                <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${userName[0].firstname}</h2>
+                <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${userName[0].first_name}</h2>
                 <p>Votre rendez-vous avec le médecin  ${JSON.parse(docname[0].name).fr}  ${formattedStartAt} au  ${formattedStartAt1} est bien confirmé</p>
                 <p></p>   
                 <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
@@ -1539,14 +1553,14 @@ const insertAppointment= async (req, res) => {
             </html>`, // Personnalisez l'e-mail selon vos besoins
 };
 
-const message = `Bienvenue Cher Patient(e)${userName[0].firstname}\n` +
+const message = `Bienvenue Cher Patient(e)${userName[0].first_name}\n` +
        `Votre rendez-vous avec le médecin  ${JSON.parse(docname[0].name).fr}  ${formattedStartAt} au  ${formattedStartAt1}  est bien confirmé` +
        `Cordialement,\nL'équipe de Wic-Doctor.`;
 
-await transporter.sendMail(mailOptions);
+        await transporter.sendMail(mailOptions);
 
         await transporter.sendMail(mailOptions);
-await sendSMScontactinscrit(userphone[0].phone_number,message);
+//await sendSMScontactinscrit(userphone[0].phone_number,message);
 console.log(userphone[0].phone_number);
         return res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: insertResult.insertId });
     } catch (error) {
@@ -2618,7 +2632,7 @@ const getUpcomingAppointments = async () => {
     
 }
 
-const getAllAnnuaires = async (req, res) => {
+const getAllAnnuairesss = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;  // Nombre de résultats par page
     const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
 
@@ -2635,7 +2649,7 @@ const getAllAnnuaires = async (req, res) => {
                 Location AS pays
             FROM 
                 docteurs_tunisie
-            LIMIT ${limit} OFFSET ${offset}  -- Remplacez les paramètres par des valeurs directes
+            LIMIT ${limit} OFFSET ${offset}  
         `;
         
         console.log(`Exécution de la requête 2 avec LIMIT: ${limit} OFFSET: ${offset}`); // Vérifie les valeurs de LIMIT et OFFSET
@@ -2668,6 +2682,113 @@ const getAllAnnuaires = async (req, res) => {
     }
 }
 
+const getAllAnnuaires = async (req, res) => {
+    const limit = parseInt(req.query.limit) || 10;  // Nombre de résultats par page
+    const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
+    const queryParams = [limit, offset, limit, offset]; // Paramètres pour les deux requêtes
+
+    try {
+        // Requête pour les médecins de la table `doctors`
+        const queryDoctors = `
+            SELECT 
+                d.name AS name,
+                d.doctor_photo,
+                d.enable_online_consultation,
+                d.description,
+                d.horaires,
+                d.cabinet_photo,
+                d.created_at,
+                usr.phone_number,
+                addr.ville,
+                addr.pays,
+                JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
+                'conventionné' AS type
+            FROM 
+                doctors d
+            LEFT JOIN 
+                doctor_specialities ds ON d.id = ds.doctor_id
+            LEFT JOIN 
+                specialities s ON ds.speciality_id = s.id
+            LEFT JOIN 
+                users usr ON d.user_id = usr.id
+            LEFT JOIN 
+                addresses addr ON usr.id = addr.user_id
+            GROUP BY 
+                d.name, 
+                d.doctor_photo, 
+                d.enable_online_consultation, 
+                d.description, 
+                d.horaires, 
+                d.cabinet_photo, 
+                d.created_at, 
+                usr.phone_number, 
+                addr.ville, 
+                addr.pays
+            LIMIT ? OFFSET ?
+        `;
+
+        // Requête pour les médecins de la table `docteurs_tunisie`
+        const queryDocteursTunisie = `
+            SELECT 
+                dt.name AS name,
+                NULL AS doctor_photo,
+                NULL AS enable_online_consultation,
+                NULL AS description,
+                NULL AS horaires,
+                NULL AS cabinet_photo,
+                NULL AS created_at,
+                dt.Phone AS phone_number,
+                dt.adresse AS ville,
+                dt.Location AS pays,
+                dt.Sector AS specialities,
+                'non-conventionné' AS type
+            FROM 
+                docteurs_tunisie dt
+            LIMIT ? OFFSET ?
+        `;
+
+        // Combinaison des deux requêtes avec UNION ALL
+        const finalQuery = `
+            (${queryDoctors})
+            UNION ALL
+            (${queryDocteursTunisie})
+            ORDER BY RAND()
+        `;
+
+        // Exécution de la requête combinée
+        const [results] = await db.query(finalQuery, queryParams);
+
+        // Vérifier s'il y a des résultats
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucun médecin trouvé.' });
+        }
+
+        // Transformation des spécialités en texte si nécessaire
+        results.forEach(result => {
+            if (Array.isArray(result.specialities)) {
+                result.specialities = result.specialities.map(spec => {
+                    return spec.name || 'Non spécifié';
+                }).join(', ');
+            }
+        });
+
+        // Pagination calculée
+        const total = results.length;
+        const totalPages = Math.ceil(total / limit);
+        const currentPage = Math.floor(offset / limit) + 1;
+
+        // Retour des résultats au client
+        return res.json({
+            total,
+            totalPages,
+            currentPage,
+            data: results,
+        });
+    } catch (error) {
+        console.error('Erreur lors de la récupération des annuaires:', error);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
+    }
+};
 
 
 

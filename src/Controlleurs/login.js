@@ -359,13 +359,13 @@ function sendConfirmationEmail(name, email, password, res, userId) {
                 <p>Vous êtes inscrit chez Wic-Doctor.</p>
                 <p>Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : <strong>${password}</strong></p>
                 <p>Veuillez compléter votre fiche, s'il vous plaît.</p>
-                <a href="http://localhost:3001/api/login" style="display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;">Connexion</a>
                 <p>Si vous n'avez pas demandé cette inscription, ignorez simplement cet e-mail.</p>
                 <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
             </body>
             </html>
         `,
     };
+//                <a href="http://localhost:3001/api/login" style="display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;">Connexion</a>
 
     transporter.sendMail(mailOptions, function(error, info) {
         if (error) {
@@ -619,10 +619,10 @@ const sendSMScontactinscrit = async (phone, message) => {
   
   // Function to handle patient signup
   const signuppatient = async (req, res) => {
-    const { email, phone, lastname, firstname } = req.body;
+    const { email, phone, lastname, name } = req.body;
   
     // Validate input
-    if (!firstname || !lastname || !email || !phone) {
+    if (!name || !lastname || !email || !phone) {
       return res.status(400).json({ error: 'Tous les champs sont requis.' });
     }
   
@@ -631,18 +631,18 @@ const sendSMScontactinscrit = async (phone, message) => {
       const hashedPassword = await bcrypt.hash(password, 10);
   
       // Insert the user into the `users` table
-      const userSql = 'INSERT INTO users (firstname, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
-      const [userResults] = await db.execute(userSql, [firstname, lastname, email, phone, hashedPassword]);
+      const userSql = 'INSERT INTO users (name, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+      const [userResults] = await db.execute(userSql, [name, lastname, email, phone, hashedPassword]);
   
       const userId = userResults.insertId; // ID of the newly inserted user
   
-      // Insert into the `patients` table
-      //const insertSql = 'INSERT INTO patients (user_id, first_name, last_name, phone_number, created_at) VALUES (?, ?, ?, ?, NOW())';
-     // const values = [userId, firstname, lastname, phone];
-      //await db.execute(insertSql, values);
+      //Insert into the `patients` table
+      const insertSql = 'INSERT INTO patients (user_id, first_name, last_name, created_at) VALUES (?, ?, ?, ?, NOW())';
+      const values = [userId, name, lastname, phone];
+      await db.execute(insertSql, values);
   
       // Prepare the confirmation message
-      const message = `Bienvenue ${firstname}!\n` +
+      const message = `Bienvenue ${name}!\n` +
                    `Vous êtes inscrit chez Wic-Doctor.\n` +
                    `Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : ${password}\n` +
                    `Veuillez compléter votre fiche, s'il vous plaît.\n` +
@@ -651,10 +651,10 @@ const sendSMScontactinscrit = async (phone, message) => {
                    `Cordialement,\nL'équipe de Wic-Doctor.`;
     
       // Send confirmation email
-      sendConfirmationEmail(`${firstname} ${lastname}`, email, password, res, userId);
+      sendConfirmationEmail(`${name} ${lastname}`, email, password, res, userId);
       
       // Send SMS with the same message
-      await sendSMScontactinscrit(phone, message);
+     // await sendSMScontactinscrit(phone, message);
   
       // Respond with success
       return res.status(201).json({ message: 'Inscription réussie et confirmation envoyée.' });
@@ -674,6 +674,7 @@ const ajouterPatient = async (req, res) => {
         last_name,
         phone_number,
         mobile_number,
+        email,
         age,
         gender,
         weight,
@@ -694,8 +695,8 @@ const ajouterPatient = async (req, res) => {
       const queryPatient = `
         INSERT INTO patients (
           user_id, first_name, last_name, phone_number, mobile_number, age, gender, weight, height,
-          medical_history, notes, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+          medical_history, notes, created_at, updated_at,email
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(),?)
       `;
       const [result] = await db.query(queryPatient, [
         user_id,
@@ -703,6 +704,7 @@ const ajouterPatient = async (req, res) => {
         last_name,
         phone_number,
         mobile_number,
+        email ,
         age,
         gender,
         weight,

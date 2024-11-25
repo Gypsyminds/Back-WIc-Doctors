@@ -116,7 +116,7 @@ function isValidEmail(email) {
     const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // Basic email validation regex
     return regex.test(email);
 }
-async function signin(req, res) {
+async function signins(req, res) {
     const { email, password } = req.body;
 
     // Validez les entrées
@@ -168,7 +168,68 @@ async function signin(req, res) {
         return res.status(500).json({ error: 'Erreur interne du serveur.' });
     }
 }
-
+async function signin(req, res) {
+    const { email, phone_number, password } = req.body;
+  
+    // Validez les entrées
+    if ((!email && !phone_number) || !password) {
+      return res.status(400).json({ error: 'Email ou téléphone et mot de passe sont requis.' });
+    }
+  
+    try {
+      // Choisir le champ d'authentification en fonction des entrées
+      let field = '';
+      let identifier = '';
+  
+      if (email) {
+        field = 'email';
+        identifier = email;
+      } else if (phone_number) {
+        field = 'phone_number';
+        identifier = phone_number;
+      }
+  console.log(email , phone_number);
+      // Rechercher l'utilisateur dans la base de données
+      const sql = `SELECT * FROM users WHERE ${field} = ?`;
+      const [results] = await db.query(sql, [identifier]);
+  
+      if (results.length === 0) {
+        return res.status(401).json({ error: 'Identifiants incorrects.' });
+      }
+  
+      const user = results[0];
+  
+      // Vérifier le mot de passe
+      const match = await bcrypt.compare(password, user.password);
+      if (!match) {
+        return res.status(401).json({ error: 'Identifiants incorrects.' });
+      }
+  
+      // Générer un jeton JWT (JSON Web Token)
+      const token = jwt.sign({ user_id: user.id }, 'votre_clé_secrète', { expiresIn: '8h' });
+  
+      // Enregistrer le token dans la base de données
+      const updateSql = 'UPDATE users SET api_token = ? WHERE id = ?';
+      await db.query(updateSql, [token, user.id]);
+  
+      // Rechercher les informations du patient
+      const getSql = 'SELECT * FROM patients WHERE user_id = ?';
+      const [patientResults] = await db.query(getSql, [user.id]);
+  
+      // Répondre avec les informations de connexion réussie
+      res.json({
+        message: 'Connexion réussie!',
+        identifier,
+        result: patientResults,
+        token,
+      });
+  
+    } catch (error) {
+      console.error('Erreur lors de la connexion:', error);
+      return res.status(500).json({ error: 'Erreur interne du serveur.' });
+    }
+  }
+  
 // Fonction d'inscription
 async function signupss(req, res) {
     const { name, email, phone, userType } = req.body; // Ajoutez userType
@@ -665,6 +726,62 @@ const sendSMScontactinscrit = async (phone, message) => {
     }
   }
 
+  const signuppatients = async (req, res) => {
+    const { email, phone, lastname, name } = req.body;
+  
+    // Validate input
+    if (!phone ) {
+      return res.status(400).json({ error: 'Le numéro de téléphone et le mot de passe sont requis.' });
+    }
+  
+    try {
+      const generatedPassword = generatePassword(); // Ensure this function generates a valid password
+      const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+  
+      // Insert the user into the `users` table
+      const userSql =
+        'INSERT INTO users (name, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+      const [userResults] = await db.execute(userSql, [name, lastname, email || null, phone, hashedPassword]);
+  
+      const userId = userResults.insertId; // ID of the newly inserted user
+  
+      // Insert into the `patients` table
+      const insertSql =
+        'INSERT INTO patients (user_id, first_name, last_name, phone_number, email, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+      const values = [userId, name, lastname, phone, email || null];
+      await db.execute(insertSql, values);
+  
+      // Prepare the confirmation message
+      const message =
+        `Bienvenue ${name}!\n` +
+        `Vous êtes inscrit chez Wic-Doctor.\n` +
+        `Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : ${generatedPassword}\n` +
+        `Veuillez compléter votre fiche, s'il vous plaît.\n` +
+        `Si vous n'avez pas demandé cette inscription, ignorez simplement ce message.\n` +
+        `Cordialement,\nL'équipe de Wic-Doctor.`;
+  
+      // Send confirmation email (if email exists)
+      if (email) {
+        await sendConfirmationEmail(`${name} ${lastname}`, email, generatedPassword, res, userId);
+      }
+      if (phone) {
+      // Send SMS confirmation
+      await sendSMScontactinscrit(phone, message);
+      }
+      // Return success response
+      return res.status(201).json({ message: 'Inscription réussie et confirmation envoyée.' });
+    } catch (error) {
+        console.error('Error during patient signup:', error);
+      
+        // Environnement de développement : inclure les détails de l'erreur
+        const isDevelopment = process.env.NODE_ENV === 'development'; // Assurez-vous que NODE_ENV est configuré
+        const errorMessage = isDevelopment ? error.message : 'Une erreur est survenue lors de l\'inscription.';
+      
+        return res.status(500).json({ error: errorMessage });
+      }
+  };
+  
+
  
 const ajouterPatient = async (req, res) => {
     try {
@@ -740,6 +857,6 @@ const obtenirPatientsParUtilisateur = async (req, res) => {
     }
   }
 module.exports = {
-    signuppatient,signin,signupb2b,updateprofilpatient,logout,resetPassword , ajouterPatient , obtenirPatientsParUtilisateur
+    signuppatients,signin,signupb2b,updateprofilpatient,logout,resetPassword , ajouterPatient , obtenirPatientsParUtilisateur , signuppatient 
 }
   

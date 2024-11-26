@@ -381,10 +381,7 @@ async function signupb2b(req, res) {
     const { name, email, phone, type, specialities, description } = req.body;
 
     // Validate input
-    if (!name || !email || !phone || !type) {
-        return res.status(400).json({ error: 'Tous les champs sont requis.' });
-    }
-
+   
     console.log("userId:", email);
     console.log("phone:", phone);
     console.log("name:", name);

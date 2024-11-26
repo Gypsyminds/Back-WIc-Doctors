@@ -66,6 +66,7 @@ router.get('/specialitiesclinic/:clinicId',clinicController.getspecialitesdeclin
 router.get('/patternsclinic/:clinicId/:specialiteId', clinicController.getmotifByClinicAndSpecialite);
 router.get('/doctorsspeciality/:specialityId/:clinicId/:patternId', clinicController.getDoctorsBySpecialityAndClinic);
 
+router.get('/blogs',authController.obtenirBlogs);
 router.get('/getannuaire',authController.getAllAnnuaires);
 
 // Route de rappel (callback) après l'authauthentification réussie

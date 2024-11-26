@@ -2050,17 +2050,55 @@ const getUpcomingAppointments = async () => {
       throw new Error('Failed to send SMS');
     }
   }; 
-const  getAllAnnuaires = async (req, res) =>{
-    let connection;
-    
+const getAllAnnuaires = async (req, res) => {
+    const limit = parseInt(req.query.limit) || 10;  // Nombre de résultats par page
+    const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
+
+    console.log(`Limit: ${limit}, Offset: ${offset}`); // Vérifiez que les paramètres sont corrects
+
     try {
-      const [rows] = await db.execute('SELECT * FROM `cardiologues-nabeul`');
-      res.json(rows);  // Envoie les résultats en réponse au client
+        // Seule la deuxième requête est exécutée
+        const query2 = `
+            SELECT 
+                Name AS name,
+                Sector AS specialities,
+                Phone AS phone_number,
+                adresse AS ville,
+                Location AS pays
+            FROM 
+                docteurs_tunisie
+            LIMIT ${limit} OFFSET ${offset}  -- Remplacez les paramètres par des valeurs directes
+        `;
+        
+        console.log(`Exécution de la requête 2 avec LIMIT: ${limit} OFFSET: ${offset}`); // Vérifie les valeurs de LIMIT et OFFSET
+        
+        const [rows2] = await db.execute(query2);
+        console.log("Résultats de docteurs_tunisie:", rows2); // Affiche les résultats de la deuxième requête
+        
+        // Transformer les spécialités en chaîne de texte (si elles sont sous forme d'objet JSON)
+        rows2.forEach(result => {
+            if (Array.isArray(result.specialities)) {
+                result.specialities = result.specialities.map(spec => {
+                    if (typeof spec === 'object' && spec.fr) {
+                        return spec.fr;  // Utiliser la valeur de 'fr'
+                    }
+                    return spec.name || 'Non spécifié';
+                }).join(', ');
+            }
+        });
+
+        // Envoi des résultats au client
+        return res.json(rows2);
+
     } catch (error) {
-      console.error('Erreur lors de la récupération des cardiologues:', error);
-      res.status(500).json({ error: 'Erreur lors de la récupération des données' });
-    } 
-  }; 
+        console.error('Erreur lors de la récupération des docteurs_tunisie:', error);
+
+        // Si une erreur se produit après l'envoi de la réponse, éviter une seconde réponse
+        if (!res.headersSent) {
+            return res.status(500).json({ error: 'Erreur lors de la récupération des données' });
+        }
+    }
+}
 
 
 // Configurer Nodemailer pour l'envoi des emails
@@ -2252,7 +2290,25 @@ const verifierEtEnvoyerSmsRappels = async () => {
     } catch (error) {
         console.error('Erreur lors de la vérification des rendez-vous:', error);
     }
-}   
+}
+const obtenirBlogs = async (req, res) => {
+  try {
+    // Requête SQL pour récupérer tous les blogs
+    const query = 'SELECT * FROM blogs';
+    const [blogs] = await db.query(query);
+
+    // Vérifier s'il existe des blogs
+    if (blogs.length === 0) {
+      return res.status(404).json({ message: 'Aucun blog trouvé.' });
+    }
+
+    // Retourner les résultats
+    res.status(200).json({ blogs });
+  } catch (err) {
+    console.error('Erreur lors de la récupération des blogs :', err);
+    res.status(500).json({ error: 'Erreur interne du serveur.' });
+  }
+};   
 module.exports = {
     specialitespardoctor,
     getalldoctors,
@@ -2265,5 +2321,5 @@ module.exports = {
     ,getAppointmentsByPatientId , updateAppointment , getDoctorById , cancelAppointment
     ,verifierEtEnvoyerRappels , annulerRendezVous
     ,confirmerRendezVous , verifierEtEnvoyerSmsRappels
-
+,obtenirBlogs
 }

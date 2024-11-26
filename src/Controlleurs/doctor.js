@@ -722,7 +722,7 @@ const getDoctorsparvillepaysspecialitesss = async (req, res) => {
         return res.status(500).json({ error: 'Erreur lors de la récupération des médecins.' });
     }
 };
-const getDoctorsparvillepaysspecialitesy= async (req, res) => {
+const getDoctorsparvillepaysspecialitestemchy= async (req, res) => {
     const speciality_id = req.query.speciality_id; // Nom de la spécialité
     const ville = req.query.ville; // Ville
     const pays = req.query.pays; // Pays
@@ -852,7 +852,7 @@ const limit = parseInt(req.query.limit) || 10; // Nombre de résultats par page
         return res.status(500).json({ error: 'Erreur lors de la récupération des médecins.' });
     }
 };
-const getDoctorsparvillepaysspecialites1= async (req, res) => {
+const getDoctorsparvillepaysspecialitesbon = async (req, res) => {
     const speciality_id = req.query.speciality_id; // Nom de la spécialité
     const ville = req.query.ville; // Ville
     const pays = req.query.pays; // Pays
@@ -878,9 +878,8 @@ const getDoctorsparvillepaysspecialites1= async (req, res) => {
             usr.phone_number,
             addr.ville,
             addr.pays,
-            JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities ,
+            JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
             'conventionné' AS type
-
         FROM 
             doctors d 
         LEFT JOIN 
@@ -946,8 +945,7 @@ const getDoctorsparvillepaysspecialites1= async (req, res) => {
             dt.adresse AS ville,
             dt.Location AS pays,
             dt.Sector AS specialities,
-                        'non-conventionné' AS type
-
+            'non-conventionné' AS type
         FROM 
             docteurs_tunisie dt
     `;
@@ -978,105 +976,27 @@ const getDoctorsparvillepaysspecialites1= async (req, res) => {
 
     // Combinaison des deux requêtes avec UNION ALL
     const finalQuery = `
-        (${queryDoctors})
+        (
+            ${queryDoctors}
+        )
         UNION ALL
-        (${queryDocteursTunisie})
+        (
+            ${queryDocteursTunisie}
+        )
         ORDER BY RAND()
     `;
 
     try {
         const [results] = await db.query(finalQuery, queryParams);
-console.log(queryParams);
+        console.log(queryParams); // Vérifiez la sortie de la requête SQL et des paramètres
+
         // Vérifier s'il y a des résultats
         if (results.length === 0) {
             return res.status(404).json({ message: 'Aucun médecin trouvé avec ces critères.' });
         }
-        let countDocteursTunisie = `
-        SELECT COUNT(*) AS total
-        FROM docteurs_tunisie dt 
-        WHERE 1=1
-            ${speciality_id ? 'AND dt.Sector LIKE ?' : ''}
-            ${ville ? 'AND dt.adresse LIKE ?' : ''}
-            ${pays ? 'AND dt.Location LIKE ?' : ''}
-    `;
 
-    let countDoctors = `
-    SELECT COUNT(DISTINCT d.id) AS total
-    FROM 
-        doctors d 
-    LEFT JOIN 
-        doctor_specialities ds ON d.id = ds.doctor_id 
-    LEFT JOIN 
-        specialities s ON ds.speciality_id = s.id 
-    LEFT JOIN 
-        users usr ON d.user_id = usr.id 
-    LEFT JOIN 
-        addresses addr ON usr.id = addr.user_id
-    WHERE 1=1
-            ${speciality_id ? 'AND s.name LIKE ?' : ''}
-            ${ville ? 'AND addr.ville LIKE ?' : ''}
-            ${pays ? 'AND addr.pays LIKE ?' : ''}
-`;
-        const totalCountQuery = `
-        SELECT SUM(total) AS total FROM (
-            (${countDoctors})
-            UNION ALL
-            (${countDocteursTunisie})
-        ) AS counts
-    `;
-    const totalQueryParams = [
-        speciality_id ? `%${speciality_id}%` : null,
-        ville ? `%${ville}%` : null,
-        pays ? `%${pays}%` : null
-    ].filter(Boolean);  // On filtre les valeurs nulles pour ne pas inclure de paramètres inutiles
-
-    const [[{ total }]] = await db.query(totalCountQuery, totalQueryParams);
-
-    const totalPages = Math.ceil(total / limit);
-    const currentPage = Math.floor(offset / limit) + 1;
-
-    // Récupération des résultats paginés
-//  const [results] = await db.query(finalQuery, queryParams);
-
-    // Vérification et formatage des résultats
-  
-
-  //  const totalPages = Math.ceil(total / limit);
-    //const currentPage = Math.floor(offset / limit) + 1;
-    // Retour des résultats avec pagination
-   return res.json({
-        total,
-        totalPages,
-        currentPage,
-        data: results,
-    });
-        // Transformation des spécialités en texte si nécessaire
-        results.forEach(result => {
-            if (Array.isArray(result.specialities)) {
-                result.specialities = result.specialities.map(spec => {
-                    return spec.name || 'Non spécifié';
-                }).join(', ');
-            }
-        });
-
-        // Retour des résultats
-       return  res.json(results);
-    } catch (err) {
-        console.error('Erreur lors de la récupération des médecins:', err);
-        return res.status(500).json({ error: 'Erreur lors de la récupération des médecins.' });
-    }
-};
-const getDoctorsparvillepaysspecialitest = async (req, res) => {
-    const speciality_id = req.query.speciality_id; // Nom de la spécialité
-    const ville = req.query.ville; // Ville
-    const pays = req.query.pays; // Pays
-    const limit = parseInt(req.query.limit) || 10; // Nombre de résultats par page
-    const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
-    const queryParams = [];
-    const totalQueryParams = [];
-
-    // Requête pour la table `doctors`
-    let countDoctors = `
+        // Calcul du total pour la table `doctors`
+        let countDoctors = `
         SELECT COUNT(DISTINCT d.id) AS total
         FROM 
             doctors d 
@@ -1089,72 +1009,33 @@ const getDoctorsparvillepaysspecialitest = async (req, res) => {
         LEFT JOIN 
             addresses addr ON usr.id = addr.user_id
         WHERE 1=1
-    `;
-
-    if (speciality_id) {
-        countDoctors += ` AND s.name LIKE ?`;
-        totalQueryParams.push(`%${speciality_id}%`);
-    }
-
-    if (ville) {
-        countDoctors += ` AND addr.ville LIKE ?`;
-        totalQueryParams.push(`%${ville}%`);
-    }
-
-    if (pays) {
-        countDoctors += ` AND addr.pays LIKE ?`;
-        totalQueryParams.push(`%${pays}%`);
-    }
-
-    // Requête pour la table `docteurs_tunisie`
-    let countDocteursTunisie = `
+            ${speciality_id ? 'AND s.name LIKE ?' : ''}
+            ${ville ? 'AND addr.ville LIKE ?' : ''}
+            ${pays ? 'AND addr.pays LIKE ?' : ''}
+        `;
+        
+        // Calcul du total pour la table `docteurs_tunisie`
+        let countDocteursTunisie = `
         SELECT COUNT(*) AS total
-        FROM docteurs_tunisie dt
+        FROM docteurs_tunisie dt 
         WHERE 1=1
-    `;
+            ${speciality_id ? 'AND dt.Sector LIKE ?' : ''}
+            ${ville ? 'AND dt.adresse LIKE ?' : ''}
+            ${pays ? 'AND dt.Location LIKE ?' : ''}
+        `;
 
-    if (speciality_id) {
-        countDocteursTunisie += ` AND dt.Sector LIKE ?`;
-        totalQueryParams.push(`%${speciality_id}%`);
-    }
+        const countQueryParams = [
+            speciality_id ? `%${speciality_id}%` : null,
+            ville ? `%${ville}%` : null,
+            pays ? `%${pays}%` : null
+        ].filter(Boolean);  // On filtre les valeurs nulles pour ne pas inclure de paramètres inutiles
 
-    if (ville) {
-        countDocteursTunisie += ` AND dt.adresse LIKE ?`;
-        totalQueryParams.push(`%${ville}%`);
-    }
+        const totalDoctors = await db.query(countDoctors, countQueryParams);
+        const totalDocteursTunisie = await db.query(countDocteursTunisie, countQueryParams);
 
-    if (pays) {
-        countDocteursTunisie += ` AND dt.Location LIKE ?`;
-        totalQueryParams.push(`%${pays}%`);
-    }
-
-    // Combinaison des deux requêtes de comptage
-    const totalCountQuery = `
-        SELECT SUM(total) AS total FROM (
-            (${countDoctors})
-            UNION ALL
-            (${countDocteursTunisie})
-        ) AS counts
-    `;
-
-    try {
-        // Exécution de la requête de comptage
-        const [[{ total }]] = await db.query(totalCountQuery, totalQueryParams);
-
-        // Gestion de la pagination
+        const total = totalDoctors[0].total + totalDocteursTunisie[0].total;
         const totalPages = Math.ceil(total / limit);
         const currentPage = Math.floor(offset / limit) + 1;
-
-        // Requête principale pour les données paginées (résultats combinés)
-        const finalQuery = `
-            (${queryDoctors})
-            UNION ALL
-            (${queryDocteursTunisie})
-            ORDER BY RAND()
-        `;
-        queryParams.push(limit, offset);
-
-        const [results] = await db.query(finalQuery, queryParams);
 
         // Retour des résultats avec pagination
         return res.json({
@@ -1163,12 +1044,227 @@ const getDoctorsparvillepaysspecialitest = async (req, res) => {
             currentPage,
             data: results,
         });
+
     } catch (err) {
         console.error('Erreur lors de la récupération des médecins:', err);
         return res.status(500).json({ error: 'Erreur lors de la récupération des médecins.' });
     }
 };
-const getDoctorsparvillepaysspecialites2 = async (req, res) => {
+const getDoctorsparvillepaysspecialites = async (req, res) => {
+    const speciality_id = req.query.speciality_id; // Nom de la spécialité
+    const ville = req.query.ville; // Ville
+    const pays = req.query.pays; // Pays
+    const limit = parseInt(req.query.limit) || 10; // Nombre de résultats par page
+    const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
+    const queryParams = [];
+    const countParams = [];
+
+    const conditionsDoctors = [];
+    const conditionsDocteursTunisie = [];
+
+    // Requête pour la table `doctors`
+    let queryDoctors = `
+        SELECT  
+            d.name AS name,
+            d.doctor_photo,
+            d.enable_online_consultation,
+            d.description,
+            d.horaires,
+            d.cabinet_photo,
+            d.created_at,
+            a.title AS title,
+            usr.phone_number,
+            addr.ville,
+            addr.pays,
+            JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
+            'conventionné' AS type
+        FROM 
+            doctors d 
+        LEFT JOIN 
+            doctor_specialities ds ON d.id = ds.doctor_id 
+        LEFT JOIN 
+            specialities s ON ds.speciality_id = s.id 
+        LEFT JOIN 
+            experiences a ON d.id = a.doctor_id 
+        LEFT JOIN 
+            users usr ON d.user_id = usr.id 
+        LEFT JOIN 
+            addresses addr ON usr.id = addr.user_id
+    `;
+
+    if (speciality_id) {
+        conditionsDoctors.push('s.name LIKE ?');
+        queryParams.push(`%${speciality_id}%`);
+        countParams.push(`%${speciality_id}%`);
+    }
+
+    if (ville) {
+        conditionsDoctors.push('addr.ville LIKE ?');
+        queryParams.push(`%${ville}%`);
+        countParams.push(`%${ville}%`);
+    }
+
+    if (pays) {
+        conditionsDoctors.push('addr.pays LIKE ?');
+        queryParams.push(`%${pays}%`);
+        countParams.push(`%${pays}%`);
+    }
+
+    if (conditionsDoctors.length > 0) {
+        queryDoctors += ` WHERE ${conditionsDoctors.join(' AND ')}`;
+    }
+
+    queryDoctors += `
+        GROUP BY  
+            d.name, 
+            d.doctor_photo,
+            d.enable_online_consultation,
+            d.description,
+            d.horaires,
+            d.cabinet_photo,
+            d.created_at,
+            a.title,
+            usr.phone_number, 
+            addr.ville,
+            addr.pays
+        LIMIT ? OFFSET ?
+    `;
+    queryParams.push(limit, offset);
+
+    // Requête pour la table `docteurs_tunisie`
+    let queryDocteursTunisie = `
+        SELECT 
+            dt.name AS name,
+            NULL AS doctor_photo,
+            NULL AS enable_online_consultation,
+            NULL AS description,
+            NULL AS horaires,
+            NULL AS cabinet_photo,
+            NULL AS created_at,
+            NULL AS title,
+            dt.Phone AS phone_number,
+            dt.adresse AS ville,
+            dt.Location AS pays,
+            dt.Sector AS specialities,
+            'non-conventionné' AS type
+        FROM 
+            docteurs_tunisie dt
+    `;
+
+    if (speciality_id) {
+        conditionsDocteursTunisie.push('dt.Sector LIKE ?');
+        queryParams.push(`%${speciality_id}%`);
+        countParams.push(`%${speciality_id}%`);
+    }
+
+    if (ville) {
+        conditionsDocteursTunisie.push('dt.adresse LIKE ?');
+        queryParams.push(`%${ville}%`);
+        countParams.push(`%${ville}%`);
+    }
+
+    if (pays) {
+        conditionsDocteursTunisie.push('dt.Location LIKE ?');
+        queryParams.push(`%${pays}%`);
+        countParams.push(`%${pays}%`);
+    }
+
+    if (conditionsDocteursTunisie.length > 0) {
+        queryDocteursTunisie += ` WHERE ${conditionsDocteursTunisie.join(' AND ')}`;
+    }
+
+    queryDocteursTunisie += `
+        LIMIT ? OFFSET ?
+    `;
+    queryParams.push(limit, offset);
+
+    // Combinaison des deux requêtes avec UNION ALL
+    const finalQuery = `
+        (
+            ${queryDoctors}
+        )
+        UNION ALL
+        (
+            ${queryDocteursTunisie}
+        )
+        ORDER BY RAND()
+    `;
+
+    try {
+        console.log("Final query with params:", finalQuery, queryParams);
+        const [results] = await db.query(finalQuery, queryParams);
+        
+        // Vérification des résultats
+        console.log("Results found:", results);
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucun médecin trouvé avec ces critères.' });
+        }
+    
+        // Comptage pour la table `doctors`
+        let countDoctors = `
+        SELECT COUNT(DISTINCT d.id) AS total
+        FROM 
+            doctors d 
+        LEFT JOIN 
+            doctor_specialities ds ON d.id = ds.doctor_id 
+        LEFT JOIN 
+            specialities s ON ds.speciality_id = s.id 
+        LEFT JOIN 
+            users usr ON d.user_id = usr.id 
+        LEFT JOIN 
+            addresses addr ON usr.id = addr.user_id
+        WHERE 1=1
+            ${speciality_id ? 'AND s.name LIKE ?' : ''}
+            ${ville ? 'AND addr.ville LIKE ?' : ''}
+            ${pays ? 'AND addr.pays LIKE ?' : ''}
+        `;
+        
+        // Comptage pour la table `docteurs_tunisie`
+        let countDocteursTunisie = `
+        SELECT COUNT(*) AS total
+        FROM docteurs_tunisie dt 
+        WHERE 1=1
+            ${speciality_id ? 'AND dt.Sector LIKE ?' : ''}
+            ${ville ? 'AND dt.adresse LIKE ?' : ''}
+            ${pays ? 'AND dt.Location LIKE ?' : ''}
+        `;
+    
+        console.log("Count query params:", countParams);
+    
+        // Exécution des requêtes de comptage
+        const [doctorsCountResult] = await db.query(countDoctors, countParams);
+        const [docteursTunisieCountResult] = await db.query(countDocteursTunisie, countParams);
+    
+        // Extraction des totaux
+        const totalDoctors = doctorsCountResult[0]?.total || 0;
+        const totalDocteursTunisie = docteursTunisieCountResult[0]?.total || 0;
+    
+        const total = totalDoctors + totalDocteursTunisie;
+        const totalPages = Math.ceil(total / limit);
+        const currentPage = Math.floor(offset / limit) + 1;
+    
+        // Vérification des résultats du calcul
+        console.log("Total doctors:", total);
+        console.log("Total pages:", totalPages);
+    
+        // Retour des résultats avec pagination
+        return res.json({
+            total,
+            totalPages,
+            currentPage,
+            data: results,
+        });
+    
+    } catch (err) {
+        console.error('Erreur lors de la récupération des médecins:', err);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des médecins.' });
+    }
+    
+};
+
+
+
+const getDoctorsparvillepaysspecialitesd= async (req, res) => {
     const speciality_id = req.query.speciality_id; // Nom de la spécialité
     const ville = req.query.ville; // Ville
     const pays = req.query.pays; // Pays
@@ -1367,7 +1463,7 @@ const getDoctorsparvillepaysspecialites2 = async (req, res) => {
     }
 };
 
-const getDoctorsparvillepaysspecialites = async (req, res) => {
+const getDoctorsparvillepaysspecialitesjdide = async (req, res) => {
     // Récupération des paramètres de la requête
     const speciality_id = req.query.speciality_id; // Nom de la spécialité
     const ville = req.query.ville; // Ville

@@ -567,10 +567,18 @@ async function updateprofilpatient(req, res) {
         height,
         medical_history,
         notes,
-        email
+        email,
+        matriculeCNSS,
+        dateExpiration,
+        assurance,
+        groupe_sanguin,
+        allergie,
+        date_naissance,
+        nom_assurrance
     } = req.body;
 
     try {
+        // Vérifier si le patient existe
         const [currentPatient] = await db.execute('SELECT * FROM patients WHERE id = ?', [patientId]);
         if (currentPatient.length === 0) {
             return res.status(404).json({ error: 'Patient non trouvé.' });
@@ -580,69 +588,66 @@ async function updateprofilpatient(req, res) {
         const updates = [];
         const values = [];
 
-        // Préparer les mises à jour avec des valeurs nulles si non fournies
-        updates.push('first_name = ?');
-        values.push(first_name !== undefined ? first_name : currentData.first_name);
+        // Préparer les champs à mettre à jour
+        const fieldsToUpdate = {
+            first_name,
+            last_name,
+            phone_number,
+            mobile_number,
+            age,
+            gender,
+            weight,
+            height,
+            medical_history,
+            notes,
+            matriculeCNSS,
+            dateExpiration,
+            assurance,
+            groupe_sanguin,
+            allergie,
+            date_naissance,
+            nom_assurrance,
+            email
+        };
 
-        updates.push('last_name = ?');
-        values.push(last_name !== undefined ? last_name : currentData.last_name);
-
-        updates.push('phone_number = ?');
-        values.push(phone_number !== undefined ? phone_number : currentData.phone_number);
-
-        updates.push('mobile_number = ?');
-        values.push(mobile_number !== undefined ? mobile_number : currentData.mobile_number);
-
-        updates.push('age = ?');
-        values.push(age !== undefined ? age : currentData.age);
-
-        updates.push('gender = ?');
-        values.push(gender !== undefined ? gender : currentData.gender);
-
-        updates.push('weight = ?');
-        values.push(weight !== undefined ? weight : currentData.weight);
-
-        updates.push('height = ?');
-        values.push(height !== undefined ? height : currentData.height);
-
-        updates.push('medical_history = ?');
-        values.push(medical_history !== undefined ? medical_history : currentData.medical_history);
-
-        updates.push('notes = ?');
-        values.push(notes !== undefined ? notes : currentData.notes);
-
+        for (const [field, value] of Object.entries(fieldsToUpdate)) {
+            updates.push(`${field} = ?`);
+            values.push(value !== undefined ? value : currentData[field]);
+        }
+        updates.push(`updated_at = NOW()`);
         values.push(patientId);
 
+        // Requête de mise à jour des patients
         const updatePatientQuery = `UPDATE patients SET ${updates.join(', ')} WHERE id = ?`;
-        console.log("updatePatientQuery:", updatePatientQuery);
-        console.log("values:", values);
 
-        const userValues = [
-            email !== undefined ? email : currentData.email,
-            phone_number !== undefined ? phone_number : currentData.phone_number,
-            patientId
-        ];
-
-        const updateUserQuery = `
-            UPDATE users
-            SET
-                email = ?,
-                phone_number = ?
-            WHERE id = (
-                SELECT user_id FROM patients WHERE id = ?
-            )
-        `;
-
+        // Exécuter la mise à jour des patients
         const [patientResult] = await db.execute(updatePatientQuery, values);
         if (patientResult.affectedRows === 0) {
             return res.status(404).json({ error: 'Patient non trouvé.' });
         }
+
+        // Mise à jour des données dans la table users
+        const updateUserQuery = `
+            UPDATE users
+            SET email = ?, phone_number = ?, name = ?, lastname = ?
+            WHERE id = (
+                SELECT user_id FROM patients WHERE id = ?
+            )
+        `;
+        const userValues = [
+            email !== undefined ? email : currentData.email,
+            phone_number !== undefined ? phone_number : currentData.phone_number,
+            first_name !== undefined ? first_name : currentData.first_name,
+            last_name !== undefined ? last_name : currentData.last_name,
+            patientId
+        ];
 
         const [userResult] = await db.execute(updateUserQuery, userValues);
         if (userResult.affectedRows === 0) {
             return res.status(404).json({ error: 'Utilisateur non trouvé pour le patient.' });
         }
 
+        // Réponse en cas de succès
         res.json({ message: 'Profil mis à jour avec succès !' });
 
     } catch (error) {
@@ -650,6 +655,7 @@ async function updateprofilpatient(req, res) {
         res.status(500).json({ error: 'Erreur interne du serveur.', details: error.message });
     }
 }
+
 // Function to send SMS
 const sendSMScontactinscrit = async (phone, message) => {
     const api_key = 'INS757364498'; // Replace with your actual API key

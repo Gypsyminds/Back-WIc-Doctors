@@ -401,58 +401,8 @@ app.post('/api/rendez_vous', (req, res) => {
 
 
 
-//get all doctors aléatoirement 
-const getalldoctorss = (req, res) => {
-    let query = `
-   SELECT  
-        d.id AS doctor_id,
-        d.name AS name,
-        d.doctor_photo,
-        d.enable_online_consultation,
-        d.description,
-        d.horaires,
-        d.cabinet_photo,
-        d.created_at,
-        a.title AS title,
-        JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities
-      
-        addr.ville
-  
-    FROM 
-        doctors d 
-    LEFT JOIN 
-        doctor_specialities ds ON d.id = ds.doctor_id 
-    LEFT JOIN 
-        specialities s ON ds.speciality_id = s.id 
-    JOIN 
-        experiences a ON d.id = a.doctor_id 
-    JOIN 
-        users usr ON d.user_id = usr.id 
-    JOIN 
-        addresses addr ON usr.id = addr.user_id 
-    GROUP BY  
-        d.id, 
-        d.name, 
-        d.doctor_photo,
-        d.enable_online_consultation,
-        d.description,
-        d.horaires,
-        d.cabinet_photo,
-        d.created_at,
-        a.title,
-       
-        addr.ville
-   ORDER BY RAND()
-   `;
 
-    db.query(query, (err, results) => {
-        if (err) {
-            return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs.' });
-        }
-        res.json(results);
-    });
-};
-const getalldoctors = async (req, res) => {
+const getalldoctorsavant = async (req, res) => {
     let query = `
         SELECT  
             d.id AS doctor_id,
@@ -506,6 +456,62 @@ const getalldoctors = async (req, res) => {
     }
 };
 
+const getalldoctors = async (req, res) => {
+    let query = `
+        SELECT  
+            d.id AS doctor_id,
+            d.name AS name,
+            d.doctor_photo,
+            d.enable_online_consultation,
+            d.description,
+            d.horaires,
+            d.cabinet_photo,
+            d.created_at,
+            a.title AS title,
+            JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
+            usr.phone_number,  
+            addr.ville
+        FROM 
+            doctors d 
+        LEFT JOIN 
+            doctor_specialities ds ON d.id = ds.doctor_id 
+        LEFT JOIN 
+            specialities s ON ds.speciality_id = s.id 
+        LEFT JOIN 
+            experiences a ON d.id = a.doctor_id 
+        LEFT JOIN 
+            users usr ON d.user_id = usr.id 
+        LEFT JOIN 
+            addresses addr ON usr.id = addr.user_id
+        WHERE
+            addr.ville IS NOT NULL AND addr.ville != ''  -- Filtrer pour avoir une adresse
+             AND d.name != '{"fr":"Demo Doctor"}'  -- Exclure les docteurs de test
+        GROUP BY  
+            d.id, 
+            d.name, 
+            d.doctor_photo,
+            d.enable_online_consultation,
+            d.description,
+            d.horaires,
+            d.cabinet_photo,
+            d.created_at,
+            a.title,
+            usr.phone_number,  
+            addr.ville
+        ORDER BY RAND();
+    `;
+
+    try {
+        // Execute the query
+        const [results] = await db.query(query);
+
+        // Return the results
+        res.json(results);
+    } catch (err) {
+        console.error(err); // For debugging
+        return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs.' });
+    }
+};
 
 const getDoctorsparvillepaysspecialitess = async (req, res) => {
     const speciality_id = req.query.speciality_id;
@@ -1781,7 +1787,7 @@ const getDoctorsparvillepaysspecialitesofff = async (req, res) => {
     }
 };
 
-const getDoctorsparvillepaysspecialitestmchy2 = async (req, res) => {
+const getDoctorsparvillepaysspecialites = async (req, res) => {
     const speciality_id = req.query.speciality_id;
     const ville = req.query.ville;
     const pays = req.query.pays;
@@ -1860,7 +1866,186 @@ const getDoctorsparvillepaysspecialitestmchy2 = async (req, res) => {
     }
 };
 
-const getDoctorsparvillepaysspecialites = async (req, res) => {
+
+const getDoctorsparvillepaysspecialites6 = async (req, res) => {
+    const speciality_id = req.query.speciality_id;
+    const ville = req.query.ville;
+    const pays = req.query.pays;
+    const limit = parseInt(req.query.limit) || 10; // Nombre de résultats par page
+    const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
+    const queryParams = [];
+    const countParams = [];
+
+    try {
+        // Requête de comptage pour doctors
+        const countDoctorsQuery = `
+            SELECT COUNT(DISTINCT d.id) AS total
+            FROM doctors d
+            LEFT JOIN doctor_specialities ds ON d.id = ds.doctor_id
+            LEFT JOIN specialities s ON ds.speciality_id = s.id
+            LEFT JOIN addresses addr ON d.user_id = addr.user_id
+            WHERE 1=1
+            ${speciality_id ? 'AND s.name LIKE ?' : ''}
+            ${ville ? 'AND addr.ville LIKE ?' : ''}
+            ${pays ? 'AND addr.pays LIKE ?' : ''}
+        `;
+
+        if (speciality_id) countParams.push(`%${speciality_id}%`);
+        if (ville) countParams.push(`%${ville}%`);
+        if (pays) countParams.push(`%${pays}%`);
+
+        // Requête de comptage pour docteurs_tunisie
+        const countDocteursTunisieQuery = `
+            SELECT COUNT(*) AS total
+            FROM docteurs_tunisie dt
+            WHERE 1=1
+            ${speciality_id ? 'AND dt.Sector LIKE ?' : ''}
+            ${ville ? 'AND dt.adresse LIKE ?' : ''}
+            ${pays ? 'AND dt.Location LIKE ?' : ''}
+        `;
+
+        if (speciality_id) countParams.push(`%${speciality_id}%`);
+        if (ville) countParams.push(`%${ville}%`);
+        if (pays) countParams.push(`%${pays}%`);
+
+        const [doctorsCountResult] = await db.query(countDoctorsQuery, countParams);
+        const [docteursTunisieCountResult] = await db.query(countDocteursTunisieQuery, countParams);
+
+        const totalDoctors = doctorsCountResult[0]?.total || 0;
+        const totalDocteursTunisie = docteursTunisieCountResult[0]?.total || 0;
+        const total = totalDoctors + totalDocteursTunisie;
+
+        // Calcul du nombre de pages
+        const totalPages = Math.ceil(total / limit);
+        const currentPage = Math.floor(offset / limit) + 1;
+
+        // Requête paginée pour `doctors`
+        let queryDoctors = `
+            SELECT  
+                d.name AS name,
+                d.doctor_photo,
+                d.enable_online_consultation,
+                d.description,
+                d.horaires,
+                d.cabinet_photo,
+                d.created_at,
+                a.title AS title,
+                usr.phone_number,
+                addr.ville,
+                addr.pays,
+                JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities , 
+                1 AS priority
+            FROM 
+                doctors d 
+            LEFT JOIN 
+                doctor_specialities ds ON d.id = ds.doctor_id 
+            LEFT JOIN 
+                specialities s ON ds.speciality_id = s.id 
+            LEFT JOIN 
+                experiences a ON d.id = a.doctor_id 
+            LEFT JOIN 
+                users usr ON d.user_id = usr.id 
+            LEFT JOIN 
+                addresses addr ON usr.id = addr.user_id
+        `;
+
+        if (speciality_id) queryParams.push(`%${speciality_id}%`);
+        if (ville) queryParams.push(`%${ville}%`);
+        if (pays) queryParams.push(`%${pays}%`);
+
+        // Ajouter les conditions de filtre pour les `doctors`
+        if (speciality_id) queryDoctors += ' AND s.name LIKE ?';
+        if (ville) queryDoctors += ' AND addr.ville LIKE ?';
+        if (pays) queryDoctors += ' AND addr.pays LIKE ?';
+
+        queryDoctors += `
+            GROUP BY  
+                d.name, 
+                d.doctor_photo,
+                d.enable_online_consultation,
+                d.description,
+                d.horaires,
+                d.cabinet_photo,
+                d.created_at,
+                a.title,
+                usr.phone_number, 
+                addr.ville,
+                addr.pays
+            LIMIT ${limit} OFFSET ${offset}
+        `;
+
+        // Requête paginée pour `docteurs_tunisie`
+        let queryDocteursTunisie = `
+            SELECT 
+                dt.name AS name,
+                NULL AS doctor_photo,
+                NULL AS enable_online_consultation,
+                NULL AS description,
+                NULL AS horaires,
+                NULL AS cabinet_photo,
+                NULL AS created_at,
+                NULL AS title,
+                dt.Phone AS phone_number,
+                dt.adresse AS ville,
+                dt.Location AS pays,
+                JSON_ARRAYAGG(JSON_OBJECT('id', dt.Sector, 'name', dt.Sector)) AS specialities , 
+                2 AS priority
+            FROM 
+                docteurs_tunisie dt
+        `;
+
+        if (speciality_id) queryParams.push(`%${speciality_id}%`);
+        if (ville) queryParams.push(`%${ville}%`);
+        if (pays) queryParams.push(`%${pays}%`);
+
+        // Ajouter les conditions de filtre pour `docteurs_tunisie`
+        if (speciality_id) queryDocteursTunisie += ' AND dt.Sector LIKE ?';
+        if (ville) queryDocteursTunisie += ' AND dt.adresse LIKE ?';
+        if (pays) queryDocteursTunisie += ' AND dt.Location LIKE ?';
+
+        queryDocteursTunisie += `
+            GROUP BY
+                dt.name,
+                dt.Phone,
+                dt.adresse,
+                dt.Location
+            LIMIT ${limit} OFFSET ${offset}
+        `;
+
+   
+      // Final query with priority sorting
+      const finalQuery = `
+      (${queryDoctors})
+      UNION ALL
+      (${queryDocteursTunisie})
+      ORDER BY priority, RAND()
+      LIMIT ${limit} OFFSET ${offset}
+  `;
+        const [results] = await db.query(finalQuery, queryParams);
+
+        // Calcul de l'offset maximum : Si l'offset dépasse le total des résultats, on ajuste pour ne pas dépasser
+        const maxOffset = (totalPages - 1) * limit;
+
+        if (offset > maxOffset) {
+            return res.status(400).json({ error: 'Offset trop élevé.' });
+        }
+
+        return res.json({
+            total,
+            totalPages,
+            currentPage,
+            data: results
+        });
+
+    } catch (err) {
+        console.error('Erreur serveur:', err);
+        return res.status(500).json({ error: 'Erreur interne du serveur.' });
+    }
+};
+
+
+
+const getDoctorsparvillepaysspecialitescestbon= async (req, res) => {
     const speciality_id = req.query.speciality_id;
     const ville = req.query.ville;
     const pays = req.query.pays;
@@ -2047,6 +2232,9 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
         return res.status(500).json({ error: 'Erreur interne du serveur.' });
     }
 };
+
+
+
 
 const getDoctorsparvillepaysspecialitesoff = async (req, res) => {
     const speciality_id = req.query.speciality_id; // Nom de la spécialité

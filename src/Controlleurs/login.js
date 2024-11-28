@@ -797,29 +797,34 @@ const sendSMScontactinscrit = async (phone, message) => {
     }
   }
 
+  
+
   const signuppatients = async (req, res) => {
     const { email, phone, lastname, name } = req.body;
   
     // Validate input
-    if (!phone ) {
-      return res.status(400).json({ error: 'Le numéro de téléphone et le mot de passe sont requis.' });
+    if (!phone) {
+      return res.status(400).json({ error: 'Le numéro de téléphone est requis.' });
     }
   
     try {
       const generatedPassword = generatePassword(); // Ensure this function generates a valid password
       const hashedPassword = await bcrypt.hash(generatedPassword, 10);
   
+      // Normalize the phone number (remove any non-digit characters)
+      const normalizedPhone = phone.replace(/[^\d]/g, ''); // Supprime tout caractère non numérique
+  
       // Insert the user into the `users` table
       const userSql =
         'INSERT INTO users (name, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
-      const [userResults] = await db.execute(userSql, [name, lastname, email || null, phone, hashedPassword]);
+      const [userResults] = await db.execute(userSql, [name, lastname, email || null, normalizedPhone, hashedPassword]);
   
       const userId = userResults.insertId; // ID of the newly inserted user
   
       // Insert into the `patients` table
       const insertSql =
         'INSERT INTO patients (user_id, first_name, last_name, phone_number, email, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
-      const values = [userId, name, lastname, phone, email || null];
+      const values = [userId, name, lastname, normalizedPhone, email || null];
       await db.execute(insertSql, values);
   
       // Prepare the confirmation message
@@ -835,25 +840,25 @@ const sendSMScontactinscrit = async (phone, message) => {
       if (email) {
         await sendConfirmationEmail(`${name} ${lastname}`, email, generatedPassword, res, userId);
       }
-      if (phone) {
-      // Send SMS confirmation
-      await sendSMScontactinscrit(phone, message);
+  
+      // Send SMS confirmation (if phone exists)
+      if (normalizedPhone) {
+        await sendSMScontactinscrit(normalizedPhone, message);
       }
+  
       // Return success response
       return res.status(201).json({ message: 'Inscription réussie et confirmation envoyée.' });
     } catch (error) {
-        console.error('Error during patient signup:', error);
-      
-        // Environnement de développement : inclure les détails de l'erreur
-        const isDevelopment = process.env.NODE_ENV === 'development'; // Assurez-vous que NODE_ENV est configuré
-        const errorMessage = isDevelopment ? error.message : 'Une erreur est survenue lors de l\'inscription.';
-      
-        return res.status(500).json({ error: errorMessage });
-      }
+      console.error('Error during patient signup:', error);
+  
+      // Environnement de développement : inclure les détails de l'erreur
+      const isDevelopment = process.env.NODE_ENV === 'development'; // Assurez-vous que NODE_ENV est configuré
+      const errorMessage = isDevelopment ? error.message : 'Une erreur est survenue lors de l\'inscription.';
+  
+      return res.status(500).json({ error: errorMessage });
+    }
   };
   
-
- 
 const ajouterPatient = async (req, res) => {
     try {
       const {

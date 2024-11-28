@@ -229,7 +229,72 @@ async function signin(req, res) {
       return res.status(500).json({ error: 'Erreur interne du serveur.' });
     }
   }
+  async function signint(req, res) {
+    const { email, phone_number, password } = req.body;
+
+    if ((!email && !phone_number) || !password) {
+        return res.status(400).json({ error: 'Email ou téléphone et mot de passe sont requis.' });
+    }
+
+    try {
+        let field = '';
+        let identifier = '';
+
+        if (email) {
+            field = 'email';
+            identifier = email;
+        } else if (phone_number) {
+            field = 'phone_number';
+            identifier = phone_number;
+        }
+
+        console.log(email, phone_number);
+
+        // Rechercher l'utilisateur dans la base de données
+        const sql = `SELECT * FROM users WHERE ${field} = ?`;
+        const [results] = await db.query(sql, [identifier]);
+
+        if (results.length === 0) {
+            return res.status(401).json({ error: 'Identifiants incorrects.' });
+        }
+
+        const user = results[0];
+
+        // Remplacer $2y$ par $2b$ dans le hachage Laravel
+        const hashedPassword = user.password.replace('$2y$', '$2b$');
+
+        // Vérifier le mot de passe
+        const match = await bcrypt.compare(password, hashedPassword);
+        if (!match) {
+            return res.status(401).json({ error: 'Identifiants incorrects.' });
+        }
+
+        // Générer un jeton JWT
+        const token = jwt.sign({ user_id: user.id }, 'votre_clé_secrète', { expiresIn: '8h' });
+
+        // Mettre à jour le jeton dans la base de données
+        const updateSql = 'UPDATE users SET api_token = ? WHERE id = ?';
+        await db.query(updateSql, [token, user.id]);
+
+        // Rechercher les informations du patient
+        const getSql = 'SELECT * FROM patients WHERE user_id = ?';
+        const [patientResults] = await db.query(getSql, [user.id]);
+
+        // Répondre avec les informations de connexion réussie
+        res.json({
+            message: 'Connexion réussie!',
+            identifier,
+            result: patientResults,
+            token,
+        });
+
+    } catch (error) {
+        console.error('Erreur lors de la connexion:', error);
+        return res.status(500).json({ error: 'Erreur interne du serveur.' });
+    }
+}
   
+
 // Fonction d'inscription
 async function signupss(req, res) {
     const { name, email, phone, userType } = req.body; // Ajoutez userType

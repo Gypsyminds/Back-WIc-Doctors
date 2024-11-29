@@ -1064,7 +1064,6 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
     const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
     const queryParams = [];
     const countParams = [];
-
     const conditionsDoctors = [];
     const conditionsDocteursTunisie = [];
 
@@ -1082,6 +1081,7 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
             usr.phone_number,
             addr.ville,
             addr.pays,
+            addr.address AS adresse_exacte,
             JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
             'conventionné' AS type
         FROM 
@@ -1134,7 +1134,8 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
             a.title,
             usr.phone_number, 
             addr.ville,
-            addr.pays
+            addr.pays, 
+            addr.address
         LIMIT ? OFFSET ?
     `;
     queryParams.push(limit, offset);
@@ -1153,6 +1154,8 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
             dt.Phone AS phone_number,
             dt.adresse AS ville,
             dt.Location AS pays,
+            NULL AS adresse_exacte,
+
             dt.Sector AS specialites ,
             'non-conventionné' AS type
         FROM 
@@ -1196,13 +1199,28 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
 
         // Filtrer les résultats : ignorer les médecins nommés "demo" sans adresse
         results = results.filter(result => {
-            // Si le nom est "demo" et qu'il n'a pas d'adresse (ville et pays sont NULL ou vides)
-            if (result.name.toLowerCase() == "Demo" && (!result.ville || !result.pays) == null ) {
+            let doctorName = '';
+        
+            // Si le champ 'name' est une chaîne JSON, essayer de la parser
+            try {
+                const nameObj = JSON.parse(result.name); // Parse la chaîne JSON
+                doctorName = nameObj.fr || ''; // Récupérer le nom en français
+            } catch (err) {
+                // Si parsing échoue, doctorName reste une chaîne vide
+                console.error('Erreur de parsing du nom du médecin:', err);
+            }
+        
+            // Exclure les médecins dont le nom est "Demo Doctor"
+            if (doctorName.toLowerCase() === "demo doctor") {
                 return false; // Ne pas afficher ce médecin
+            }
+            if (!result.ville || !result.pays || result.ville.trim() === "" || result.pays.trim() === "") {
+                return false; // Ne pas afficher ce médecin si ville ou pays sont invalides
             }
             return true;
         });
         
+       
         // Formatage des spécialités en tableau JSON
         results.forEach(result => {
             if (result.specialities) {

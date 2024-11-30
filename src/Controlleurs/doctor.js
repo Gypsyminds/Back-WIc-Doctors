@@ -4837,101 +4837,86 @@ const getUpcomingAppointments = async () => {
     
 }
 
-const getAllAnnuairesss = async (req, res) => {
-    const limit = parseInt(req.query.limit) || 10;  // Nombre de résultats par page
-    const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
-
-    console.log(`Limit: ${limit}, Offset: ${offset}`); // Vérifiez que les paramètres sont corrects
-
-    try {
-        // Seule la deuxième requête est exécutée
-        const query2 = `
-            SELECT 
-                Name AS name,
-                Sector AS specialities,
-                Phone AS phone_number,
-                adresse AS ville,
-                Location AS pays
-            FROM 
-                docteurs_tunisie
-            LIMIT ${limit} OFFSET ${offset}  
-        `;
-        
-        console.log(`Exécution de la requête 2 avec LIMIT: ${limit} OFFSET: ${offset}`); // Vérifie les valeurs de LIMIT et OFFSET
-        
-        const [rows2] = await db.execute(query2);
-        console.log("Résultats de docteurs_tunisie:", rows2); // Affiche les résultats de la deuxième requête
-        
-        // Transformer les spécialités en chaîne de texte (si elles sont sous forme d'objet JSON)
-        rows2.forEach(result => {
-            if (Array.isArray(result.specialities)) {
-                result.specialities = result.specialities.map(spec => {
-                    if (typeof spec === 'object' && spec.fr) {
-                        return spec.fr;  // Utiliser la valeur de 'fr'
-                    }
-                    return spec.name || 'Non spécifié';
-                }).join(', ');
-            }
-        });
-
-        // Envoi des résultats au client
-        return res.json(rows2);
-
-    } catch (error) {
-        console.error('Erreur lors de la récupération des docteurs_tunisie:', error);
-
-        // Si une erreur se produit après l'envoi de la réponse, éviter une seconde réponse
-        if (!res.headersSent) {
-            return res.status(500).json({ error: 'Erreur lors de la récupération des données' });
-        }
-    }
-}
-
-const getAllAnnuaires = async (req, res) => {
+const getAllAnnuairesinfermiere = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;  // Nombre de résultats par page
     const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
     const queryParams = [limit, offset, limit, offset]; // Paramètres pour les deux requêtes
 
     try {
-        // Requête pour les médecins de la table `doctors`
-        const queryDoctors = `
+        // Requête pour récupérer le nombre total de médecins dans la table `docteurs_tunisie`
+        const totalCountQuery = `
+            SELECT COUNT(*) AS totalCount
+            FROM infirmier dt
+        `;
+
+        // Exécution de la requête pour obtenir le total
+        const [totalCountResult] = await db.query(totalCountQuery);
+        const total = totalCountResult[0].totalCount;  // Total des médecins
+
+        // Calcul du nombre total de pages
+        const totalPages = Math.ceil(total / limit);
+
+        // Requête pour récupérer les médecins avec la pagination
+        const queryDocteursTunisie = `
             SELECT 
-                d.name AS name,
-                d.doctor_photo,
-                d.enable_online_consultation,
-                d.description,
-                d.horaires,
-                d.cabinet_photo,
-                d.created_at,
-                usr.phone_number,
-                addr.ville,
-                addr.pays,
-                JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
-                'conventionné' AS type
+                dt.Name AS name,
+                dt.Phone AS phone_number,
+                dt.adresse AS Adresse_exacte,
+                dt.Location AS ville,
+                dt.Sector AS Secteur,
+                'non-conventionné' AS type
             FROM 
-                doctors d
-            LEFT JOIN 
-                doctor_specialities ds ON d.id = ds.doctor_id
-            LEFT JOIN 
-                specialities s ON ds.speciality_id = s.id
-            LEFT JOIN 
-                users usr ON d.user_id = usr.id
-            LEFT JOIN 
-                addresses addr ON usr.id = addr.user_id
-            GROUP BY 
-                d.name, 
-                d.doctor_photo, 
-                d.enable_online_consultation, 
-                d.description, 
-                d.horaires, 
-                d.cabinet_photo, 
-                d.created_at, 
-                usr.phone_number, 
-                addr.ville, 
-                addr.pays
+                infirmier dt
             LIMIT ? OFFSET ?
         `;
 
+        // Combinaison des deux requêtes avec UNION ALL (si vous en aviez d'autres)
+        const finalQuery = `
+            (${queryDocteursTunisie})
+            ORDER BY RAND()
+        `;
+
+        // Exécution de la requête combinée
+        const [results] = await db.query(finalQuery, queryParams);
+
+        // Vérifier s'il y a des résultats
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucun médecin trouvé.' });
+        }
+
+        // Transformation des spécialités en texte si nécessaire
+        results.forEach(result => {
+            if (Array.isArray(result.specialities)) {
+                result.specialities = result.specialities.map(spec => {
+                    return spec.name || 'Non spécifié';
+                }).join(', ');
+            }
+        });
+
+        // Calcul de la page actuelle
+        const currentPage = Math.floor(offset / limit) + 1;
+
+        // Retour des résultats au client avec la pagination
+        return res.json({
+            total,
+            totalPages,
+            currentPage,
+            data: results,
+        });
+    } catch (error) {
+        console.error('Erreur lors de la récupération des annuaires:', error);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
+    }
+};
+
+
+const getAllAnnuaires1 = async (req, res) => {
+    const limit = parseInt(req.query.limit) || 10;  // Nombre de résultats par page
+    const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
+    const queryParams = [limit, offset, limit, offset]; // Paramètres pour les deux requêtes
+
+    try {
+       
         // Requête pour les médecins de la table `docteurs_tunisie`
         const queryDocteursTunisie = `
             SELECT 
@@ -4954,8 +4939,7 @@ const getAllAnnuaires = async (req, res) => {
 
         // Combinaison des deux requêtes avec UNION ALL
         const finalQuery = `
-            (${queryDoctors})
-            UNION ALL
+           
             (${queryDocteursTunisie})
             ORDER BY RAND()
         `;
@@ -5226,16 +5210,33 @@ const sendEmail = async (req, res) => {
       res.status(500).json({ success: false, message: 'Erreur lors de l\'envoi de l\'e-mail.' });
     }
   };
+  const getblogs = async (req, res) => {
+    const query = 'SELECT * FROM blogs';
+    try {
+        const [results] = await db.query(query); // Utilisation de la syntaxe Promise pour récupérer les résultats
+
+        if (results.length === 0) {
+            return res.status(404).json({ message: "Aucun blog trouvé." });
+        }
+
+        res.status(200).json({ success: true, data: results });
+    } catch (error) {
+        console.error("Erreur lors de la récupération des informations des blogs:", error);
+        return res.status(500).json({ message: "Erreur du serveur lors de la récupération des blogs." });
+    }
+};
+
+
 module.exports = {
     specialitespardoctor,
     getalldoctors,
     getDoctorsparvillepaysspecialites,
     getDoctorsById,
-    getadressempas,getAllAnnuaires,
+    getadressempas,
     getvilles,getpays,getmotif,gethistoriqu,
     insertAppointment,getville,
     forgs,rests,insertAppointment,getplusprochedoc
     ,getAppointmentsByPatientId , updateAppointment , getDoctorById , cancelAppointment , sendSMSBeforeAppointment ,verifierEtEnvoyerRappels , annulerRendezVous
-    ,confirmerRendezVous , verifierEtEnvoyerSmsRappels , sendEmail
+    ,confirmerRendezVous , verifierEtEnvoyerSmsRappels , sendEmail ,getAllAnnuairesinfermiere , getblogs
 }
 

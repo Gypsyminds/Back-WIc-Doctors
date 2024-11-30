@@ -188,7 +188,7 @@ async function signin(req, res) {
         field = 'phone_number';
         identifier = phone_number;
       }
-  console.log(email , phone_number);
+     console.log(email , phone_number);
       // Rechercher l'utilisateur dans la base de données
       const sql = `SELECT * FROM users WHERE ${field} = ?`;
       const [results] = await db.query(sql, [identifier]);
@@ -812,19 +812,19 @@ const sendSMScontactinscrit = async (phone, message) => {
       const hashedPassword = await bcrypt.hash(generatedPassword, 10);
   
       // Normalize the phone number (remove any non-digit characters)
-      const normalizedPhone = phone.replace(/[^\d]/g, ''); // Supprime tout caractère non numérique
+     const normalizedPhone = phone.replace(/[^\d]/g, ''); // Supprime tout caractère non numérique
   
       // Insert the user into the `users` table
       const userSql =
         'INSERT INTO users (name, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
-      const [userResults] = await db.execute(userSql, [name, lastname, email || null, normalizedPhone, hashedPassword]);
+      const [userResults] = await db.execute(userSql, [name, lastname, email || null, phone, hashedPassword]);
   
       const userId = userResults.insertId; // ID of the newly inserted user
   
       // Insert into the `patients` table
       const insertSql =
         'INSERT INTO patients (user_id, first_name, last_name, phone_number, email, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
-      const values = [userId, name, lastname, normalizedPhone, email || null];
+      const values = [userId, name, lastname, phone, email || null];
       await db.execute(insertSql, values);
   
       // Prepare the confirmation message

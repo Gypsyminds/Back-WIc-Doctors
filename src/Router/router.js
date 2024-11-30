@@ -21,7 +21,7 @@ router.get('/afftempsclinicsbyid',clinicController.getTempsClinicssById);
 router.get('/affalldoctors', authController.getalldoctors);
 router.get('/doctorsadd', authController.getDoctorsparvillepaysspecialites);
 router.get('/getclinicsspcitypay', clinicController.getClinicsBySpecialityCityCountry);
-
+router.get('/getblogs' , authController.getblogs);
 
 router.get('/specialties' ,authController.specialitespardoctor);
 router.get('/doctorspos',authController.getadressempas);
@@ -38,7 +38,7 @@ router.post('/api/logup',loginController.signuppatients);
 router.post('/api/logupb2b',loginController.signupb2b);
 router.put('/update/patient/:id',loginController.updateprofilpatient);
 router.get('/getdocbyid/:id',authController.getDoctorById);
-router.get('/getannuaire',authController.getAllAnnuaires);
+router.get('/getannuaireinfermiere',authController.getAllAnnuairesinfermiere);
 
 
 router.put('/updateappointement/:appointment_id',authController.updateAppointment);

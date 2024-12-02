@@ -4837,77 +4837,6 @@ const getUpcomingAppointments = async () => {
     
 }
 
-const getAllAnnuairesinfermiere = async (req, res) => {
-    const limit = parseInt(req.query.limit) || 10;  // Nombre de résultats par page
-    const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
-    const queryParams = [limit, offset, limit, offset]; // Paramètres pour les deux requêtes
-
-    try {
-        // Requête pour récupérer le nombre total de médecins dans la table `docteurs_tunisie`
-        const totalCountQuery = `
-            SELECT COUNT(*) AS totalCount
-            FROM infirmier dt
-        `;
-
-        // Exécution de la requête pour obtenir le total
-        const [totalCountResult] = await db.query(totalCountQuery);
-        const total = totalCountResult[0].totalCount;  // Total des médecins
-
-        // Calcul du nombre total de pages
-        const totalPages = Math.ceil(total / limit);
-
-        // Requête pour récupérer les médecins avec la pagination
-        const queryDocteursTunisie = `
-            SELECT 
-                dt.Name AS name,
-                dt.Phone AS phone_number,
-                dt.adresse AS Adresse_exacte,
-                dt.Location AS ville,
-                dt.Sector AS Secteur,
-                'non-conventionné' AS type
-            FROM 
-                infirmier dt
-            LIMIT ? OFFSET ?
-        `;
-
-        // Combinaison des deux requêtes avec UNION ALL (si vous en aviez d'autres)
-        const finalQuery = `
-            (${queryDocteursTunisie})
-            ORDER BY RAND()
-        `;
-
-        // Exécution de la requête combinée
-        const [results] = await db.query(finalQuery, queryParams);
-
-        // Vérifier s'il y a des résultats
-        if (results.length === 0) {
-            return res.status(404).json({ message: 'Aucun médecin trouvé.' });
-        }
-
-        // Transformation des spécialités en texte si nécessaire
-        results.forEach(result => {
-            if (Array.isArray(result.specialities)) {
-                result.specialities = result.specialities.map(spec => {
-                    return spec.name || 'Non spécifié';
-                }).join(', ');
-            }
-        });
-
-        // Calcul de la page actuelle
-        const currentPage = Math.floor(offset / limit) + 1;
-
-        // Retour des résultats au client avec la pagination
-        return res.json({
-            total,
-            totalPages,
-            currentPage,
-            data: results,
-        });
-    } catch (error) {
-        console.error('Erreur lors de la récupération des annuaires:', error);
-        return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
-    }
-};
 
 
 const getAllAnnuaires1 = async (req, res) => {
@@ -5226,6 +5155,115 @@ const sendEmail = async (req, res) => {
     }
 };
 
+const getveterinaires = async (req, res) => {
+    const limit = parseInt(req.query.limit) || 10;  // Nombre de résultats par page
+    const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
+    const queryParams = [limit, offset]; // Paramètres pour la requête
+
+    try {
+        // Requête pour récupérer le nombre total de vétérinaires
+        const totalCountQuery = `
+            SELECT COUNT(*) AS totalCount
+            FROM veterinaire dt
+        `;
+
+        // Exécution de la requête pour obtenir le total
+        const [totalCountResult] = await db.query(totalCountQuery);
+        const total = totalCountResult[0].totalCount;  // Total des vétérinaires
+
+        // Calcul du nombre total de pages
+        const totalPages = Math.ceil(total / limit);
+
+        // Requête pour récupérer les vétérinaires avec la pagination
+        const queryDocteursTunisie = `
+            SELECT 
+                dt.Name AS name,
+                dt.Phone AS phone_number,
+                dt.adresse AS Adresse_exacte,
+                dt.Location AS ville
+            FROM 
+                veterinaire dt
+            LIMIT ? OFFSET ?
+        `;
+
+        // Exécution de la requête
+        const [results] = await db.query(queryDocteursTunisie, queryParams);
+
+        // Vérifier s'il y a des résultats
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucun vétérinaire trouvé.' });
+        }
+
+        // Calcul de la page actuelle
+        const currentPage = Math.floor(offset / limit) + 1;
+
+        // Retour des résultats au client avec la pagination
+        return res.json({
+            total,
+            totalPages,
+            currentPage,
+            data: results,
+        });
+    } catch (error) {
+        console.error('Erreur lors de la récupération des vétérinaires:', error);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
+    }
+};
+const getinfermiers = async (req, res) => {
+    const limit = parseInt(req.query.limit) || 10;  // Nombre de résultats par page
+    const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
+    const queryParams = [limit, offset]; // Paramètres pour la requête
+
+    try {
+        // Requête pour récupérer le nombre total de vétérinaires
+        const totalCountQuery = `
+            SELECT COUNT(*) AS totalCount
+            FROM 	infirmier dt
+        `;
+
+        // Exécution de la requête pour obtenir le total
+        const [totalCountResult] = await db.query(totalCountQuery);
+        const total = totalCountResult[0].totalCount;  // Total des vétérinaires
+
+        // Calcul du nombre total de pages
+        const totalPages = Math.ceil(total / limit);
+
+        // Requête pour récupérer les vétérinaires avec la pagination
+        const queryDocteursTunisie = `
+            SELECT 
+                dt.Name AS name,
+                dt.Phone AS phone_number,
+                dt.adresse AS Adresse_exacte,
+                dt.Location AS ville
+            FROM 
+                	infirmier dt
+            LIMIT ? OFFSET ?
+        `;
+
+        // Exécution de la requête
+        const [results] = await db.query(queryDocteursTunisie, queryParams);
+
+        // Vérifier s'il y a des résultats
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucun vétérinaire trouvé.' });
+        }
+
+        // Calcul de la page actuelle
+        const currentPage = Math.floor(offset / limit) + 1;
+
+        // Retour des résultats au client avec la pagination
+        return res.json({
+            total,
+            totalPages,
+            currentPage,
+            data: results,
+        });
+    } catch (error) {
+        console.error('Erreur lors de la récupération des vétérinaires:', error);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
+    }
+};
+
 
 module.exports = {
     specialitespardoctor,
@@ -5234,9 +5272,9 @@ module.exports = {
     getDoctorsById,
     getadressempas,
     getvilles,getpays,getmotif,gethistoriqu,
-    insertAppointment,getville,
+    insertAppointment,getville,getveterinaires,
     forgs,rests,insertAppointment,getplusprochedoc
     ,getAppointmentsByPatientId , updateAppointment , getDoctorById , cancelAppointment , sendSMSBeforeAppointment ,verifierEtEnvoyerRappels , annulerRendezVous
-    ,confirmerRendezVous , verifierEtEnvoyerSmsRappels , sendEmail ,getAllAnnuairesinfermiere , getblogs
+    ,confirmerRendezVous , verifierEtEnvoyerSmsRappels , sendEmail ,getinfermiers , getblogs
 }
 

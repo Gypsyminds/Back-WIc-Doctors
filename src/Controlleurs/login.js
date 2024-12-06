@@ -220,7 +220,7 @@ async function signin(req, res) {
       res.json({
         message: 'Connexion réussie!',
         identifier,
-        result: patientResults,
+        result: patientResults ,
         token,
       });
   
@@ -619,7 +619,7 @@ const resetPassword = async (req, res) => {
 // Update patient profile
 // Fonction pour mettre à jour le profil du patient
 // Fonction pour mettre à jour le profil du patient
-async function updateprofilpatient(req, res) {
+async function updateprofilpatientav(req, res) {
     const patientId = req.params.id;
     const {
         first_name,
@@ -720,6 +720,137 @@ async function updateprofilpatient(req, res) {
         res.status(500).json({ error: 'Erreur interne du serveur.', details: error.message });
     }
 }
+async function updateprofilpatient(req, res) {
+    const patientId = req.params.id;
+    const {
+        first_name,
+        last_name,
+        phone_number,
+        mobile_number,
+        age,
+        gender,
+        weight,
+        height,
+        medical_history,
+        notes,
+        email,
+        matriculeCNSS,
+        dateExpiration,
+        assurance,
+        groupe_sanguin,
+        allergie,
+        date_naissance,
+        nom_assurrance
+    } = req.body;
+
+    try {
+        // Vérifier si le patient existe
+        const [currentPatient] = await db.execute('SELECT * FROM patients WHERE id = ?', [patientId]);
+        if (currentPatient.length === 0) {
+            return res.status(404).json({ error: 'Patient non trouvé.' });
+        }
+
+        const currentData = currentPatient[0];
+
+        // Vérifier que le numéro de téléphone est fourni
+        if (!phone_number || phone_number.trim() === '') {
+            return res.status(400).json({ error: 'Le numéro de téléphone est obligatoire.' });
+        }
+
+        // Vérifier les doublons pour le numéro de téléphone
+        const [existingPhone] = await db.execute(
+            'SELECT id FROM patients WHERE phone_number = ? AND id != ? AND phone_number IS NOT NULL AND phone_number != ""',
+            [phone_number, patientId]
+        );
+        if (existingPhone.length > 0) {
+            return res.status(409).json({ error: 'Le numéro de téléphone est déjà utilisé.' });
+        }
+
+        // Vérifier les doublons pour l'email
+        if (email && email.trim() !== '') {
+            const [existingEmail] = await db.execute(
+                'SELECT id FROM patients WHERE email = ? AND id != ? AND email IS NOT NULL AND email != ""',
+                [email, patientId]
+            );
+            if (existingEmail.length > 0) {
+                return res.status(409).json({ error: 'L\'adresse e-mail est déjà utilisée.' });
+            }
+        }
+
+        // Préparer les champs à mettre à jour
+        const updates = [];
+        const values = [];
+        const fieldsToUpdate = {
+            first_name: first_name ? JSON.stringify({ fr: first_name }) : currentData.first_name,
+            last_name: last_name ? JSON.stringify({ fr: last_name }) : currentData.last_name,
+            phone_number: phone_number, // Obligatoire et toujours mis à jour
+            mobile_number: mobile_number ?? currentData.mobile_number,
+            age: age ?? currentData.age,
+            gender: gender ?? currentData.gender,
+            weight: weight ?? currentData.weight,
+            height: height ?? currentData.height,
+            medical_history: medical_history ?? currentData.medical_history,
+            notes: notes ?? currentData.notes,
+            matriculeCNSS: matriculeCNSS ?? currentData.matriculeCNSS,
+            dateExpiration: dateExpiration ?? currentData.dateExpiration,
+            assurance: assurance ?? currentData.assurance,
+            groupe_sanguin: groupe_sanguin ?? currentData.groupe_sanguin,
+            allergie: allergie ?? currentData.allergie,
+            date_naissance: date_naissance ?? currentData.date_naissance,
+            nom_assurrance: nom_assurrance ?? currentData.nom_assurrance,
+            email: email ?? currentData.email
+        };
+
+        for (const [field, value] of Object.entries(fieldsToUpdate)) {
+            if (value !== undefined) {
+                updates.push(`${field} = ?`);
+                values.push(value);
+            }
+        }
+
+        updates.push(`updated_at = NOW()`);
+        values.push(patientId);
+
+        // Requête de mise à jour des patients
+        const updatePatientQuery = `UPDATE patients SET ${updates.join(', ')} WHERE id = ?`;
+        const [patientResult] = await db.execute(updatePatientQuery, values);
+
+        if (patientResult.affectedRows === 0) {
+            return res.status(404).json({ error: 'Patient non trouvé.' });
+        }
+
+        // Mise à jour des données dans la table users
+        const updateUserQuery = `
+            UPDATE users
+            SET 
+                email = ?, 
+                phone_number = ?, 
+                name = ?, 
+                lastname = ?
+            WHERE id = (
+                SELECT user_id FROM patients WHERE id = ?
+            )
+        `;
+        const userValues = [
+            email ?? currentData.email,
+            phone_number,
+            JSON.stringify({ fr: first_name }) || currentData.first_name,
+            JSON.stringify({ fr: last_name }) || currentData.last_name,
+            patientId
+        ];
+
+        const [userResult] = await db.execute(updateUserQuery, userValues);
+        if (userResult.affectedRows === 0) {
+            return res.status(404).json({ error: 'Utilisateur non trouvé pour le patient.' });
+        }
+
+        // Réponse en cas de succès
+        res.json({ message: 'Profil mis à jour avec succès !' });
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour du profil:', error);
+        res.status(500).json({ error: 'Erreur interne du serveur.', details: error.message });
+    }
+}
 
 // Function to send SMS
 const sendSMScontactinscrit = async (phone, message) => {
@@ -812,19 +943,51 @@ const sendSMScontactinscrit = async (phone, message) => {
       const hashedPassword = await bcrypt.hash(generatedPassword, 10);
   
       // Normalize the phone number (remove any non-digit characters)
-     const normalizedPhone = phone.replace(/[^\d]/g, ''); // Supprime tout caractère non numérique
+      const normalizedPhone = phone.replace(/[^\d]/g, ''); // Supprime tout caractère non numérique
   
+      // Format names as JSON
+      const nameJson = JSON.stringify({ fr: name || '' });
+      const lastnameJson = JSON.stringify({ fr: lastname || '' });
+    // Vérifier que le numéro de téléphone est fourni
+    if (!phone || phone.trim() === '') {
+        return res.status(400).json({ error: 'Le numéro de téléphone est obligatoire.' });
+    }
+
+    // Vérifier les doublons pour le numéro de téléphone
+    const [existingPhone] = await db.execute(
+        'SELECT id FROM patients WHERE phone_number = ?  AND phone_number IS NOT NULL AND phone_number != ""',
+        [phone]
+    );
+    if (existingPhone.length > 0) {
+        return res.status(409).json({ error: 'Le numéro de téléphone est déjà utilisé.' });
+    }
+
+    // Vérifier les doublons pour l'email
+    if (email && email.trim() !== '') {
+        const [existingEmail] = await db.execute(
+            'SELECT id FROM patients WHERE email = ? AND email IS NOT NULL AND email != ""',
+            [email]
+        );
+        if (existingEmail.length > 0) {
+            return res.status(409).json({ error: 'L\'adresse e-mail est déjà utilisée.' });
+        }
+    }
+
       // Insert the user into the `users` table
-      const userSql =
-        'INSERT INTO users (name, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+      const userSql = `
+        INSERT INTO users (name, lastname, email, phone_number, password, created_at) 
+        VALUES (?, ?, ?, ?, ?, NOW())
+      `;
       const [userResults] = await db.execute(userSql, [name, lastname, email || null, phone, hashedPassword]);
   
       const userId = userResults.insertId; // ID of the newly inserted user
   
       // Insert into the `patients` table
-      const insertSql =
-        'INSERT INTO patients (user_id, first_name, last_name, phone_number, email, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
-      const values = [userId, name, lastname, phone, email || null];
+      const insertSql = `
+        INSERT INTO patients (user_id, first_name, last_name, phone_number, email, created_at) 
+        VALUES (?, ?, ?, ?, ?, NOW())
+      `;
+      const values = [userId, nameJson, lastnameJson, phone, email || null];
       await db.execute(insertSql, values);
   
       // Prepare the confirmation message
@@ -839,6 +1002,8 @@ const sendSMScontactinscrit = async (phone, message) => {
       // Send confirmation email (if email exists)
       if (email) {
         await sendConfirmationEmail(`${name} ${lastname}`, email, generatedPassword, res, userId);
+        await sendSMScontactinscrit(normalizedPhone, message);
+
       }
   
       // Send SMS confirmation (if phone exists)
@@ -858,6 +1023,7 @@ const sendSMScontactinscrit = async (phone, message) => {
       return res.status(500).json({ error: errorMessage });
     }
   };
+  
   
 const ajouterPatient = async (req, res) => {
     try {

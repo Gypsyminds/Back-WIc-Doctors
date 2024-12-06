@@ -23,6 +23,8 @@ router.get('/doctorsadd', authController.getDoctorsparvillepaysspecialites);
 router.get('/getclinicsspcitypay', clinicController.getClinicsBySpecialityCityCountry);
 router.get('/blogs' , authController.getblogs);
 router.get('/getveterinaires' , authController.getveterinaires);
+router.get('/getpharmaciesan' , authController.getpharmacies);
+
 router.get('/specialties' ,authController.specialitespardoctor);
 router.get('/doctorspos',authController.getadressempas);
 router.get('/getvilles',authController.getvilles);

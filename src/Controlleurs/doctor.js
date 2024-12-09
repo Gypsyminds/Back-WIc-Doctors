@@ -5321,7 +5321,7 @@ const getpharmacies = async (req, res) => {
         return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
     }
 };
-const getinfermiersxx = async (req, res) => {
+const gethopiteaux = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;  // Nombre de résultats par page
     const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
     const queryParams = [limit, offset]; // Paramètres pour la requête
@@ -5330,7 +5330,7 @@ const getinfermiersxx = async (req, res) => {
         // Requête pour récupérer le nombre total de vétérinaires
         const totalCountQuery = `
             SELECT COUNT(*) AS totalCount
-            FROM 	infirmier dt
+            FROM 	hopiteaux dt
         `;
 
         // Exécution de la requête pour obtenir le total
@@ -5346,9 +5346,11 @@ const getinfermiersxx = async (req, res) => {
                 dt.Name AS name,
                 dt.Phone AS phone_number,
                 dt.adresse AS Adresse_exacte,
-                dt.Location AS ville
+                dt.Location AS ville,
+                dt.Sector AS Secteur ,
+                dt.Pays AS pays 
             FROM 
-                	infirmier dt
+                	hopiteaux dt
             LIMIT ? OFFSET ?
         `;
 
@@ -5380,7 +5382,7 @@ module.exports = {
     specialitespardoctor,
     getalldoctors,
     getDoctorsparvillepaysspecialites,
-    getDoctorsById,
+    getDoctorsById,gethopiteaux,
     getadressempas,
     getvilles,getpays,getmotif,gethistoriqu,
     insertAppointment,getville,getveterinaires,

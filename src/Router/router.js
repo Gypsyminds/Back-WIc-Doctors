@@ -24,6 +24,9 @@ router.get('/getclinicsspcitypay', clinicController.getClinicsBySpecialityCityCo
 router.get('/blogs' , authController.getblogs);
 router.get('/getveterinaires' , authController.getveterinaires);
 router.get('/getpharmaciesan' , authController.getpharmacies);
+router.get('/getpharmaciesan' , authController.getpharmacies);
+router.get('/gethopiteaux' , authController.gethopiteaux);
+
 
 router.get('/specialties' ,authController.specialitespardoctor);
 router.get('/doctorspos',authController.getadressempas);

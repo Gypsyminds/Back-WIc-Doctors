@@ -33,7 +33,6 @@ function generatePassword(length = 10) {
 }
 
 // Fonction d'inscription
-
 async function signups(req, res) {
     const { name, email, phone } = req.body;
 
@@ -228,7 +227,7 @@ async function signin(req, res) {
       console.error('Erreur lors de la connexion:', error);
       return res.status(500).json({ error: 'Erreur interne du serveur.' });
     }
-  }
+}
   async function signint(req, res) {
     const { email, phone_number, password } = req.body;
 

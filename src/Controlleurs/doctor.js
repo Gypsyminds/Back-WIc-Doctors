@@ -1070,6 +1070,7 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
     // Requête pour la table `doctors`
     let queryDoctors = `
         SELECT  
+        d.id AS id_doctor,
             d.name AS name,
             d.doctor_photo,
             d.enable_online_consultation,
@@ -1124,6 +1125,7 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
 
     queryDoctors += `
         GROUP BY  
+        d.id,
             d.name, 
             d.doctor_photo,
             d.enable_online_consultation,
@@ -1143,6 +1145,7 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
     // Requête pour la table `docteurs_tunisie`
     let queryDocteursTunisie = `
         SELECT 
+        NULL AS id_doctor ,
             dt.name AS name,
             NULL AS doctor_photo,
             NULL AS enable_online_consultation,
@@ -1152,7 +1155,7 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
             NULL AS created_at,
             NULL AS title,
             dt.Phone AS phone_number,
-            dt.Address AS ville,
+            dt.adresse AS ville,
             dt.Location AS pays,
             NULL AS adresse_exacte,
 
@@ -3659,7 +3662,7 @@ const insertAppointment= async (req, res) => {
     const { appointment_at, ends_at, start_at, doctor_id, clinic, doctor, patient, address, motif_id , patient_id } = req.body;
 
     // Vérification des paramètres requis
-    if (!ends_at || !start_at || !token || !doctor_id || !motif_id ||  !patient_id ) {
+    if (!ends_at || !start_at || !token || !doctor_id || !motif_id ) {
         return res.status(400).json({ error: 'Tous les champs sont requis.' });
     }
 
@@ -3709,10 +3712,10 @@ const insertAppointment= async (req, res) => {
 
         const phonepQuery = `SELECT phone_number FROM patients WHERE id = ?;`;
         const [patientphone] = await db.query(phoneQuery, [patient_id]);
-        if (patientmail.length === 0) {
-            return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+     //   if (patientmail.length === 0) {
+        //    return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
            // return patientmail[0].email == userEmail[0] ;
-        }
+      //  }
         const namedocQuery = `SELECT name FROM doctors WHERE id = ?;`;
         const [docname] = await db.query(namedocQuery, [doctor_id]);
         const nameQuery = `SELECT first_name FROM patients WHERE id = ?;`;
@@ -3750,7 +3753,7 @@ const insertAppointment= async (req, res) => {
             subject: 'Confirmation de votre Rendez-vous',
             html: `<html>
             <body>
-                <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${userName[0].first_name}</h2>
+                <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${userName[0].name}</h2>
                 <p>Votre rendez-vous avec le médecin  ${JSON.parse(docname[0].name).fr}  ${formattedStartAt} au  ${formattedStartAt1} est bien confirmé</p>
                 <p></p>   
                 <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
@@ -3758,13 +3761,13 @@ const insertAppointment= async (req, res) => {
             </html>`, // Personnalisez l'e-mail selon vos besoins
 };
 
-const message = `Bienvenue Cher Patient(e)${userName[0].first_name}\n` +
+const message = `Bienvenue Cher Patient(e)${userName[0].name}\n` +
        `Votre rendez-vous avec le médecin  ${JSON.parse(docname[0].name).fr}  ${formattedStartAt} au  ${formattedStartAt1}  est bien confirmé` +
        `Cordialement,\nL'équipe de Wic-Doctor.`;
 
-        await transporter.sendMail(mailOptions);
+       // await transporter.sendMail(mailOptions);
 
-        await transporter.sendMail(mailOptions);
+     //   await transporter.sendMail(mailOptions);
 //await sendSMScontactinscrit(userphone[0].phone_number,message);
 console.log(userphone[0].phone_number);
         return res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: insertResult.insertId });
@@ -5377,13 +5380,67 @@ const gethopiteaux = async (req, res) => {
         return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
     }
 };
+const getlaboratoire = async (req, res) => {
+    const limit = parseInt(req.query.limit) || 10;  // Nombre de résultats par page
+    const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
+    const queryParams = [limit, offset]; // Paramètres pour la requête
 
+    try {
+        // Requête pour récupérer le nombre total de vétérinaires
+        const totalCountQuery = `
+        SELECT COUNT(*) AS totalCount
+        FROM laboratoireanalysemedicale dt
+    `;
+    
+
+        // Exécution de la requête pour obtenir le total
+        const [totalCountResult] = await db.query(totalCountQuery);
+        const total = totalCountResult[0].totalCount;  // Total des vétérinaires
+
+        // Calcul du nombre total de pages
+        const totalPages = Math.ceil(total / limit);
+
+        // Requête pour récupérer les vétérinaires avec la pagination
+        const queryDocteursTunisie = `
+            SELECT 
+                dt.Name AS name,
+                dt.Phone AS phone_number,
+                dt.adresse AS Adresse_exacte,
+                dt.Location AS ville
+            FROM 
+                laboratoireanalysemedicale dt
+            LIMIT ? OFFSET ?
+        `;
+
+        // Exécution de la requête
+        const [results] = await db.query(queryDocteursTunisie, queryParams);
+
+        // Vérifier s'il y a des résultats
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucun vétérinaire trouvé.' });
+        }
+
+        // Calcul de la page actuelle
+        const currentPage = Math.floor(offset / limit) + 1;
+
+        // Retour des résultats au client avec la pagination
+        return res.json({
+            total,
+            totalPages,
+            currentPage,
+            data: results,
+        });
+    } catch (error) {
+        console.error('Erreur lors de la récupération des vétérinaires:', error);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
+    }
+};
 module.exports = {
     specialitespardoctor,
     getalldoctors,
     getDoctorsparvillepaysspecialites,
     getDoctorsById,gethopiteaux,
-    getadressempas,
+    getadressempas,getlaboratoire,
     getvilles,getpays,getmotif,gethistoriqu,
     insertAppointment,getville,getveterinaires,
     forgs,rests,insertAppointment,getplusprochedoc

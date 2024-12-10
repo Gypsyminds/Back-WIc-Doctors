@@ -27,7 +27,7 @@ router.get('/getpharmaciesan' , authController.getpharmacies);
 //router.get('/getpharmaciesan' , authController.getpharmacies);
 router.get('/gethopiteaux' , authController.gethopiteaux);
 router.get('/getlaboratoire' , authController.getlaboratoire);
-
+router.get('/getclinicannuaire' , authController.getclinics);
 
 router.get('/specialties' ,authController.specialitespardoctor);
 router.get('/doctorspos',authController.getadressempas);

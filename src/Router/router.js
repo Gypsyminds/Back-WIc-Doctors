@@ -1,6 +1,7 @@
 const express= require ('express');
 const authController =require ('../Controlleurs/doctor');
 const loginController =require ('../Controlleurs/login');
+const paypalController = require('../Controlleurs/paypal');
 const bodyParser = require('body-parser');
 const clinicController =require ('../Controlleurs/clinic');
 
@@ -77,6 +78,23 @@ router.post('/send-email-with-link', authController.sendEmail);
 router.get('/patients/:user_id', loginController.obtenirPatientsParUtilisateur);
 
 router.post('/ajoutpatients', loginController.ajouterPatient);
+
+
+router.post('/init-payment', paypalController.initiatePayment);
+
+
+// Route pour créer un paiement
+router.post('/pay', paypalController.createPayment);
+
+// Route de succès
+router.get('/success', paypalController.executePayment);
+
+// Route d'annulation
+router.get('/cancel', paypalController.cancelPayment);
+
+
+
+
 
 // Configurer body-parser pour les requêtes JSON
 

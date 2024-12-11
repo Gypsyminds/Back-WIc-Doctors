@@ -757,13 +757,17 @@ async function updateprofilpatient(req, res) {
         }
 
         // Vérifier les doublons pour le numéro de téléphone
-        const [existingPhone] = await db.execute(
-            'SELECT id FROM patients WHERE phone_number = ? AND id != ? AND phone_number IS NOT NULL AND phone_number != ""',
-            [phone_number, patientId]
-        );
-        if (existingPhone.length > 0) {
-            return res.status(409).json({ error: 'Le numéro de téléphone est déjà utilisé.' });
-        }
+      // Vérifier les doublons pour le numéro de téléphone
+if (phone_number !== currentData.phone_number) {
+    const [existingPhone] = await db.execute(
+        'SELECT id FROM patients WHERE phone_number = ? AND id != ? AND phone_number IS NOT NULL AND phone_number != ""',
+        [phone_number, patientId]
+    );
+    if (existingPhone.length > 0) {
+        return res.status(409).json({ error: 'Le numéro de téléphone est déjà utilisé.' });
+    }
+}
+
 
         // Vérifier les doublons pour l'email
         if (email && email.trim() !== '') {

@@ -121,12 +121,12 @@ const initiatePayment = async (req, res) => {
 console.log("*******************************************************")
         // Requête POST à l'API Konnect
         const response = await axios.post(
-            'https://api.preprod.konnect.network/api/v2/payments/init-payment',
+            'https://api.konnect.network/api/v2/payments/init-payment',
             paymentData,
             {
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-api-key': '67596157bf9f84ccec7e5547:Cc7wVWqHadBtGtFXe4HPEtpYKG3l' // Remplacez par votre clé API
+                    'x-api-key': '6755dcaa7b0aa74ffe21a7af:0KlEfL2UbNoTMngYIexPkB8nBII' // Remplacez par votre clé API
                 }
             }
         );

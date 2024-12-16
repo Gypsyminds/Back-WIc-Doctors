@@ -29,6 +29,9 @@ router.get('/getpharmaciesan' , authController.getpharmacies);
 router.get('/gethopiteaux' , authController.gethopiteaux);
 router.get('/getlaboratoire' , authController.getlaboratoire);
 router.get('/getclinicannuaire' , authController.getclinics);
+router.get('/gettempsteleconsultation' , authController.getDoctorsByIdTeleconsultation);
+router.post('/send-email-with-link-paiement', loginController.sendEmailPaiement)
+router.get('/hashmotdepasse' ,loginController.hashpass);
 
 router.get('/specialties' ,authController.specialitespardoctor);
 router.get('/doctorspos',authController.getadressempas);
@@ -47,7 +50,7 @@ router.put('/update/patient/:id',loginController.updateprofilpatient);
 router.get('/getdocbyid/:id',authController.getDoctorById);
 router.get('/getannuaireinfermiere',authController.getinfermiers);
 
-
+router.get('/getannuairetous',authController.getAllDoctorsAndDocteursTunisie);
 router.put('/updateappointement/:appointment_id',authController.updateAppointment);
 router.put('/updateappointementclinic',clinicController.updateAppointment);
 router.get('/availability/:clinic_id/:doctor_id', clinicController.getAvailabilityHours);

@@ -1056,7 +1056,7 @@ const getDoctorsparvillepaysspecialitesbon = async (req, res) => {
         return res.status(500).json({ error: 'Erreur lors de la récupération des médecins.' });
     }
 };
-const getDoctorsparvillepaysspecialites = async (req, res) => {
+const getDoctorsparvillepaysspecialitestemchyserveur = async (req, res) => {
     const speciality_id = req.query.speciality_id; // Nom de la spécialité
     const ville = req.query.ville; // Ville
     const pays = req.query.pays; // Pays
@@ -1118,7 +1118,11 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
         queryParams.push(`%${pays}%`);
         countParams.push(`%${pays}%`);
     }
-   
+    if (doctor_name) {
+        conditionsDoctors.push('d.name LIKE ?');
+        queryParams.push(`%${doctor_name}%`);
+        countParams.push(`%${doctor_name}%`);
+    }
     if (conditionsDoctors.length > 0) {
         queryDoctors += ` WHERE ${conditionsDoctors.join(' AND ')}`;
     }
@@ -1292,12 +1296,350 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
         return res.status(500).json({ error: 'Erreur lors de la récupération des médecins.' });
     }
 };
+const getDoctorsparvillepaysspecialites = async (req, res) => {
+    const speciality_id = req.query.speciality_id; // Nom de la spécialité
+    const ville = req.query.ville; // Ville
+    const pays = req.query.pays; // Pays
+    const gouvernorat = req.query.gouvernorat; // Gouvernorat
+
+    const doctor_name = req.query.doctor_name; // Nom du médecin
+    const limit = parseInt(req.query.limit) || 10; // Nombre de résultats par page
+    const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
+    const queryParams = [];
+    const countParams = [];
+    const conditionsDoctors = [];
+    const conditionsDocteursTunisie = [];
+
+    // Requête pour la table `doctors`
+    let queryDoctors = `
+        SELECT  
+            d.id AS id_doctor,
+            d.name AS name,
+            d.doctor_photo,
+            d.enable_online_consultation,
+            d.description,
+            d.horaires,
+            d.cabinet_photo,
+            d.created_at,
+            a.title AS title,
+            usr.phone_number,
+            addr.ville,
+            addr.pays,      addr.gouvernorat,
+            addr.address AS adresse_exacte,
+            JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
+            'conventionné' AS type
+        FROM 
+            doctors d 
+        LEFT JOIN 
+            doctor_specialities ds ON d.id = ds.doctor_id 
+        LEFT JOIN 
+            specialities s ON ds.speciality_id = s.id 
+        LEFT JOIN 
+            experiences a ON d.id = a.doctor_id 
+        LEFT JOIN 
+            users usr ON d.user_id = usr.id 
+        LEFT JOIN 
+            addresses addr ON usr.id = addr.user_id
+    `;
+
+    // Conditions pour la table `doctors`
+    if (speciality_id) {
+        conditionsDoctors.push('s.name LIKE ?');
+        queryParams.push(`%${speciality_id}%`);
+        countParams.push(`%${speciality_id}%`);
+    }
+
+    if (ville) {
+        conditionsDoctors.push('addr.ville LIKE ?');
+        queryParams.push(`%${ville}%`);
+        countParams.push(`%${ville}%`);
+    }
+
+    if (pays) {
+        conditionsDoctors.push('addr.pays LIKE ?');
+        queryParams.push(`%${pays}%`);
+        countParams.push(`%${pays}%`);
+    }
+
+    if (doctor_name) {
+        conditionsDoctors.push('d.name LIKE ?');
+        queryParams.push(`%${doctor_name}%`);
+        countParams.push(`%${doctor_name}%`);
+    }
+    if (gouvernorat) {
+        conditionsDoctors.push('addr.gouvernorat LIKE ?');
+        queryParams.push(`%${gouvernorat}%`);
+        countParams.push(`%${gouvernorat}%`);
+    }
+
+    if (conditionsDoctors.length > 0) {
+        queryDoctors += ` WHERE ${conditionsDoctors.join(' AND ')}`;
+    }
+
+    queryDoctors += `
+        GROUP BY  
+            d.id,
+            d.name, 
+            d.doctor_photo,
+            d.enable_online_consultation,
+            d.description,
+            d.horaires,
+            d.cabinet_photo,
+            d.created_at,
+            a.title,
+            usr.phone_number, 
+            addr.ville,
+            addr.pays,  addr.gouvernorat,
+            addr.address
+        LIMIT ? OFFSET ?
+    `;
+    queryParams.push(limit, offset);
+
+    // Requête pour la table `docteurs_tunisie`
+    let queryDocteursTunisie = `
+        SELECT 
+            NULL AS id_doctor,
+            dt.name AS name,
+            NULL AS doctor_photo,
+            NULL AS enable_online_consultation,
+            NULL AS description,
+            NULL AS horaires,
+            NULL AS cabinet_photo,
+            NULL AS created_at,
+            NULL AS title,
+            dt.Phone AS phone_number,
+            dt.adresse AS ville,
+            dt.Location AS pays,
+            dt.gouvernorat,
+            NULL AS adresse_exacte,
+            dt.Sector AS specialites,
+            'non-conventionné' AS type
+        FROM 
+            docteurs_tunisie dt
+    `;
+
+    // Conditions pour la table `docteurs_tunisie`
+    if (speciality_id) {
+        conditionsDocteursTunisie.push('dt.Sector LIKE ?');
+        queryParams.push(`%${speciality_id}%`);
+        countParams.push(`%${speciality_id}%`);
+    }
+
+    if (ville) {
+        conditionsDocteursTunisie.push('dt.Location LIKE ?');
+        queryParams.push(`%${ville}%`);
+        countParams.push(`%${ville}%`);
+    }
+
+    if (pays) {
+        conditionsDocteursTunisie.push('dt.Pays LIKE ?');
+        queryParams.push(`%${pays}%`);
+        countParams.push(`%${pays}%`);
+    }
+
+    if (doctor_name) {
+        conditionsDocteursTunisie.push('dt.name LIKE ?');
+        queryParams.push(`%${doctor_name}%`);
+        countParams.push(`%${doctor_name}%`);
+    }
+    if (gouvernorat) {
+        conditionsDocteursTunisie.push('dt.gouvernorat LIKE ?');
+        queryParams.push(`%${gouvernorat}%`);
+        countParams.push(`%${gouvernorat}%`);
+    }
+    if (conditionsDocteursTunisie.length > 0) {
+        queryDocteursTunisie += ` WHERE ${conditionsDocteursTunisie.join(' AND ')}`;
+    }
+
+    queryDocteursTunisie += `
+        LIMIT ? OFFSET ?
+    `;
+    queryParams.push(limit, offset);
+
+    try {
+        // Exécution des requêtes séparées
+        const [resultsDoctors] = await db.query(queryDoctors, queryParams);
+        const [resultsDocteursTunisie] = await db.query(queryDocteursTunisie, queryParams);
+
+        // Combinez et filtrez les résultats comme dans votre code original
+        let results = [...resultsDoctors, ...resultsDocteursTunisie];
+
+        results = results.filter(result => {
+            // Filtrer les médecins "Demo Doctor"
+            if (result.name && result.name.toLowerCase().includes('demo doctor')) {
+                return false;
+            }
+            if (!result.ville || !result.pays) {
+                return false;
+            }
+            return true;
+        });
+
+        // Formatage et pagination
+        results.forEach(result => {
+            if (result.specialities && typeof result.specialities === 'string') {
+                try {
+                    result.specialities = JSON.parse(result.specialities);
+                } catch {
+                    result.specialities = [];
+                }
+            }
+        });
+        let countDoctors = `
+        SELECT COUNT(DISTINCT d.id) AS total
+        FROM 
+            doctors d 
+        LEFT JOIN 
+            doctor_specialities ds ON d.id = ds.doctor_id 
+        LEFT JOIN 
+            specialities s ON ds.speciality_id = s.id 
+        LEFT JOIN 
+            users usr ON d.user_id = usr.id 
+        LEFT JOIN 
+            addresses addr ON usr.id = addr.user_id
+        WHERE 1=1
+            ${speciality_id ? 'AND s.name LIKE ?' : ''}
+            ${ville ? 'AND addr.ville LIKE ?' : ''}
+            ${pays ? 'AND addr.pays LIKE ?' : ''}
+            ${doctor_name ? 'AND d.name LIKE ?' : ''}
+           ${gouvernorat ? 'AND addr.gouvernorat LIKE ?' : ''}
+
+        `;
+        
+        // Comptage pour la table `docteurs_tunisie`
+        let countDocteursTunisie = `
+        SELECT COUNT(*) AS total
+        FROM docteurs_tunisie dt 
+        WHERE 1=1
+            ${speciality_id ? 'AND dt.Sector LIKE ?' : ''}
+            ${ville ? 'AND dt.Location LIKE ?' : ''}
+              ${pays ? 'AND addr.pays LIKE ?' : ''} 
+     ${doctor_name ? 'AND dt.Name LIKE ?' : ''}
+                ${gouvernorat ? 'AND dt.gouvernorat LIKE ?' : ''}
+
+`;
+        // Comptage total
+        const [doctorsCountResult] = await db.query(countDoctors, countParams);
+        const [docteursTunisieCountResult] = await db.query(countDocteursTunisie, countParams);
+
+        const totalDoctors = doctorsCountResult[0]?.total || 0;
+        const totalDocteursTunisie = docteursTunisieCountResult[0]?.total || 0;
+
+        const total = totalDoctors + totalDocteursTunisie;
+        const totalPages = Math.ceil(total / limit);
+        const currentPage = Math.floor(offset / limit) + 1;
+
+        return res.json({
+            total,
+            totalPages,
+            currentPage,
+            data: results,
+        });
+
+    } catch (err) {
+        console.error('Erreur lors de la récupération des médecins:', err);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des médecins.' });
+    }
+};
+const getAllDoctorsAndDocteursTunisie = async (req, res) => {
+    // Requête pour la table `doctors`
+    let queryDoctors = `
+        SELECT  
+            d.id AS id_doctor,
+            d.name AS name,
+            d.doctor_photo,
+            d.enable_online_consultation,
+            d.description,
+            d.horaires,
+            d.cabinet_photo,
+            d.created_at,
+            a.title AS title,
+            usr.phone_number,
+            addr.ville,
+            addr.pays,
+            addr.gouvernorat,
+            addr.address AS adresse_exacte,
+            JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
+            'conventionné' AS type
+        FROM 
+            doctors d 
+        LEFT JOIN 
+            doctor_specialities ds ON d.id = ds.doctor_id 
+        LEFT JOIN 
+            specialities s ON ds.speciality_id = s.id 
+        LEFT JOIN 
+            experiences a ON d.id = a.doctor_id 
+        LEFT JOIN 
+            users usr ON d.user_id = usr.id 
+        LEFT JOIN 
+            addresses addr ON usr.id = addr.user_id
+        GROUP BY  
+            d.id, d.name, d.doctor_photo, d.enable_online_consultation, d.description,
+            d.horaires, d.cabinet_photo, d.created_at, a.title, usr.phone_number,
+            addr.ville, addr.pays, addr.gouvernorat, addr.address
+    `;
+
+    // Requête pour la table `docteurs_tunisie`
+    let queryDocteursTunisie = `
+        SELECT 
+            NULL AS id_doctor,
+            dt.name AS name,
+            NULL AS doctor_photo,
+            NULL AS enable_online_consultation,
+            NULL AS description,
+            NULL AS horaires,
+            NULL AS cabinet_photo,
+            NULL AS created_at,
+            NULL AS title,
+            dt.Phone AS phone_number,
+            dt.adresse AS ville,
+            dt.Location AS pays,
+            dt.gouvernorat,
+            NULL AS adresse_exacte,
+            dt.Sector AS specialities,
+            'non-conventionné' AS type
+        FROM 
+            docteurs_tunisie dt
+    `;
+
+    try {
+        // Exécution des requêtes
+        const [resultsDoctors] = await db.query(queryDoctors);
+        const [resultsDocteursTunisie] = await db.query(queryDocteursTunisie);
+
+        // Combiner les résultats
+        const results = [...resultsDoctors, ...resultsDocteursTunisie].filter(result => {
+            // Exclure les médecins "Demo Doctor" et vérifier les champs
+            if (result.name && result.name.toLowerCase().includes('demo doctor')) return false;
+            if (!result.ville || !result.pays) return false;
+            return true;
+        });
+
+        // Formater les spécialités si besoin
+        results.forEach(result => {
+            if (result.specialities && typeof result.specialities === 'string') {
+                try {
+                    result.specialities = JSON.parse(result.specialities);
+                } catch {
+                    result.specialities = [];
+                }
+            }
+        });
+
+        res.json(results);
+    } catch (err) {
+        console.error('Erreur lors de la récupération des médecins:', err);
+        res.status(500).json({ error: 'Erreur lors de la récupération des médecins.' });
+    }
+};
 
 
 const getDoctorsparvillepaysspecialitespa = async (req, res) => {
     const speciality_id = req.query.speciality_id; // Nom de la spécialité
     const ville = req.query.ville; // Ville
     const pays = req.query.pays; // Pays
+    const gouvernorat = req.query.gouvernorat; // Gouvernorat
+
     const limit = parseInt(req.query.limit) || 10; // Nombre de résultats par page
     const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
     const queryParams = [];
@@ -3273,7 +3615,7 @@ const getDoctorsById = async (req, res) => {
     }
 
     // Prepare the SQL query
-    const query = `SELECT day, start_at, end_at FROM availability_hours WHERE doctor_id = ?;`;
+    const query = `SELECT day, start_at, end_at FROM availability_hours WHERE doctor_id = ? AND onligne = 0;`;
 
     try {
         // Execute the query
@@ -3291,7 +3633,34 @@ const getDoctorsById = async (req, res) => {
         return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
     }
 };
+// Get available dates for doctors téleconsultation
+const getDoctorsByIdTeleconsultation = async (req, res) => {
+    const doctorId = req.query.doctor_id; // Retrieve the doctor's ID
 
+    // Check if doctorId is provided
+    if (!doctorId) {
+        return res.status(400).json({ error: 'Le doctor_id est requis.' });
+    }
+
+    // Prepare the SQL query
+    const query = `SELECT day, start_at, end_at FROM availability_hours WHERE doctor_id = ? AND onligne = 1;`;
+    try {
+        // Execute the query
+        const [results] = await db.query(query, [doctorId]);
+        console.log(results);
+
+        // Check if any results were found
+        if (results.length === 0) {
+            return res.status(200).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+        }
+
+        // Return the results
+        res.json(results);
+    } catch (err) {
+        console.error(err); // For debugging
+        return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
+    }
+};
 const specialitespardoctor = async (req, res) => {
     const query = `
       SELECT s.id, s.name, s.icon, COUNT(sd.doctor_id) AS doctor_count
@@ -4960,7 +5329,7 @@ async function envoyerRappelEmail(emailDestinataire, patientName, startAt , appo
 const verifierEtEnvoyerRappels = async () => {
     try {
         const now = moment().tz("Africa/Tunis"); // Récupérer l'heure locale de la Tunisie
-        const futureTime = moment(now).add(48, 'hours'); // 15 minutes après l'heure actuelle
+        const futureTime = moment(now).add(15, 'hours'); // 15 minutes après l'heure actuelle
 
         const formattedNow = now.format('HH:mm');
         const formattedFutureTime = futureTime.format('HH:mm');
@@ -4974,7 +5343,9 @@ const verifierEtEnvoyerRappels = async () => {
             JOIN users u ON a.user_id = u.id
             JOIN doctors d ON a.doctor_id = d.id 
             WHERE DATE_FORMAT(a.start_at, '%H:%i') > ? 
-            AND a.email_sent = FALSE
+           AND appointment_status_id = 1
+               AND email_sent = 0 
+           
         `, [formattedNow]);
 
         console.log('Rendez-vous trouvés :', rows);
@@ -4992,7 +5363,7 @@ const verifierEtEnvoyerRappels = async () => {
 
                 // Vérifier si l'heure du rendez-vous est supérieure à l'heure actuelle de 15 minutes
                 if (localStartAt > formattedFutureTime) {
-                    await envoyerRappelEmail(row.email, row.patient_name, row.start_at ,row.appointment_id ,row.doctorname);
+                    await envoyerRappelEmail(row.email,JSON.parse(row.patient_name).fr , row.start_at ,row.appointment_id ,row.doctorname);
                     
                     // Mettre à jour la base de données pour marquer l'e-mail comme envoyé
                     await db.query(`
@@ -5068,7 +5439,8 @@ const verifierEtEnvoyerSmsRappels = async () => {
             JOIN users u ON a.user_id = u.id
             JOIN doctors d ON a.doctor_id = d.id 
             WHERE a.start_at BETWEEN ? AND ? 
-            AND a.email_sent = FALSE
+            AND email_sent = 0 
+            AND appointment_status_id = 1
         `, [now.format('YYYY-MM-DD HH:mm:ss'), futureTime.format('YYYY-MM-DD HH:mm:ss')]);
 
         console.log('Rendez-vous trouvés :', rows);
@@ -5492,9 +5864,191 @@ const getclinics = async (req, res) => {
         return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
     }
 };
+const insertAppointmentteleconsultation= async (req, res) => {
+    console.log('Request Body:', req.body); // Affiche le contenu de req.body
+    const authHeader = req.headers['authorization'];
+
+    // Vérifier si le header contient le token
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).json({ message: 'Accès refusé, token manquant' });
+    }
+
+    // Récupérer les paramètres depuis le corps de la requête
+    const { appointment_at, ends_at, start_at, doctor_id, clinic, doctor, patient, address, motif_id } = req.body;
+
+    // Vérification des paramètres requis
+    if (!ends_at || !start_at || !token || !doctor_id || !motif_id ) {
+        return res.status(400).json({ error: 'Tous les champs sont requis.' });
+    }
+let user_id;
+try {
+    // Vérifier que le token existe avant de tenter de le décoder
+    if (!token) {
+        return res.status(400).json({ error: 'Token manquant.' });
+    }
+
+    // Décoder le token en utilisant jwt.verify
+    const decoded = jwt.verify(token, SECRET_KEY);
+
+    // Vérifier que le token décodé contient bien user_id
+    if (!decoded || !decoded.user_id) {
+        return res.status(400).json({ error: 'Token invalide.' });
+    }
+
+    user_id = decoded.user_id;
+} catch (error) {
+    // Gérer les erreurs spécifiques de jwt.verify
+    if (error.name === 'TokenExpiredError') {
+        return res.status(401).json({ error: 'Token expiré.' });
+    } else if (error.name === 'JsonWebTokenError') {
+        return res.status(401).json({ error: 'Token invalide.' });
+    } else {
+        return res.status(500).json({ error: 'Erreur lors de la vérification du token.' });
+    }
+}
+const insertQuery = `
+        INSERT INTO appointments (appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id, appointment_status_id,online) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1 ,"Téléconsultation")
+    `;
+    
+    const values = [appointment_at, ends_at, start_at, user_id, doctor_id, clinic, doctor, patient, address, motif_id];
+
+    // Supprimer l'heure disponible associée dans la table 'available_hours'
+    const deleteAvailableHourQuery = `
+        DELETE FROM availability_hours 
+        WHERE doctor_id = ? 
+        AND start_at = ? 
+        AND end_at = ?
+        
+    `;
+    
+    const availableHourValues = [doctor_id, start_at, ends_at];
+
+    try {
+        // Supprimer les heures disponibles
+        await db.query(deleteAvailableHourQuery, availableHourValues);
+
+        // Insérer le rendez-vous
+        const [insertResult] = await db.query(insertQuery, values);
+
+        // Logique d'envoi d'e-mail
+        const emailQuery = `SELECT email FROM users WHERE id = ?;`;
+        const [userEmail] = await db.query(emailQuery, [user_id]);
+
+const   emaildoc = `SELECT u.email FROM users u  INNER JOIN doctors d ON u.id = d.user_id WHERE d.id = ?;`;
+const [docmail] = await db.query(emaildoc,[doctor_id]);
+
+       // const emailpQuery = `SELECT email FROM  WHERE id = ?;`;
+       // const [patientmail] = await db.query(emailpQuery, [patient_id]);
+
+        const phoneQuery = `SELECT phone_number FROM users WHERE id = ?;`;
+        const [userphone] = await db.query(phoneQuery, [user_id]);
+
+        //const phonepQuery = `SELECT phone_number FROM patients WHERE id = ?;`;
+       // const [patientphone] = await db.query(phoneQuery, [patient_id]);
+//        if (patientmail.length === 0) {
+  //          return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
+    //       // return patientmail[0].email == userEmail[0] ;
+      //  }
+        const namedocQuery = `SELECT name FROM doctors WHERE id = ?;`;
+        const [docname] = await db.query(namedocQuery, [doctor_id]);
+        const nameQuery = `SELECT name FROM users WHERE id = ?;`;
+        const [userName] = await db.query(nameQuery, [user_id]);
+        if (userEmail.length === 0) {
+            return res.status(404).json({ message: 'Aucune mail pour ce user.' });
+        }
+        const startDate = new Date(start_at);
+        const endDate = new Date(ends_at);
+
+       // Fonction pour formater la date
+       const formatDate = (date) => {
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
+        return `le ${date.toLocaleString('fr-FR', options).replace(',', '')}`; // Remplacer la virgule pour obtenir le format désiré
+    };
+  // Fonction pour formater l'heure
+  const formatTime = (date) => {
+    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`; // Formate l'heure et les minutes
+};
+    const formattedStartAt = formatDate(startDate);
+    const formattedStartAt1 = formatTime(endDate);
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            port: 587,
+            secure: false,
+            auth: {
+                user: 'laajili.khouloud12@gmail.com',
+                pass: 'lmvy ldix qtgm gbna', // Utiliser un mot de passe d'application pour plus de sécurité
+            },
+        });
+
+        const mailOptions = {
+            from: 'laajili.khouloud12@gmail.com',
+            to: userEmail[0].email,
+            subject: 'Confirmation de votre Rendez-vous',
+            html: `<html>
+            <body>
+                <h2 style="color: #4CAF50;">Bienvenue Cher Patient ${userName[0].name}</h2>
+                <p>Votre rendez-vous avec le médecin  ${JSON.parse(docname[0].name).fr}  ${formattedStartAt} au  ${formattedStartAt1} est bien confirmé</p>
+                <p></p>   
+                <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+            </body>
+            </html>`, // Personnalisez l'e-mail selon vos besoins
+};
+console.log(docmail[0]);
+console.log(docmail[0].email);
+const mailOptionss = {
+    from: 'laajili.khouloud12@gmail.com',
+    to: docmail[0].email,
+    subject: 'Confirmation de votre Rendez-vous',
+    html: `<html>
+    <body>
+        <h2 style="color: #4CAF50;">Bienvenue Cher Doctor ${JSON.parse(docname[0].name).fr} </h2>
+        <p>Votre avez un rendez-vous avec  ${userName[0].name}  ${formattedStartAt} au  ${formattedStartAt1} est bien confirmé</p>
+        <p></p>   
+        <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
+    </body>
+    </html>`, // Personnalisez l'e-mail selon vos besoins
+};
+
+const message = `Bienvenue Cher Patient(e)${userName[0].name}\n` +
+`Votre rendez-vous avec le médecin  ${JSON.parse(docname[0].name).fr}  ${formattedStartAt} au  ${formattedStartAt1}  est bien confirmé` +
+`Cordialement,\nL'équipe de Wic-Doctor.`;
+if (userEmail[0].email) {
+// await sendConfirmationEmail(`${name} ${lastname}`,userEmail[0].email, generatedPassword, res, userId);
+await transporter.sendMail(mailOptions);
+
+}
+if (docmail[0].email) {
+// await sendConfirmationEmail(`${name} ${lastname}`,userEmail[0].email, generatedPassword, res, userId);
+await transporter.sendMail(mailOptionss);
+
+}
+
+const normalizedPhone = userphone[0].phone_number.replace(/[^\d]/g, ''); // Supprime tout caractère non numérique
+
+// Send SMS confirmation (if phone exists)
+if (userphone[0].phone_number) {
+await sendSMScontactinscrit(normalizedPhone, message);
+// await sendSMScontactinscrit(userphone[0].phone_number,message);
+
+}
+//await transporter.sendMail(mailOptions);
+
+//        await transporter.sendMail(mailOptions);
+//      await sendSMScontactinscrit(userphone[0].phone_number,message);
+console.log(userphone[0].phone_number);
+return res.status(201).json({ message: 'Rendez-vous inséré avec succès', id: insertResult.insertId });
+} catch (error) {
+console.error('Erreur lors de l\'insertion du rendez-vous ou de l\'envoi de l\'e-mail:', error);
+return res.status(500).json({ error: 'Erreur lors de l\'insertion du rendez-vous ou de l\'envoi de l\'e-mail.' });
+}
+};
+
 module.exports = {
     specialitespardoctor,
-    getalldoctors,
+    getalldoctors,getDoctorsByIdTeleconsultation,
     getDoctorsparvillepaysspecialites,
     getDoctorsById,gethopiteaux,
     getadressempas,getlaboratoire,
@@ -5502,6 +6056,6 @@ module.exports = {
     insertAppointment,getville,getveterinaires,
     forgs,rests,insertAppointment,getplusprochedoc
     ,getAppointmentsByPatientId , updateAppointment , getDoctorById , cancelAppointment , sendSMSBeforeAppointment ,verifierEtEnvoyerRappels , annulerRendezVous
-    ,confirmerRendezVous , verifierEtEnvoyerSmsRappels , sendEmail ,getinfermiers , getblogs , getpharmacies
+    ,confirmerRendezVous , verifierEtEnvoyerSmsRappels , sendEmail ,getinfermiers , getblogs , getpharmacies , getAllDoctorsAndDocteursTunisie
 }
 

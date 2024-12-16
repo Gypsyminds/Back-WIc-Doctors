@@ -176,18 +176,23 @@ async function signin(req, res) {
     }
   
     try {
-      // Choisir le champ d'authentification en fonction des entrées
-      let field = '';
-      let identifier = '';
+      // Vérifiez si au moins un des identifiants existe
+      const fieldToCheck = email ? 'email' : 'phone_number';
+      const valueToCheck = email || phone_number;
+      const checkSql = `SELECT id FROM users WHERE ${fieldToCheck} = ?`;
+      const [checkResults] = await db.query(checkSql, [valueToCheck]);
   
-      if (email) {
-        field = 'email';
-        identifier = email;
-      } else if (phone_number) {
-        field = 'phone_number';
-        identifier = phone_number;
+      if (checkResults.length === 0) {
+        const missingField = email ? 'Email' : 'Téléphone';
+        return res.status(404).json({ error: `${missingField} introuvable.` });
       }
-     console.log(email , phone_number);
+  
+      // Choisir le champ d'authentification en fonction des entrées
+      let field = email ? 'email' : 'phone_number';
+      let identifier = email || phone_number;
+  
+      console.log(`Tentative de connexion : ${field}=${identifier}`);
+  
       // Rechercher l'utilisateur dans la base de données
       const sql = `SELECT * FROM users WHERE ${field} = ?`;
       const [results] = await db.query(sql, [identifier]);
@@ -198,6 +203,19 @@ async function signin(req, res) {
   
       const user = results[0];
   
+    // Gérer les différences entre $2y$ et $2b$
+    const hashedPassword = user.password.startsWith('$2y$')
+      ? user.password.replace('$2y$', '$2b$')
+      : user.password;
+
+    // Vérifiez le mot de passe
+    const isPasswordMatch = await bcrypt.compare(password, hashedPassword);
+    if (!isPasswordMatch) {
+      return res.status(401).json({ error: 'Identifiants incorrects.' });
+    }
+
+    
+
       // Vérifier le mot de passe
       const match = await bcrypt.compare(password, user.password);
       if (!match) {
@@ -219,7 +237,7 @@ async function signin(req, res) {
       res.json({
         message: 'Connexion réussie!',
         identifier,
-        result: patientResults ,
+        result: patientResults,
         token,
       });
   
@@ -227,7 +245,8 @@ async function signin(req, res) {
       console.error('Erreur lors de la connexion:', error);
       return res.status(500).json({ error: 'Erreur interne du serveur.' });
     }
-}
+  }
+  
   async function signint(req, res) {
     const { email, phone_number, password } = req.body;
 
@@ -293,6 +312,14 @@ async function signin(req, res) {
     }
 }
   
+async function hashpass (req, res){
+    const password = 'password123';
+    const hashedPassword = await bcrypt.hash(password, 10);
+    console.log("Node.js Hash:", hashedPassword);
+    
+}
+
+
 
 // Fonction d'inscription
 async function signupss(req, res) {
@@ -933,7 +960,7 @@ const sendSMScontactinscrit = async (phone, message) => {
 
   
 
-  const signuppatients = async (req, res) => {
+  const signuppatientss = async (req, res) => {
     const { email, phone, lastname, name } = req.body;
   
     // Validate input
@@ -1026,6 +1053,100 @@ const sendSMScontactinscrit = async (phone, message) => {
       return res.status(500).json({ error: errorMessage });
     }
   };
+  const signuppatients = async (req, res) => {
+    const { email, phone, lastname, name } = req.body;
+    const errors = [];
+    // Validate input
+    if (!phone) {
+      return res.status(400).json({ error: 'Le numéro de téléphone est requis.' });
+    }
+ 
+
+ try{
+    const [currentPatient] = await db.execute('SELECT email ,phone_number  FROM users');
+        if (currentPatient.length === 0) {
+            return res.status(404).json({ error: 'Patient non trouvé.' });
+        }
+
+        const currentData = currentPatient[0];
+
+// Vérification pour le numéro de téléphone
+if (phone !== currentData.phone_number) {
+    const [existingPhone] = await db.execute(
+        'SELECT id FROM users WHERE phone_number = ? AND phone_number IS NOT NULL AND phone_number != ""',
+        [phone]
+    );
+    if (existingPhone.length > 0) {
+        errors.push('Le numéro de téléphone est déjà utilisé.');
+    }
+}
+
+// Vérification pour l'email
+if (email !== currentData.email) {
+    const [existingEmail] = await db.execute(
+        'SELECT id FROM users WHERE email = ? AND email IS NOT NULL AND email != ""',
+        [email]
+    );
+    if (existingEmail.length > 0) {
+        errors.push('L\'adresse e-mail est déjà utilisée.');
+    }
+}
+if (errors.length > 0) {
+    return res.status(409).json({ errors }); // Retourner toutes les erreurs regroupées
+}
+
+      const generatedPassword = generatePassword(); // Ensure this function generates a valid password
+      const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+  
+      // Normalize the phone number (remove any non-digit characters)
+      const normalizedPhone = phone.replace(/[^\d]/g, ''); // Supprime tout caractère non numérique
+  // Format names as JSON
+      const nameJson = JSON.stringify({ fr: name || '' });
+      const lastnameJson = JSON.stringify({ fr: lastname || '' });  
+      // Insert the user into the `users` table
+      const userSql =
+        'INSERT INTO users (name, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+      const [userResults] = await db.execute(userSql, [name, lastname, email || null, phone, hashedPassword]);
+  
+      const userId = userResults.insertId; // ID of the newly inserted user
+  
+      // Insert into the `patients` table
+      const insertSql =
+        'INSERT INTO patients (user_id, first_name, last_name, phone_number, email, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+        const values = [userId, nameJson, lastnameJson, phone, email || null];
+        await db.execute(insertSql, values);
+    
+        // Prepare the confirmation message
+        const message =
+          `Bienvenue ${name}!\n` +
+          `Vous êtes inscrit chez Wic-Doctor.\n` +
+          `Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : ${generatedPassword}\n` +
+          `Veuillez compléter votre fiche, s'il vous plaît.\n` +
+  
+  
+          `Si vous n'avez pas demandé cette inscription, ignorez simplement ce message.\n` +
+          `Cordialement,\nL'équipe de Wic-Doctor.`;
+    
+        // Send confirmation email (if email exists)
+        if (email) {
+          await sendConfirmationEmail(`${name} ${lastname}`, email, generatedPassword, res, userId);
+          await sendSMScontactinscrit(normalizedPhone, message);
+  
+        }
+    
+        // Send SMS confirmation (if phone exists)
+        if (normalizedPhone) {
+          await sendSMScontactinscrit(normalizedPhone, message);
+        }
+    
+        // Return success response
+        return res.status(201).json({ message: 'Inscription réussie et confirmation envoyée.' });
+      } catch (error) {
+        console.error('Error during patient signup:', error);
+    
+      
+  }
+    };
   
   
 const ajouterPatient = async (req, res) => {
@@ -1101,7 +1222,48 @@ const obtenirPatientsParUtilisateur = async (req, res) => {
       res.status(500).json({ error: 'Erreur interne du serveur.' });
     }
   }
+
+  function sendEmailPaiement(req, res) {
+    const { email, htmlContent } = req.body;
+
+    // Validation de l'e-mail et du contenu
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+        return res.status(400).json({ error: 'Adresse e-mail invalide.' });
+    }
+
+    if (!htmlContent || typeof htmlContent !== 'string') {
+        return res.status(400).json({ error: 'Le contenu HTML est requis.' });
+    }
+
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        port: 587,
+        secure: false, 
+        auth: {
+            user: 'laajili.khouloud12@gmail.com', 
+            pass: 'lmvy ldix qtgm gbna', // Remplacez ceci par un mot de passe d'application pour plus de sécurité
+        },
+    });
+
+    const mailOptions = {
+        from: 'laajili.khouloud12@gmail.com',
+        to: email,
+        subject: 'Paiement De Téléconsultation',
+        html: htmlContent,
+    };
+
+    transporter.sendMail(mailOptions, function (error, info) {
+        if (error) {
+            console.error('Error sending email:', error);
+            return res.status(500).json({ error: 'Erreur lors de l\'envoi de l\'e-mail.' });
+        } else {
+            console.log('Email sent: ' + info.response);
+            return res.status(201).json({ message: 'E-mail envoyé avec succès.' });
+        }
+    });
+}
+
 module.exports = {
-    signuppatients,signin,signupb2b,updateprofilpatient,logout,resetPassword , ajouterPatient , obtenirPatientsParUtilisateur , signuppatient 
+    signuppatients,signin,signupb2b,updateprofilpatient,logout,resetPassword , ajouterPatient , obtenirPatientsParUtilisateur , signuppatient ,hashpass , sendEmailPaiement
 }
   

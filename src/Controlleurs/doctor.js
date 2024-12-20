@@ -488,7 +488,6 @@ const getalldoctors = async (req, res) => {
              AND d.name != '{"fr":"Demo Doctor"}'  -- Exclure les docteurs de test
         GROUP BY  
             d.id, 
-            d.name, getalldoctors
             d.doctor_photo,
             d.enable_online_consultation,
             d.description,
@@ -1301,7 +1300,6 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
     const ville = req.query.ville; // Ville
     const pays = req.query.pays; // Pays
     const gouvernorat = req.query.gouvernorat; // Gouvernorat
-
     const doctor_name = req.query.doctor_name; // Nom du médecin
     const limit = parseInt(req.query.limit) || 10; // Nombre de résultats par page
     const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
@@ -1309,6 +1307,7 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
     const countParams = [];
     const conditionsDoctors = [];
     const conditionsDocteursTunisie = [];
+
 
     // Requête pour la table `doctors`
     let queryDoctors = `
@@ -1323,8 +1322,9 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
             d.created_at,
             a.title AS title,
             usr.phone_number,
-            addr.ville,
-            addr.pays,      addr.gouvernorat,
+            addr.ville AS ville,
+            addr.pays AS pays,     
+             addr.gouvernorat AS gouvernorat,
             addr.address AS adresse_exacte,
             JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
             'conventionné' AS type
@@ -1389,7 +1389,8 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
             a.title,
             usr.phone_number, 
             addr.ville,
-            addr.pays,  addr.gouvernorat,
+            addr.pays, 
+             addr.gouvernorat,
             addr.address
         LIMIT ? OFFSET ?
     `;
@@ -1408,11 +1409,11 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
             NULL AS created_at,
             NULL AS title,
             dt.Phone AS phone_number,
-            dt.adresse AS ville,
-            dt.Location AS pays,
-            dt.gouvernorat,
-            NULL AS adresse_exacte,
+            dt.adresse AS adresse_exacte,
+            dt.gouvernorat AS gouvernorat,
+            dt.ville AS ville,
             dt.Sector AS specialites,
+            dt.Pays AS pays ,
             'non-conventionné' AS type
         FROM 
             docteurs_tunisie dt
@@ -1426,7 +1427,7 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
     }
 
     if (ville) {
-        conditionsDocteursTunisie.push('dt.Location LIKE ?');
+        conditionsDocteursTunisie.push('dt.ville LIKE ?');
         queryParams.push(`%${ville}%`);
         countParams.push(`%${ville}%`);
     }
@@ -1512,8 +1513,8 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
         FROM docteurs_tunisie dt 
         WHERE 1=1
             ${speciality_id ? 'AND dt.Sector LIKE ?' : ''}
-            ${ville ? 'AND dt.Location LIKE ?' : ''}
-              ${pays ? 'AND addr.pays LIKE ?' : ''} 
+            ${ville ? 'AND dt.ville LIKE ?' : ''}
+              ${pays ? 'AND dt.pays LIKE ?' : ''} 
      ${doctor_name ? 'AND dt.Name LIKE ?' : ''}
                 ${gouvernorat ? 'AND dt.gouvernorat LIKE ?' : ''}
 
@@ -1593,10 +1594,10 @@ const getAllDoctorsAndDocteursTunisie = async (req, res) => {
             NULL AS title,
             dt.Phone AS phone_number,
             dt.adresse AS ville,
-            dt.Location AS pays,
+            dt.ville AS pays,
             dt.gouvernorat,
             NULL AS adresse_exacte,
-            dt.Sector AS specialities,
+            dt.Sector AS specialites,
             'non-conventionné' AS type
         FROM 
             docteurs_tunisie dt
@@ -4461,7 +4462,7 @@ const { error } = require('console');
 
     function sendConfirmationEmail(name, email, password, res, userId) {
         const transporter = nodemailer.createTransport({
-            service: 'gmail',
+            service: 'smtp.office365.com',
             port: 587,
             secure: false, 
             auth: {
@@ -4896,7 +4897,7 @@ await sendSMScontactinscrit(doctorphone,messagedotor);
         };
         
         
-const getDoctorById = async (req, res) => {
+const getDoctorByIdserveur = async (req, res) => {
             const doctorId = req.params.id;
         
             if (!doctorId) {
@@ -4950,7 +4951,91 @@ GROUP BY
                 return res.status(500).json({ message: "Erreur du serveur lors de la récupération du docteur." });
             }
         };
+const getDoctorById= async (req, res) => {
+            const doctorAleatoireId = req.params.id;
         
+            if (!doctorAleatoireId) {
+                return res.status(400).json({ message: "L'ID aléatoire du docteur est requis." });
+            }
+        
+            const queryDoctors = `
+                SELECT  
+                    d.id AS doctor_id,
+                    d.name AS name,
+                    d.doctor_photo,
+                    d.enable_online_consultation,
+                    d.description,
+                    d.horaires,
+                    d.cabinet_photo,
+                    d.created_at,d.id_aleatoire AS aleatoire ,
+                    a.title AS title,
+                    usr.phone_number,
+                    addr.ville,
+                    addr.pays,
+                    addr.address AS adresse_exacte,
+                    JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
+                    'conventionné' AS type
+                FROM 
+                    doctors d 
+                LEFT JOIN 
+                    doctor_specialities ds ON d.id = ds.doctor_id 
+                LEFT JOIN 
+                    specialities s ON ds.speciality_id = s.id 
+                LEFT JOIN 
+                    experiences a ON d.id = a.doctor_id 
+                LEFT JOIN 
+                    users usr ON d.user_id = usr.id 
+                LEFT JOIN 
+                    addresses addr ON usr.id = addr.user_id
+                WHERE 
+                    d.id_aleatoire = ?
+                GROUP BY 
+                    d.id, a.title, usr.phone_number, addr.ville, addr.pays, addr.address;
+            `;
+        
+            const queryDocteursTunisie = `
+                SELECT 
+                    dt.id AS doctor_id,
+                    dt.name AS name,
+                    NULL AS doctor_photo,
+                    NULL AS enable_online_consultation,
+                    NULL AS description,
+                    NULL AS horaires,
+                    NULL AS cabinet_photo,
+                    NULL AS created_at,
+                    NULL AS title,d.id_aleatoire AS aleatoire
+                    dt.Phone AS phone_number,
+                    dt.ville AS ville,
+                    dt.Pays AS pays,
+                    dt.adresse AS adresse_exacte,
+                    dt.Sector AS specialities,
+                    'non-conventionné' AS type
+                FROM 
+                    docteurs_tunisie dt
+                WHERE 
+                    dt.id_aleatoire = ?;
+            `;
+        
+            try {
+                // Recherche dans les deux tables
+                const [resultsDoctors] = await db.query(queryDoctors, [doctorAleatoireId]);
+                const [resultsDocteursTunisie] = await db.query(queryDocteursTunisie, [doctorAleatoireId]);
+        
+                // Fusionner les résultats
+                const results = [...resultsDoctors, ...resultsDocteursTunisie];
+        
+                if (results.length === 0) {
+                    return res.status(404).json({ message: "Docteur non trouvé." });
+                }
+        
+                // Retourner le premier résultat trouvé
+                res.status(200).json(results[0]);
+            } catch (error) {
+                console.error("Erreur lors de la récupération des informations du docteur:", error);
+                return res.status(500).json({ message: "Erreur du serveur lors de la récupération du docteur." });
+            }
+        };
+               
 const cancelAppointment = async (req, res) => {
             const appointmentId = req.params.id; // ID du rendez-vous à annuler
             const cancellationTime = new Date(); // Heure actuelle pour l'annulation
@@ -5279,9 +5364,6 @@ const getAllAnnuaires1 = async (req, res) => {
         return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
     }
 };
-
-
-
 
  
 // Configurer Nodemailer pour l'envoi des emails
@@ -6045,17 +6127,197 @@ console.error('Erreur lors de l\'insertion du rendez-vous ou de l\'envoi de l\'e
 return res.status(500).json({ error: 'Erreur lors de l\'insertion du rendez-vous ou de l\'envoi de l\'e-mail.' });
 }
 };
+const getbanquesangs = async (req, res) => {
+    const limit = parseInt(req.query.limit) || 10;  // Nombre de résultats par page
+    const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
+    const queryParams = [limit, offset]; // Paramètres pour la requête
+
+    try {
+        // Requête pour récupérer le nombre total de vétérinaires
+        const totalCountQuery = `
+        SELECT COUNT(*) AS totalCount
+        FROM  banque_sang dt
+    `;
+    
+
+        // Exécution de la requête pour obtenir le total
+        const [totalCountResult] = await db.query(totalCountQuery);
+        const total = totalCountResult[0].totalCount;  // Total des vétérinaires
+
+        // Calcul du nombre total de pages
+        const totalPages = Math.ceil(total / limit);
+
+        // Requête pour récupérer les vétérinaires avec la pagination
+        const queryDocteursTunisie = `
+            SELECT 
+                dt.Name AS name,
+                dt.Phone AS phone_number,
+                dt.adresse AS Adresse_exacte,
+                dt.gouvernorat AS gouvernorat,
+                  dt.pays AS pays 
+
+            FROM 
+                 banque_sang dt
+            LIMIT ? OFFSET ?
+        `;
+
+        // Exécution de la requête
+        const [results] = await db.query(queryDocteursTunisie, queryParams);
+
+        // Vérifier s'il y a des résultats
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucun vétérinaire trouvé.' });
+        }
+
+        // Calcul de la page actuelle
+        const currentPage = Math.floor(offset / limit) + 1;
+
+        // Retour des résultats au client avec la pagination
+        return res.json({
+            total,
+            totalPages,
+            currentPage,
+            data: results,
+        });
+    } catch (error) {
+        console.error('Erreur lors de la récupération des vétérinaires:', error);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
+    }
+};
+
+
+const searchDoctors = async (req, res) => {
+    try {
+        const { query, position } = req.query; // Récupération des paramètres de la requête utilisateur
+
+        if (!query || query.trim().length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Veuillez fournir une chaîne de recherche.',
+            });
+        }
+
+        // Gestion des positions (début, fin, ou n'importe où)
+        let searchPattern;
+        switch (position) {
+            case 'start': // Lettre(s) au début
+                searchPattern = `${query}%`;
+                break;
+            case 'end': // Lettre(s) à la fin
+                searchPattern = `%${query}`;
+                break;
+            case 'any': // Lettre(s) n'importe où
+            default:
+                searchPattern = `%${query}%`;
+                break;
+        }
+
+        // Requête SQL pour rechercher dans les deux tables avec UNION
+        const sql = `
+        (
+            SELECT 
+                JSON_EXTRACT(d.name, '$.fr') AS name, 
+                'doctors' AS source,
+                d.doctor_photo,
+                JSON_ARRAYAGG(JSON_OBJECT('name', s.name)) AS specialities
+            FROM 
+                doctors d
+            LEFT JOIN 
+                doctor_specialities ds ON d.id = ds.doctor_id
+            LEFT JOIN 
+                specialities s ON ds.speciality_id = s.id
+            WHERE 
+                JSON_EXTRACT(d.name, '$.fr') LIKE ?
+            GROUP BY 
+                d.name, d.doctor_photo
+        )
+        UNION
+        (
+            SELECT 
+                t.Name AS name,
+                'docteurs_tunisie' AS source,
+                NULL AS doctor_photo,
+                Sector AS specialities
+            FROM 
+                docteurs_tunisie t
+            WHERE 
+                t.Name LIKE ?
+        )
+        LIMIT 10
+        `;
+
+        // Exécution de la requête avec le pattern calculé
+        const [results] = await db.query(sql, [searchPattern, searchPattern]);
+
+        // Vérification si des résultats sont trouvés
+        if (results.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Aucun docteur trouvé avec les lettres fournies.',
+            });
+        }
+
+        // Retour des résultats combinés
+        res.json({
+            success: true,
+            data: results,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur interne du serveur.',
+        });
+    }
+};
+const getCitiesByGovernorate = async (req, res) => {
+    const { Location } = req.params; // Récupérer le gouvernorat des paramètres d'URL
+
+    if (!Location) {
+        return res.status(400).json({ message: "Le gouvernorat est requis." });
+    }
+
+    const query = `
+        SELECT DISTINCT(ville) FROM docteurs_tunisie WHERE Location LIKE ?;
+
+    `;
+
+    try {
+        // Exécuter la requête SQL avec le gouvernorat donné
+        const [results] = await db.query(query, [Location]);
+
+        if (results.length === 0) {
+            return res.status(404).json({ message: "Aucune ville trouvée pour ce gouvernorat." });
+        }
+
+        // Retourner les villes sous forme de tableau
+        const villes = results.map(row => row.ville);
+        res.status(200).json(villes);
+    } catch (error) {
+        console.error("Erreur lors de la récupération des villes :", error);
+        res.status(500).json({ message: "Erreur interne du serveur." });
+    }
+};
+
+
+
+
+
+     
+
+
+
 
 module.exports = {
     specialitespardoctor,
     getalldoctors,getDoctorsByIdTeleconsultation,
-    getDoctorsparvillepaysspecialites,
+    getDoctorsparvillepaysspecialites,searchDoctors ,getbanquesangs,
     getDoctorsById,gethopiteaux,
     getadressempas,getlaboratoire,
     getvilles,getpays,getmotif,gethistoriqu,getclinics,
     insertAppointment,getville,getveterinaires,
     forgs,rests,insertAppointment,getplusprochedoc
     ,getAppointmentsByPatientId , updateAppointment , getDoctorById , cancelAppointment , sendSMSBeforeAppointment ,verifierEtEnvoyerRappels , annulerRendezVous
-    ,confirmerRendezVous , verifierEtEnvoyerSmsRappels , sendEmail ,getinfermiers , getblogs , getpharmacies , getAllDoctorsAndDocteursTunisie
+    ,confirmerRendezVous , verifierEtEnvoyerSmsRappels , sendEmail ,getinfermiers , getblogs , getpharmacies , getAllDoctorsAndDocteursTunisie,getCitiesByGovernorate
 }
 

@@ -41,6 +41,7 @@ router.get('/getmotif',authController.getmotif);
 router.get('/gethistoriques',authController.gethistoriqu);
 router.post('/ajouterrendezvous',authController.insertAppointment);
 router.post('/ajouterrendezvousclinic',clinicController.insertAppointmentclinic);
+router.get('/cities/:Location', authController.getCitiesByGovernorate);
 
 //router.post('/api/forgot-password',authController.forgs);
 //router.post('/api/reset-password',authController.rests);
@@ -49,6 +50,8 @@ router.post('/api/logupb2b',loginController.signupb2b);
 router.put('/update/patient/:id',loginController.updateprofilpatient);
 router.get('/getdocbyid/:id',authController.getDoctorById);
 router.get('/getannuaireinfermiere',authController.getinfermiers);
+router.get('/search-doctors', authController.searchDoctors);
+router.get('/search-banque-sang', authController.getbanquesangs);
 
 router.get('/getannuairetous',authController.getAllDoctorsAndDocteursTunisie);
 router.put('/updateappointement/:appointment_id',authController.updateAppointment);

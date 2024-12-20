@@ -6,16 +6,16 @@ const bcrypt = require('bcrypt');
 const nodemailer = require('nodemailer');
 
 passport.use(new GoogleStrategy({
-    clientID :process.env.GOOGLE_CLIENT_ID,
-    clientSecret :process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL :'http://localhost:3001/auth/google/callback',
+    clientID :'833451640734-jd85qdnoo3dnhrekmo3m401304lrjes4.apps.googleusercontent.com',
+    clientSecret :'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',
+    callbackURL :'https://wic-doctor.com:3004/auth/google/callback',
     passReqToCallback : true,
     scope: ['email', 'profile'] 
 },
 function (Request, accessToken , refreshToken,profile, done){
   done(null,profile);
-  console.log('Client ID:', process.env.GOOGLE_CLIENT_ID);
-console.log('Client Secret:', process.env.GOOGLE_CLIENT_SECRET);
+ // console.log('Client ID:', 833451640734-jd85qdnoo3dnhrekmo3m401304lrjes4.apps.googleusercontent.com);
+//console.log('Client Secret:', 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);
 const query = 'SELECT * FROM users WHERE google_id = ?';
     
     db.execute(query, [profile.id], (err, results) => {

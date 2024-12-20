@@ -3,6 +3,7 @@ const authController =require ('../Controlleurs/doctor');
 const loginController =require ('../Controlleurs/login');
 const bodyParser = require('body-parser');
 const clinicController =require ('../Controlleurs/clinic');
+const paypalController = require('../Controlleurs/paiement');
 
 const { getdoctorsbyid } = require('../Controlleurs/doctor');
 const {sendSMSBeforeAppointment} = require ('../Controlleurs/doctor');
@@ -21,6 +22,30 @@ router.get('/afftempsclinicsbyid',clinicController.getTempsClinicssById);
 router.get('/affalldoctors', authController.getalldoctors);
 router.get('/doctorsadd', authController.getDoctorsparvillepaysspecialites);
 router.get('/getclinicsspcitypay', clinicController.getClinicsBySpecialityCityCountry);
+router.get('/blogs' , authController.getblogs);
+router.get('/getveterinaires' , authController.getveterinaires);
+router.get('/getpharmaciesan' , authController.getpharmacies);
+router.get('/gethopiteaux' , authController.gethopiteaux);
+router.get('/getlaboratoire' , authController.getlaboratoire);
+router.get('/getclinicannuaire' , authController.getclinics);
+router.post('/ajouterrendezvoustele',authController.insertAppointmentteleconsultation);
+//router.post('/ajouterrendezvous',authController.insertAppointment);
+router.post('/send-email-with-link-paiement', loginController.sendEmailPaiement);
+router.get('/getannuairetous',authController.getAllDoctorsAndDocteursTunisie);
+router.get('/search-doctors', authController.searchDoctors);
+
+router.post('/init-payment', paypalController.initiatePayment);
+router.get('/gettempsteleconsultation' , authController.getDoctorsByIdTeleconsultation);
+
+
+// Route pour créer un paiement
+router.post('/pay', paypalController.createPayment);
+
+// Route de succès
+router.get('/success', paypalController.executePayment);
+
+// Route d'annulation
+router.get('/cancel', paypalController.cancelPayment);
 
 
 router.get('/specialties' ,authController.specialitespardoctor);
@@ -37,8 +62,10 @@ router.post('/ajouterrendezvousclinic',clinicController.insertAppointmentclinic)
 router.post('/api/logup',loginController.signuppatients);
 router.post('/api/logupb2b',loginController.signupb2b);
 router.put('/update/patient/:id',loginController.updateprofilpatient);
+router.get('/api/assurances',loginController.getAssurances);
 router.get('/getdocbyid/:id',authController.getDoctorById);
 router.get('/getannuaire',authController.getAllAnnuaires);
+router.get('/getannuaireinfermiere',authController.getinfermiers);
 
 
 router.put('/updateappointement/:appointment_id',authController.updateAppointment);
@@ -53,7 +80,7 @@ router.get('/cancel/:appointmentId', authController.annulerRendezVous);
 router.post('/send-sms', clinicController.sendSMScontact);
 router.post('/api/login',loginController.signin);
 // Route pour démarrer l'authentification avec Google
-router.get('http://localhost:3000/auth/google', passport.authenticate('google'));
+router.get('https://wic-doctor.com:3004/auth/google', passport.authenticate('google'));
 router.post('/logout', loginController.logout);
 router.post('/reset-password', loginController.resetPassword);
 router.get('/api/doctorsparposition', authController.getplusprochedoc);
@@ -88,7 +115,7 @@ router.post('/send-reminders', async (req, res) => {
   }
 });
 // Route de rappel (callback) après l'authauthentification réussie
-router.get('http://localhost:3000/auth/google/callback', 
+router.get('https://wic-doctor.com:3004/auth/google/callback', 
     passport.authenticate('google', { failureRedirect: '/' }),
     (req, res) => {
         // L'utilisateur est maintenant authentifié, redirige vers une page protégée ou l'accueil

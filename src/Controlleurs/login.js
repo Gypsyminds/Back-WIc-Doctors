@@ -14,6 +14,8 @@ app.use(cors());
 app.use(bodyParser.json());
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
+//app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.use(express.json());
 // Configuration du transporteur Nodemailer
@@ -33,6 +35,25 @@ function generatePassword(length = 10) {
 }
 
 // Fonction d'inscription
+
+// Fonction pour récupérer les assurances
+async function getAssurances(req, res) {
+    try {
+        // Exécution de la requête SQL pour obtenir les assurances
+        const [assurances] = await db.execute('SELECT id, nom FROM assurances');
+        
+        // Vérification s'il y a des assurances
+        if (assurances.length === 0) {
+            return res.status(404).json({ error: 'Aucune assurance trouvée.' });
+        }
+
+        // Retourner la liste des assurances sous forme de tableau JSON
+        res.json(assurances);
+    } catch (error) {
+        console.error('Erreur lors de la récupération des assurances:', error);
+        res.status(500).json({ error: 'Erreur interne du serveur.', details: error.message });
+    }
+}
 
 async function signups(req, res) {
     const { name, email, phone } = req.body;
@@ -168,7 +189,93 @@ async function signins(req, res) {
         return res.status(500).json({ error: 'Erreur interne du serveur.' });
     }
 }
+
 async function signin(req, res) {
+    const { email, phone_number, password } = req.body;
+  
+    // Validez les entrées
+    if ((!email && !phone_number) || !password) {
+      return res.status(400).json({ error: 'Email ou téléphone et mot de passe sont requis.' });
+    }
+  
+    try {
+  // Vérifiez les doublons d'email ou de téléphone
+    if (email || phone_number) {
+      const fieldToCheck = email ? 'email' : 'phone_number';
+      const valueToCheck = email || phone_number;
+
+//      const duplicateCheckSql = `
+  ///      SELECT COUNT(*) AS count FROM users WHERE ${fieldToCheck} = ?
+     // `;
+     // const [duplicateResults] = await db.query(duplicateCheckSql, [valueToCheck]);
+
+     // if (duplicateResults[0].count > 1) {
+      //  const duplicateField = email ? 'Email' : 'Téléphone';
+       // return res.status(409).json({ error: `${duplicateField} est dupliqué dans la base de données.` });
+    //  }
+    }
+      // Choisir le champ d'authentification en fonction des entrées
+      let field = '';
+      let identifier = '';
+  
+      if (email) {
+        field = 'email';
+     identifier = email;
+      } else if (phone_number) {
+        field = 'phone_number';
+        identifier = phone_number;
+      }
+     console.log(email , phone_number);
+      // Rechercher l'utilisateur dans la base de données
+      const sql = `SELECT * FROM users WHERE ${field} = ?`;
+      const [results] = await db.query(sql, [identifier]);
+  
+      if (results.length === 0) {
+        return res.status(401).json({ error: 'Identifiants incorrects.' });
+      }
+  
+      const user = results[0]  ;
+ // Gérer les différences entre $2y$ et $2b$
+    const hashedPassword = user.password.startsWith('$2y$')
+      ? user.password.replace('$2y$', '$2b$')
+      : user.password;
+
+    // Vérifiez le mot de passe
+    const isPasswordMatch = await bcrypt.compare(password, hashedPassword);
+    if (!isPasswordMatch) {
+      return res.status(401).json({ error: 'Identifiants incorrects.' });
+    }
+      // Vérifier le mot de passe
+    //  const match = await bcrypt.compare(password, user.password);
+    //  if (!match) {
+       // return res.status(401).json({ error: 'Identifiants incorrects.' });
+      //}
+  
+      // Générer un jeton JWT (JSON Web Token)
+      const token = jwt.sign({ user_id: user.id }, 'votre_clé_secrète', { expiresIn: '8h' });
+  
+      // Enregistrer le token dans la base de données
+      const updateSql = 'UPDATE users SET api_token = ? WHERE id = ?';
+      await db.query(updateSql, [token, user.id]);
+  
+      // Rechercher les informations du patient
+      const getSql = 'SELECT * FROM patients WHERE user_id = ?';
+      const [patientResults] = await db.query(getSql, [user.id]);
+  
+      // Répondre avec les informations de connexion réussie
+      res.json({
+        message: 'Connexion réussie!',
+        identifier,
+        result: patientResults,
+        token,
+      });
+  
+    } catch (error) {
+      console.error('Erreur lors de la connexion:', error);
+      return res.status(500).json({ error: 'Erreur interne du serveur.' });
+    }
+  }
+async function signinfos(req, res) {
     const { email, phone_number, password } = req.body;
   
     // Validez les entrées
@@ -486,8 +593,11 @@ function sendConfirmationEmail(name, email, password, res, userId) {
                 <p>Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : <strong>${password}</strong></p>
                 <p>Veuillez compléter votre fiche, s'il vous plaît.</p>
                 <p>Si vous n'avez pas demandé cette inscription, ignorez simplement cet e-mail.</p>
+    <a href="https://wic-doctor.com/login.html" style="display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;">Connexion </a>
+
                 <p>Cordialement,<br>L'équipe de Wic-Doctor.</p>
-            </body>
+  
+          </body>
             </html>
         `,
     };
@@ -521,7 +631,7 @@ async function signupb2b(req, res) {
     console.log("description:", description);
 
     // SQL query to insert registration request
-    const userSql = 'INSERT INTO DemandesInscription (name, email, phone_number, type, specialities, description) VALUES (?, ?, ?, ?, ?, ?)';
+    const userSql = 'INSERT INTO doctor_request (name, email, phone_number, type, specialities, description) VALUES (?, ?, ?, ?, ?, ?)';
 
     try {
         // Execute the insert query
@@ -616,10 +726,428 @@ const resetPassword = async (req, res) => {
 };
 
 
+async function updateprofilpatient(req, res) {
+    const patientId = req.params.id;
+    const {
+        first_name,
+        last_name,
+antecedent,
+        phone_number,
+        mobile_number,
+        age,
+        gender,
+        weight,
+        height,
+        medical_history,
+        notes,
+        email,
+        matriculeCNSS,
+        dateExpiration,
+        assurance_id,  // L'ID de l'assurance envoyé par le front-end
+        groupe_sanguin,
+        allergie,
+        date_naissance,
+       // nom_assurrance
+    } = req.body;
+
+    try {
+        // Vérifier si le patient existe
+        const [currentPatient] = await db.execute('SELECT * FROM patients WHERE id = ?', [patientId]);
+        if (currentPatient.length === 0) {
+            return res.status(404).json({ error: 'Patient non trouvé.' });
+        }
+
+        const currentData = currentPatient[0];
+
+        // Vérifier que le numéro de téléphone est fourni
+        if (!phone_number || phone_number.trim() === '') {
+            return res.status(400).json({ error: 'Le numéro de téléphone est obligatoire.' });
+        }
+if (phone_number !== currentData.phone_number) {
+    const [existingPhone] = await db.execute(
+        'SELECT id FROM patients WHERE phone_number = ? AND id != ? AND phone_number IS NOT NULL AND phone_number != ""',
+        [phone_number, patientId]
+    );
+    if (existingPhone.length > 0) {
+        return res.status(409).json({ error: 'Le numéro de téléphone est déjà utilisé.' });
+    }
+}
+        // Vérifier les doublons pour le numéro de téléphone
+      //  const [existingPhone] = await db.execute(
+          //  'SELECT id FROM patients WHERE phone_number = ? AND id != ? AND phone_number IS NOT NULL AND phone_number != ""',
+        //    [phone_number, patientId]
+      //  );
+    //    if (existingPhone.length > 0) {
+  //          return res.status(409).json({ error: 'Le numéro de téléphone est déjà utilisé.' });
+//        }
+
+        // Vérifier les doublons pour l'email
+        if (email && email.trim() !== '') {
+            const [existingEmail] = await db.execute(
+                'SELECT id FROM patients WHERE email = ? AND id != ? AND email IS NOT NULL AND email != ""',
+                [email, patientId]
+            );
+            if (existingEmail.length > 0) {
+                return res.status(409).json({ error: 'L\'adresse e-mail est déjà utilisée.' });
+            }
+        }
+
+        // Vérifier que l'ID de l'assurance est valide
+        if (assurance_id) {
+            const [existingAssurance] = await db.execute('SELECT id FROM assurances WHERE id = ?', [assurance_id]);
+            if (existingAssurance.length === 0) {
+                return res.status(404).json({ error: 'Assurance non trouvée.' });
+            }
+        }
+
+        // Préparer les champs à mettre à jour
+        const updates = [];
+        const values = [];
+        const fieldsToUpdate = {
+            first_name: first_name ? JSON.stringify({ fr: first_name }) : currentData.first_name,
+            last_name: last_name ? JSON.stringify({ fr: last_name }) : currentData.last_name,
+            phone_number: phone_number, // Obligatoire et toujours mis à jour
+            mobile_number: mobile_number ?? currentData.mobile_number,
+            age: age ?? currentData.age,
+            gender: gender ?? currentData.gender,
+            weight: weight ?? currentData.weight,
+            height: height ?? currentData.height,
+            medical_history: medical_history ?? currentData.medical_history,
+            notes: notes ?? currentData.notes,
+            matriculeCNSS: matriculeCNSS ?? currentData.matriculeCNSS,
+            dateExpiration: dateExpiration ?? currentData.dateExpiration,
+            assurance: assurance_id ?? currentData.assurance, // Mettre à jour avec l'ID de l'assurance
+            groupe_sanguin: groupe_sanguin ?? currentData.groupe_sanguin,
+            allergie: allergie ?? currentData.allergie,
+            date_naissance: date_naissance ?? currentData.date_naissance,
+            antecedent :antecedent ?? currentData.antecedent,
+           // nom_assurrance: nom_assurrance ?? currentData.nom_assurrance,
+            email: email ?? currentData.email
+        };
+
+        for (const [field, value] of Object.entries(fieldsToUpdate)) {
+            if (value !== undefined) {
+                updates.push(`${field} = ?`);
+                values.push(value);
+            }
+        }
+
+        updates.push(`updated_at = NOW()`);
+        values.push(patientId);
+
+        // Requête de mise à jour des patients
+        const updatePatientQuery = `UPDATE patients SET ${updates.join(', ')} WHERE id = ?`;
+        const [patientResult] = await db.execute(updatePatientQuery, values);
+
+        if (patientResult.affectedRows === 0) {
+            return res.status(404).json({ error: 'Patient non trouvé.' });
+        }
+
+        // Mise à jour des données dans la table users
+        const updateUserQuery = `
+            UPDATE users
+            SET 
+                email = ?, 
+                phone_number = ?, 
+                name = ?, 
+                lastname = ?
+            WHERE id = (
+                SELECT user_id FROM patients WHERE id = ?
+            )
+        `;
+        const userValues = [
+            email ?? currentData.email,
+            phone_number,
+            JSON.stringify({ fr: first_name }) || currentData.first_name,
+            JSON.stringify({ fr: last_name }) || currentData.last_name,
+            patientId
+        ];
+
+        const [userResult] = await db.execute(updateUserQuery, userValues);
+        if (userResult.affectedRows === 0) {
+            return res.status(404).json({ error: 'Utilisateur non trouvé pour le patient.' });
+        }
+
+        // Réponse en cas de succès
+        res.json({ message: 'Profil mis à jour avec succès !' });
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour du profil:', error);
+        res.status(500).json({ error: 'Erreur interne du serveur.', details: error.message });
+    }
+}
+
+async function updateprofilpatient5(req, res) {
+    const patientId = req.params.id;
+    const {
+        first_name,
+        last_name,
+        phone_number,
+        mobile_number,
+        age,
+        gender,
+        weight,
+        height,
+        medical_history,
+        notes,
+        email,
+        matriculeCNSS,
+        dateExpiration,
+        assurance, // ID de l'assurance choisie
+        groupe_sanguin,
+        allergie,
+        date_naissance,
+       // nom_assurrance
+    } = req.body;
+
+    try {
+        // Vérifier si le patient existe
+        const [currentPatient] = await db.execute('SELECT * FROM patients WHERE id = ?', [patientId]);
+        if (currentPatient.length === 0) {
+            return res.status(404).json({ error: 'Patient non trouvé.' });
+        }
+
+        const currentData = currentPatient[0];
+
+        // Récupérer la liste des assurances disponibles
+        const [assurance] = await db.execute('SELECT id, nom  FROM assurances');
+        if (!assurances.length) {
+            return res.status(404).json({ error: 'Aucune assurance disponible.' });
+        }
+
+        // Si aucune assurance n'est spécifiée, renvoyer la liste des assurances
+        if (!assurance) {
+            return res.status(200).json({
+                message: 'Veuillez choisir une assurance.',
+                assurances
+            });
+        }
+
+        // Vérifier si l'assurance choisie existe
+        const [assuranceExists] = await db.execute('SELECT * FROM assurances WHERE id = ?', [assurance_id]);
+        if (assuranceExists.length === 0) {
+            return res.status(400).json({ error: 'L\'assurance choisie est invalide.' });
+        }
+
+        // Vérifier que le numéro de téléphone est fourni
+        if (!phone_number || phone_number.trim() === '') {
+            return res.status(400).json({ error: 'Le numéro de téléphone est obligatoire.' });
+        }
+
+        // Vérifier si le numéro de téléphone a changé
+        if (phone_number !== currentData.phone_number) {
+            // Vérifier les doublons pour le numéro de téléphone
+            const [existingPhone] = await db.execute(
+                'SELECT id FROM patients WHERE phone_number = ? AND id != ? AND phone_number IS NOT NULL AND phone_number != ""',
+                [phone_number, patientId]
+            );
+            if (existingPhone.length > 0) {
+                return res.status(409).json({ error: 'Le numéro de téléphone est déjà utilisé.' });
+            }
+        }
+
+        // Vérifier si l'email a changé
+        if (email && email.trim() !== '' && email !== currentData.email) {
+            const [existingEmail] = await db.execute(
+                'SELECT id FROM patients WHERE email = ? AND id != ? AND email IS NOT NULL AND email != ""',
+                [email, patientId]
+            );
+            if (existingEmail.length > 0) {
+                return res.status(409).json({ error: 'L\'adresse e-mail est déjà utilisée.' });
+            }
+        }
+
+        // Préparer les champs à mettre à jour
+        const updates = [];
+        const values = [];
+        const fieldsToUpdate = {
+            first_name: first_name ? JSON.stringify({ fr: first_name }) : currentData.first_name,
+            last_name: last_name ? JSON.stringify({ fr: last_name }) : currentData.last_name,
+            phone_number: phone_number,
+            mobile_number: mobile_number ?? currentData.mobile_number,
+            age: age ?? currentData.age,
+            gender: gender ?? currentData.gender,
+            weight: weight ?? currentData.weight,
+            height: height ?? currentData.height,
+            medical_history: medical_history ?? currentData.medical_history,
+            notes: notes ?? currentData.notes,
+            matriculeCNSS: matriculeCNSS ?? currentData.matriculeCNSS,
+            dateExpiration: dateExpiration ?? currentData.dateExpiration,
+            assurance: assurances.id, // Mettre à jour avec l'ID de l'assurance choisie
+            groupe_sanguin: groupe_sanguin ?? currentData.groupe_sanguin,
+            allergie: allergie ?? currentData.allergie,
+            date_naissance: date_naissance ?? currentData.date_naissance,
+          //  assurrance: nom_assurrance ?? currentData.nom_assurrance,
+            email: email ?? currentData.email
+        };
+
+        for (const [field, value] of Object.entries(fieldsToUpdate)) {
+            if (value !== undefined) {
+                updates.push(`${field} = ?`);
+                values.push(value);
+            }
+        }
+
+        updates.push(`updated_at = NOW()`);
+        values.push(patientId);
+
+        // Requête de mise à jour des patients
+        const updatePatientQuery = `UPDATE patients SET ${updates.join(', ')} WHERE id = ?`;
+        const [patientResult] = await db.execute(updatePatientQuery, values);
+
+        if (patientResult.affectedRows === 0) {
+            return res.status(404).json({ error: 'Patient non trouvé.' });
+        }
+
+        // Réponse en cas de succès
+        res.json({ message: 'Profil mis à jour avec succès !' });
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour du profil:', error);
+        res.status(500).json({ error: 'Erreur interne du serveur.', details: error.message });
+    }
+}
+
+async function updateprofilpatient5(req, res) {
+    const patientId = req.params.id;
+    const {
+        first_name,
+        last_name,
+        phone_number,
+        mobile_number,
+        age,
+        gender,
+        weight,
+        height,
+        medical_history,
+        notes,
+        email,
+        matriculeCNSS,
+        dateExpiration,
+        assurance,
+        groupe_sanguin,
+        allergie,
+        date_naissance,
+        nom_assurrance,
+antecedent
+    } = req.body;
+
+    try {
+        // Vérifier si le patient existe
+        const [currentPatient] = await db.execute('SELECT * FROM patients WHERE id = ?', [patientId]);
+        if (currentPatient.length === 0) {
+            return res.status(404).json({ error: 'Patient non trouvé.' });
+        }
+
+        const currentData = currentPatient[0];
+
+        // Vérifier que le numéro de téléphone est fourni
+        if (!phone_number || phone_number.trim() === '') {
+            return res.status(400).json({ error: 'Le numéro de téléphone est obligatoire.' });
+        }
+
+        // Vérifier si le numéro de téléphone a changé
+        if (phone_number !== currentData.phone_number) {
+            // Vérifier les doublons pour le numéro de téléphone
+            const [existingPhone] = await db.execute(
+                'SELECT id FROM patients WHERE phone_number = ? AND id != ? AND phone_number IS NOT NULL AND phone_number != ""',
+                [phone_number, patientId]
+            );
+            if (existingPhone.length > 0) {
+                return res.status(409).json({ error: 'Le numéro de téléphone est déjà utilisé.' });
+            }
+        }
+
+        // Vérifier les doublons pour l'email
+        if (email && email.trim() !== '' && email !== currentData.email) {
+            const [existingEmail] = await db.execute(
+                'SELECT id FROM patients WHERE email = ? AND id != ? AND email IS NOT NULL AND email != ""',
+                [email, patientId]
+            );
+            if (existingEmail.length > 0) {
+                return res.status(409).json({ error: 'L\'adresse e-mail est déjà utilisée.' });
+            }
+        }
+
+        // Préparer les champs à mettre à jour
+        const updates = [];
+        const values = [];
+        const fieldsToUpdate = {
+            first_name: first_name ? JSON.stringify({ fr: first_name }) : currentData.first_name,
+            last_name: last_name ? JSON.stringify({ fr: last_name }) : currentData.last_name,
+            phone_number: phone_number, // Obligatoire et toujours mis à jour
+            mobile_number: mobile_number ?? currentData.mobile_number,
+            age: age ?? currentData.age,
+            gender: gender ?? currentData.gender,
+            weight: weight ?? currentData.weight,
+            height: height ?? currentData.height,
+            medical_history: medical_history ?? currentData.medical_history,
+            notes: notes ?? currentData.notes,
+            matriculeCNSS: matriculeCNSS ?? currentData.matriculeCNSS,
+            dateExpiration: dateExpiration ?? currentData.dateExpiration,
+            assurance: assurance ?? currentData.assurance,
+            groupe_sanguin: groupe_sanguin ?? currentData.groupe_sanguin,
+            allergie: allergie ?? currentData.allergie,
+            date_naissance: date_naissance ?? currentData.date_naissance,
+            nom_assurrance: nom_assurrance ?? currentData.nom_assurrance,
+            email: email ?? currentData.email,
+antecedent: antecedent ?? currentData.antecedent 
+        };
+
+        for (const [field, value] of Object.entries(fieldsToUpdate)) {
+            if (value !== undefined) {
+                updates.push(`${field} = ?`);
+                values.push(value);
+            }
+        }
+
+        updates.push(`updated_at = NOW()`);
+        values.push(patientId);
+
+        // Requête de mise à jour des patients
+        const updatePatientQuery = `UPDATE patients SET ${updates.join(', ')} WHERE id = ?`;
+        const [patientResult] = await db.execute(updatePatientQuery, values);
+
+        if (patientResult.affectedRows === 0) {
+            return res.status(404).json({ error: 'Patient non trouvé.' });
+        }
+
+        // Mise à jour des données dans la table users
+        const updateUserQuery = `
+            UPDATE users
+            SET 
+                email = ?, 
+                phone_number = ?, 
+                name = ?, 
+                lastname = ?
+            WHERE id = (
+                SELECT user_id FROM patients WHERE id = ?
+            )
+        `;
+        const userValues = [
+            email ?? currentData.email,
+            phone_number,
+            JSON.stringify({ fr: first_name }) || currentData.first_name,
+            JSON.stringify({ fr: last_name }) || currentData.last_name,
+            patientId
+        ];
+
+        const [userResult] = await db.execute(updateUserQuery, userValues);
+        if (userResult.affectedRows === 0) {
+            return res.status(404).json({ error: 'Utilisateur non trouvé pour le patient.' });
+        }
+
+        // Réponse en cas de succès
+        res.json({ message: 'Profil mis à jour avec succès !' });
+//return userResult ;
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour du profil:', error);
+        res.status(500).json({ error: 'Erreur interne du serveur.', details: error.message });
+    }
+}
+
 // Update patient profile
 // Fonction pour mettre à jour le profil du patient
 // Fonction pour mettre à jour le profil du patient
-async function updateprofilpatient(req, res) {
+async function updateprofilpatient2(req, res) {
     const patientId = req.params.id;
     const {
         first_name,
@@ -650,35 +1178,187 @@ async function updateprofilpatient(req, res) {
         }
 
         const currentData = currentPatient[0];
+
+        // Vérifier que le numéro de téléphone est fourni
+        if (!phone_number || phone_number.trim() === '') {
+            return res.status(400).json({ error: 'Le numéro de téléphone est obligatoire.' });
+        }
+
+        // Vérifier les doublons pour le numéro de téléphone
+      //  const [existingPhone] = await db.execute(
+          //  'SELECT id FROM patients WHERE phone_number = ? AND id != ? AND phone_number IS NOT NULL AND phone_number != ""',
+         //   [phone_number, patientId]
+       // );
+      //  if (existingPhone.length > 0) {
+         //   return res.status(409).json({ error: 'Le numéro de téléphone est déjà utilisé.' });
+       // }
+
+        // Vérifier les doublons pour l'email
+      //  if (email && email.trim() !== '') {
+        //    const [existingEmail] = await db.execute(
+            //    'SELECT id FROM patients WHERE email = ? AND id != ? AND email IS NOT NULL AND email != ""',
+          //      [email, patientId]
+        //    );
+      //      if (existingEmail.length > 0) {
+    //            return res.status(409).json({ error: 'L\'adresse e-mail est déjà utilisée.' });
+  //          }
+//        }
+
+        // Préparer les champs à mettre à jour
+        const updates = [];
+        const values = [];
+        const fieldsToUpdate = {
+            first_name: first_name ? JSON.stringify({ fr: first_name }) : currentData.first_name,
+            last_name: last_name ? JSON.stringify({ fr: last_name }) : currentData.last_name,
+            phone_number: phone_number, // Obligatoire et toujours mis à jour
+            mobile_number: mobile_number ?? currentData.mobile_number,
+            age: age ?? currentData.age,
+            gender: gender ?? currentData.gender,
+            weight: weight ?? currentData.weight,
+            height: height ?? currentData.height,
+            medical_history: medical_history ?? currentData.medical_history,
+            notes: notes ?? currentData.notes,
+            matriculeCNSS: matriculeCNSS ?? currentData.matriculeCNSS,
+            dateExpiration: dateExpiration ?? currentData.dateExpiration,
+            assurance: assurance ?? currentData.assurance,
+            groupe_sanguin: groupe_sanguin ?? currentData.groupe_sanguin,
+            allergie: allergie ?? currentData.allergie,
+            date_naissance: date_naissance ?? currentData.date_naissance,
+            nom_assurrance: nom_assurrance ?? currentData.nom_assurrance,
+            email: email ?? currentData.email
+        };
+
+        for (const [field, value] of Object.entries(fieldsToUpdate)) {
+            if (value !== undefined) {
+                updates.push(`${field} = ?`);
+                values.push(value);
+            }
+        }
+
+        updates.push(`updated_at = NOW()`);
+        values.push(patientId);
+
+        // Requête de mise à jour des patients
+        const updatePatientQuery = `UPDATE patients SET ${updates.join(', ')} WHERE id = ?`;
+        const [patientResult] = await db.execute(updatePatientQuery, values);
+
+        if (patientResult.affectedRows === 0) {
+            return res.status(404).json({ error: 'Patient non trouvé.' });
+        }
+
+        // Mise à jour des données dans la table users
+        const updateUserQuery = `
+            UPDATE users
+            SET 
+                email = ?, 
+                phone_number = ?, 
+                name = ?, 
+                lastname = ?
+            WHERE id = (
+                SELECT user_id FROM patients WHERE id = ?
+            )
+        `;
+        const userValues = [
+            email ?? currentData.email,
+            phone_number,
+            JSON.stringify({ fr: first_name }) || currentData.first_name,
+            JSON.stringify({ fr: last_name }) || currentData.last_name,
+            patientId
+        ];
+
+        const [userResult] = await db.execute(updateUserQuery, userValues);
+        if (userResult.affectedRows === 0) {
+            return res.status(404).json({ error: 'Utilisateur non trouvé pour le patient.' });
+        }
+    const [existingPhone] = await db.execute(
+            'SELECT id FROM patients WHERE phone_number = ? AND id != ? AND phone_number IS NOT NULL AND phone_number != ""',
+            [phone_number, patientId]
+        );
+        if (existingPhone.length > 1) {
+            return res.status(409).json({ error: 'Le numéro de téléphone est déjà utilisé.' });
+        }
+
+        // Vérifier les doublons pour l'email
+        if (email && email.trim() !== '') {
+            const [existingEmail] = await db.execute(
+                'SELECT id FROM patients WHERE email = ? AND id != ? AND email IS NOT NULL AND email != ""',
+                [email, patientId]
+            );
+            if (existingEmail.length > 0) {
+                return res.status(409).json({ error: 'L\'adresse e-mail est déjà utilisée.' });
+            }
+        }
+
+
+        // Réponse en cas de succès
+        res.json({ message: 'Profil mis à jour avec succès !' });
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour du profil:', error);
+        res.status(500).json({ error: 'Erreur interne du serveur.', details: error.message });
+    }
+}
+async function updateprofilpatients(req, res) {
+    const patientId = req.params.id;
+    const {
+        first_name,
+        last_name,
+        phone_number,
+        mobile_number,
+        age,
+        gender,
+        weight,
+        height,
+        medical_history,
+        notes,
+        email,
+        matriculeCNSS,
+        dateExpiration,
+        assurance,
+        groupe_sanguin,
+        allergie,
+        date_naissance,
+        
+        antecedent
+    } = req.body;
+
+    try {
+        // Vérifier si le patient existe
+        const [currentPatient] = await db.execute('SELECT * FROM patients WHERE id = ?', [patientId]);
+        if (currentPatient.length === 0) {
+            return res.status(404).json({ error: 'Patient non trouvé.' });
+        }
+
+        const currentData = currentPatient[0];
         const updates = [];
         const values = [];
 
         // Préparer les champs à mettre à jour
         const fieldsToUpdate = {
-            first_name,
-            last_name,
-            phone_number,
-            mobile_number,
-            age,
-            gender,
-            weight,
-            height,
-            medical_history,
-            notes,
-            matriculeCNSS,
-            dateExpiration,
-            assurance,
-            groupe_sanguin,
-            allergie,
-            date_naissance,
-            nom_assurrance,
-            email
+        first_name,
+        last_name,
+        phone_number,
+        mobile_number,
+        age,
+        gender,
+        weight,
+        height,
+        medical_history,
+        notes,
+        email,
+        matriculeCNSS,
+        dateExpiration,
+        assurance,
+        groupe_sanguin,
+        allergie,
+        date_naissance,
+
+        antecedent
+
         };
 
         for (const [field, value] of Object.entries(fieldsToUpdate)) {
             updates.push(`${field} = ?`);
-            values.push(value !== undefined ? value : currentData[field]);
-        }
+            values.push(value !== undefined ? value : currentData[field]);        }
         updates.push(`updated_at = NOW()`);
         values.push(patientId);
 
@@ -797,9 +1477,109 @@ const sendSMScontactinscrit = async (phone, message) => {
     }
   }
 
-  const signuppatients = async (req, res) => {
+ const signuppatients = async (req, res) => {
     const { email, phone, lastname, name } = req.body;
+      const errors = [];
+
+    // Validate input
+    if (!phone) {
+      return res.status(400).json({ error: 'Le numéro de téléphone est requis.' });
+    }
+ const [currentPatient] = await db.execute('SELECT  email ,phone_number  FROM users');
+        if (currentPatient.length === 0) {
+            return res.status(404).json({ error: 'Patient non trouvé.' });
+        }
+
+        const currentData = currentPatient[0];
+if (phone !== currentData.phone_number) {
+    const [existingPhone] = await db.execute(
+        'SELECT id FROM users WHERE phone_number = ? AND phone_number IS NOT NULL AND phone_number != ""',
+        [phone]
+    );
+    if (existingPhone.length > 0) {
+//        return res.status(409).json({ error: 'Le numéro de téléphone est déjà utilisé.' });
+        errors.push('Le numéro de téléphone est déjà utilisé.');
+
+    }
+}
+
+// Vérification pour l'email
+if (email !== currentData.email) {
+    const [existingEmail] = await db.execute(
+        'SELECT id FROM users WHERE email = ? AND email IS NOT NULL AND email != ""',
+        [email]
+    );
+    if (existingEmail.length > 0) {
+//        return res.status(409).json({ error: 'L\'adresse e-mail est déjà utilisée.' });
+        errors.push('L\'adresse e-mail est déjà utilisée.');
+
+    }
+}
+ if (errors.length > 0) {
+            return res.status(409).json({ errors }); // Retourner toutes les erreurs regroupées
+        }
+
+ try{
+    
+
+
+      const generatedPassword = generatePassword(); // Ensure this function generates a valid password
+      const hashedPassword = await bcrypt.hash(generatedPassword, 10);
   
+      // Normalize the phone number (remove any non-digit characters)
+      const normalizedPhone = phone.replace(/[^\d]/g, ''); // Supprime tout caractère non numérique
+  // Format names as JSON
+      const nameJson = JSON.stringify({ fr: name || '' });
+      const lastnameJson = JSON.stringify({ fr: lastname || '' });  
+      // Insert the user into the `users` table
+      const userSql =
+        'INSERT INTO users (name, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+      const [userResults] = await db.execute(userSql, [name, lastname, email || null, phone, hashedPassword]);
+  
+      const userId = userResults.insertId; // ID of the newly inserted user
+  
+      // Insert into the `patients` table
+      const insertSql =
+        'INSERT INTO patients (user_id, first_name, last_name, phone_number, email, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+      const values = [userId, nameJson, lastnameJson, phone, email || null];
+      await db.execute(insertSql, values);
+  
+      // Prepare the confirmation message
+      const message =
+        `Bienvenue ${name}!\n` +
+        `Vous êtes inscrit chez Wic-Doctor.\n` +
+        `Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : ${generatedPassword}\n` +
+        `Veuillez compléter votre fiche, s'il vous plaît.\n` +
+         
+
+        `Si vous n'avez pas demandé cette inscription, ignorez simplement ce message.\n` +
+        `Cordialement,\nL'équipe de Wic-Doctor.`;
+  
+      // Send confirmation email (if email exists)
+      if (email) {
+        await sendConfirmationEmail(`${name} ${lastname}`, email, generatedPassword, res, userId);
+        await sendSMScontactinscrit(normalizedPhone, message);
+
+      }
+  
+      // Send SMS confirmation (if phone exists)
+      if (normalizedPhone) {
+        await sendSMScontactinscrit(normalizedPhone, message);
+      }
+  
+      // Return success response
+      return res.status(201).json({ message: 'Inscription réussie et confirmation envoyée.' });
+    } catch (error) {
+      console.error('Error during patient signup:', error);
+  
+    
+}
+  };
+  const signuppatientsavant = async (req, res) => {
+    const { email, phone, lastname, name } = req.body;
+ if (!name  || !phone) {
+      return res.status(400).json({ error: 'Tous les champs sont requis.' });
+    }  
     // Validate input
     if (!phone ) {
       return res.status(400).json({ error: 'Le numéro de téléphone et le mot de passe sont requis.' });
@@ -819,7 +1599,7 @@ const sendSMScontactinscrit = async (phone, message) => {
       // Insert into the `patients` table
       const insertSql =
         'INSERT INTO patients (user_id, first_name, last_name, phone_number, email, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
-      const values = [userId, name, lastname, phone, email || null];
+      const values = [userId, name, lastname  || null, phone, email || null];
       await db.execute(insertSql, values);
   
       // Prepare the confirmation message
@@ -833,7 +1613,7 @@ const sendSMScontactinscrit = async (phone, message) => {
   
       // Send confirmation email (if email exists)
       if (email) {
-        await sendConfirmationEmail(`${name} ${lastname}`, email, generatedPassword, res, userId);
+        await sendConfirmationEmail(`${name}`, email, generatedPassword, res, userId);
       }
       if (phone) {
       // Send SMS confirmation
@@ -843,12 +1623,17 @@ const sendSMScontactinscrit = async (phone, message) => {
       return res.status(201).json({ message: 'Inscription réussie et confirmation envoyée.' });
     } catch (error) {
         console.error('Error during patient signup:', error);
-      
-        // Environnement de développement : inclure les détails de l'erreur
+if (error.code === 'ER_DUP_ENTRY' && error.sqlMessage.includes('users_phone_number_unique')) {
+            // Renvoyer une erreur spécifique au front-end
+            res.status(400).json({
+                error: 'Ce numéro de téléphone est déjà utilisé, veuillez en fournir un autre.'
+
+            });      
+       } // Environnement de développement : inclure les détails de l'erreur
         const isDevelopment = process.env.NODE_ENV === 'development'; // Assurez-vous que NODE_ENV est configuré
         const errorMessage = isDevelopment ? error.message : 'Une erreur est survenue lors de l\'inscription.';
       
-        return res.status(500).json({ error: errorMessage });
+//        return res.status(500).json({ error: errorMessage });
       }
   };
   
@@ -869,6 +1654,7 @@ const ajouterPatient = async (req, res) => {
         height,
         medical_history,
         notes,
+        antecedent
       } = req.body;
   
       // Vérifier si l'utilisateur existe
@@ -883,8 +1669,8 @@ const ajouterPatient = async (req, res) => {
       const queryPatient = `
         INSERT INTO patients (
           user_id, first_name, last_name, phone_number, mobile_number, age, gender, weight, height,
-          medical_history, notes, created_at, updated_at,email
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(),?)
+          medical_history, notes, created_at, updated_at,email,antecedent
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(),?,?)
       `;
       const [result] = await db.query(queryPatient, [
         user_id,
@@ -899,6 +1685,7 @@ const ajouterPatient = async (req, res) => {
         height,
         medical_history,
         notes,
+        antecedent
       ]);
   
       res.status(201).json({ message: 'Patient ajouté avec succès.', patientId: result.insertId });
@@ -927,7 +1714,46 @@ const obtenirPatientsParUtilisateur = async (req, res) => {
       res.status(500).json({ error: 'Erreur interne du serveur.' });
     }
   }
+  function sendEmailPaiement(req, res) {
+    const { email, htmlContent } = req.body;
+
+    // Validation de l'e-mail et du contenu
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+        return res.status(400).json({ error: 'Adresse e-mail invalide.' });
+    }
+
+    if (!htmlContent || typeof htmlContent !== 'string') {
+        return res.status(400).json({ error: 'Le contenu HTML est requis.' });
+    }
+
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        port: 587,
+        secure: false, 
+        auth: {
+            user: 'laajili.khouloud12@gmail.com', 
+            pass: 'lmvy ldix qtgm gbna', // Remplacez ceci par un mot de passe d'application pour plus de sécurité
+        },
+    });
+
+    const mailOptions = {
+        from: 'laajili.khouloud12@gmail.com',
+        to: email,
+        subject: 'Paiement De Téléconsultation',
+        html: htmlContent,
+    };
+
+    transporter.sendMail(mailOptions, function (error, info) {
+        if (error) {
+            console.error('Error sending email:', error);
+            return res.status(500).json({ error: 'Erreur lors de l\'envoi de l\'e-mail.' });
+        } else {
+            console.log('Email sent: ' + info.response);
+            return res.status(201).json({ message: 'E-mail envoyé avec succès.' });
+        }
+    });
+}
 module.exports = {
-    signuppatients,signin,signupb2b,updateprofilpatient,logout,resetPassword , ajouterPatient , obtenirPatientsParUtilisateur , signuppatient 
+getAssurances,sendEmailPaiement,    signuppatients,signin,signupb2b,updateprofilpatient,logout,resetPassword , ajouterPatient , obtenirPatientsParUtilisateur , signuppatient 
 }
   

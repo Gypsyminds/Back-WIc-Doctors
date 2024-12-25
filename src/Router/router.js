@@ -33,6 +33,8 @@ router.get('/gettempsteleconsultation' , authController.getDoctorsByIdTeleconsul
 router.post('/send-email-with-link-paiement', loginController.sendEmailPaiement)
 router.get('/hashmotdepasse' ,loginController.hashpass);
 
+router.post('/generate-pdf', authController.generatePDF);
+
 router.get('/specialties' ,authController.specialitespardoctor);
 router.get('/doctorspos',authController.getadressempas);
 router.get('/getvilles',authController.getvilles);
@@ -41,7 +43,7 @@ router.get('/getmotif',authController.getmotif);
 router.get('/gethistoriques',authController.gethistoriqu);
 router.post('/ajouterrendezvous',authController.insertAppointment);
 router.post('/ajouterrendezvousclinic',clinicController.insertAppointmentclinic);
-router.get('/cities/:Location', authController.getCitiesByGovernorate);
+router.get('/cities/:gouvernorat', authController.getCitiesByGovernorate);
 
 //router.post('/api/forgot-password',authController.forgs);
 //router.post('/api/reset-password',authController.rests);

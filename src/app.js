@@ -14,6 +14,7 @@ app.use(bodyParser.json());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const cron = require('node-cron'); // Pour planifier la vérification des rendez-vous
+const path = require('path');
 
 const {sendSMSBeforeAppointment} = require('./Controlleurs/doctor');
 // Configuration de la session
@@ -131,6 +132,8 @@ app.post('/inscription', async (req, res) => {
         console.error('Erreur lors de l\'exécution de la tâche cron:', error);
     }
 });
+app.use('/pdfs', express.static(path.join(__dirname, 'pdfs')));
+
 // Démarrer le serveur
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

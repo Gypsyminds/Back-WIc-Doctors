@@ -3602,38 +3602,473 @@ const getDoctorsparvillepaysspecialitesjdide = async (req, res) => {
         return res.status(500).json({ error: 'Erreur lors de la récupération des médecins.' });
     }
 };
+const getDoctorsByIdcorrect = async (req, res) => {
+    const doctorId = req.query.doctor_id;
 
-
-
-
-// Get available dates for doctors
-const getDoctorsById = async (req, res) => {
-    const doctorId = req.query.doctor_id; // Retrieve the doctor's ID
-
-    // Check if doctorId is provided
+    // Valider doctor_id
     if (!doctorId) {
-        return res.status(400).json({ error: 'Le doctor_id est requis.' });
+        return res.status(400).json({ error: 'Le doctor_id doit être un entier valide.' });
     }
 
-    // Prepare the SQL query
-    const query = `SELECT day, start_at, end_at FROM availability_hours WHERE doctor_id = ? AND onligne = 0;`;
+    try {
+        const defaultDays = {
+            lundi: {},
+            mardi: {},
+            mercredi: {},
+            jeudi: {},
+            vendredi: {},
+            samedi: {},
+            dimanche: {}
+        };
+        // Requête pour les jours de disponibilité (sans pause ni durée)
+        const daysQuery = `
+            SELECT 
+                day,
+                start_at,
+                end_at
+            FROM 
+                availability_hours
+            WHERE 
+                doctor_id = ? AND onligne = 0;
+        `;
+        const [daysResults] = await db.query(daysQuery, [doctorId]);
+
+        // Requête pour les pauses et la durée
+        const pausesQuery = `
+        SELECT 
+            pause_from AS pause_start,
+            pause_to AS pause_end,
+            session_duration AS duree
+        FROM 
+            availability_hours
+        WHERE 
+            doctor_id = ? AND onligne = 0;
+    `;
+    const [pausesResults] = await db.query(pausesQuery, [doctorId]);
+
+    // Si des pauses sont récupérées, on en sélectionne une seule (par exemple, la première)
+    const uniquePause = pausesResults.length > 0 ? {
+        pause_start: pausesResults[0].pause_start,
+        pause_end: pausesResults[0].pause_end,
+     // duree: pausesResults[0].duree
+    } : null;
+    // Extraire les durées des pauses
+    const uniqueDuree = pausesResults.length > 0 ? pausesResults[0].duree : null;
+    // Requête pour récupérer les vacances
+    const holidaysQuery = `
+        SELECT 
+            dateDebut AS holiday_from,
+            dateFin AS holiday_to,
+            type AS holiday_type,
+            raison AS holiday_reason
+        FROM 
+            vacance
+        WHERE 
+            doctor_id = ?;
+    `;
+    const [holidaysResults] = await db.query(holidaysQuery, [doctorId]);
+
+    // Requête pour récupérer les indisponibilités
+    const unavailableQuery = `
+        SELECT 
+            start_at AS indisponible_date_debut,
+            ends_at AS indisponible_date_end
+        FROM 
+            appointments
+        WHERE 
+            doctor_id = ?;
+    `;
+    const [unavailableResults] = await db.query(unavailableQuery, [doctorId]);
+
+    const urgence = `SELECT 
+     jour , heurDebut, heurFin
+    FROM 
+    doctor_urgency
+WHERE 
+    doctor_id = ?;
+
+   `;
+   const [urgenceResults] = await db.query(urgence, [doctorId]);
+ daysResults.forEach(({ day, start_at, end_at, is_available }) => {
+            if (is_available === 1) {
+                defaultDays[day] = {
+                    start: start_at,
+                    end: end_at
+                };
+            }
+        });
+    // Formatage des données pour affichage local
+    const formattedHolidays = holidaysResults.map(holiday => ({
+        ...holiday,
+        holiday_from: new Date(holiday.holiday_from).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' }),
+        holiday_to: new Date(holiday.holiday_to).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' })
+    }));
+
+    // Filtrer les indisponibilités pour exclure celles inférieures à aujourd'hui
+    const today = new Date();
+    const filteredUnavailable = unavailableResults.filter(ind => {
+        const startDate = new Date(ind.indisponible_date_debut);
+        return startDate >= today;
+    });
+
+    const formattedUnavailable = filteredUnavailable.map(ind => ({
+        ...ind,
+        indisponible_date_debut: new Date(ind.indisponible_date_debut).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }) + ' ' + new Date(ind.indisponible_date_debut).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' }),
+        indisponible_date_end: new Date(ind.indisponible_date_end).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }) + ' ' + new Date(ind.indisponible_date_end).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' })
+    }));
+
+    const formattedUrgence = urgenceResults.map(inds => ({
+        ...inds,
+        jour: new Date(inds.jour).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }), // Format jour as date
+        heurDebut: new Date('1970-01-01T' + inds.heurDebut ).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' }), // Format heurDebut as time
+        heurFin: new Date('1970-01-01T' + inds.heurFin ).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' }) // Format heurFin as time
+    }));
+   
+   
+        res.json({
+            days: daysResults,
+            pauses: uniquePause,
+            duree :uniqueDuree,
+            holidays: formattedHolidays,
+            urgence :formattedUrgence ,
+            indisponibles: formattedUnavailable
+        });
+    } catch (err) {
+        console.error(err); // Debugging
+        return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
+    }
+};
+const getDoctorsById = async (req, res) => {
+    const doctorId = req.query.doctor_id;
+
+    // Valider doctor_id
+    if (!doctorId) {
+        return res.status(400).json({ error: 'Le doctor_id doit être un entier valide.' });
+    }
 
     try {
-        // Execute the query
+        const defaultDays = {
+            lundi: {},
+            mardi: {},
+            mercredi: {},
+            jeudi: {},
+            vendredi: {},
+            samedi: {},
+            dimanche: {}
+        };
+
+        // Requête pour les jours de disponibilité
+        const daysQuery = `
+            SELECT 
+                day,
+                start_at,
+                end_at,
+                is_available
+            FROM 
+                availability_hours
+            WHERE 
+                doctor_id = ? AND onligne = 0;
+        `;
+        const [daysResults] = await db.query(daysQuery, [doctorId]);
+
+        // Mettre à jour les jours par défaut en fonction des résultats
+        daysResults.forEach(({ day, start_at, end_at, is_available }) => {
+            if (is_available === 1) {
+                defaultDays[day] = {
+                    start_at,
+                    end_at
+                };
+            }
+        });
+
+        // Requête pour les pauses et la durée
+        const pausesQuery = `
+            SELECT 
+                pause_from AS pause_start,
+                pause_to AS pause_end,
+                session_duration AS duree
+            FROM 
+                availability_hours
+            WHERE 
+                doctor_id = ? AND onligne = 0;
+        `;
+        const [pausesResults] = await db.query(pausesQuery, [doctorId]);
+
+        const uniquePause = pausesResults.length > 0 ? {
+            pause_start: pausesResults[0].pause_start,
+            pause_end: pausesResults[0].pause_end,
+        } : null;
+
+        const uniqueDuree = pausesResults.length > 0 ? pausesResults[0].duree : null;
+
+        // Requête pour les vacances
+        const holidaysQuery = `
+            SELECT 
+                dateDebut AS holiday_from,
+                dateFin AS holiday_to,
+                type AS holiday_type,
+                raison AS holiday_reason
+            FROM 
+                vacance
+            WHERE 
+                doctor_id = ?;
+        `;
+        const [holidaysResults] = await db.query(holidaysQuery, [doctorId]);
+
+        const formattedHolidays = holidaysResults.map(holiday => ({
+            ...holiday,
+            holiday_from: new Date(holiday.holiday_from).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' }),
+            holiday_to: new Date(holiday.holiday_to).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' })
+        }));
+
+        // Requête pour les indisponibilités
+        const unavailableQuery = `
+            SELECT 
+                start_at AS indisponible_date_debut,
+                ends_at AS indisponible_date_end
+            FROM 
+                appointments
+            WHERE 
+                doctor_id = ?;
+        `;
+        const [unavailableResults] = await db.query(unavailableQuery, [doctorId]);
+
+        const today = new Date();
+        const filteredUnavailable = unavailableResults.filter(ind => {
+            const startDate = new Date(ind.indisponible_date_debut);
+            return startDate >= today;
+        });
+
+        const formattedUnavailable = filteredUnavailable.map(ind => ({
+            ...ind,
+            indisponible_date_debut: new Date(ind.indisponible_date_debut).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' }),
+            indisponible_date_end: new Date(ind.indisponible_date_end).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' })
+        }));
+
+        // Requête pour les urgences
+        const urgenceQuery = `
+            SELECT 
+                jour,
+                heurDebut,
+                heurFin
+            FROM 
+                doctor_urgency
+            WHERE 
+                doctor_id = ?;
+        `;
+        const [urgenceResults] = await db.query(urgenceQuery, [doctorId]);
+
+        const formattedUrgence = urgenceResults.map(inds => ({
+            jour: new Date(inds.jour).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }),
+            heurDebut: new Date(`1970-01-01T${inds.heurDebut}`).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' }),
+            heurFin: new Date(`1970-01-01T${inds.heurFin}`).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' })
+        }));
+
+        // Envoyer la réponse
+        res.json({
+            days: defaultDays, // Afficher les jours par défaut, mis à jour si disponibles
+            pauses: uniquePause,
+            duree: uniqueDuree,
+            holidays: formattedHolidays,
+            urgence: formattedUrgence,
+            indisponibles: formattedUnavailable
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
+    }
+};
+
+
+
+const getDoctorsByIdav = async (req, res) => {
+    const doctorId = req.query.doctor_id;
+
+    // Valider doctor_id
+    if (!doctorId ) {
+        return res.status(400).json({ error: 'Le doctor_id doit être un entier valide.' });
+    }
+
+    const query = `
+      SELECT 
+        ah.day,
+        ah.start_at,
+        ah.end_at,
+        ah.session_duration AS duree,
+        ah.pause_from AS pause_start,
+        ah.pause_to AS pause_end,
+        h.dateDebut AS holiday_from,
+        h.dateFin AS holiday_to,
+        h.type AS holiday_type,
+        h.raison AS holiday_reason,
+        ind.start_at AS indisponible_date,
+        ind.ends_at AS indisponible_time
+      FROM 
+        availability_hours AS ah
+      LEFT JOIN 
+        vacance AS h 
+        ON ah.doctor_id = h.doctor_id 
+      LEFT JOIN 
+        appointments AS ind 
+        ON ah.doctor_id = ind.doctor_id 
+      WHERE 
+        ah.doctor_id = ?
+        AND ah.onligne = 0;
+    `;
+    try {
+        const [results] = await db.query(query ,[doctorId]);
+
+        // Convertir les dates holiday_from et holiday_to pour afficher en heure locale
+        const resultsWithFormattedDates = results.map(result => {
+            const holidayFrom = new Date(result.holiday_from);
+            const holidayTo = new Date(result.holiday_to);
+            
+            // Ajuster le fuseau horaire à la zone horaire locale
+            const localHolidayFrom = holidayFrom.toLocaleString('fr-FR', { timeZone: 'Europe/Paris' });
+            const localHolidayTo = holidayTo.toLocaleString('fr-FR', { timeZone: 'Europe/Paris' });
+
+
+            const adjustedResults = results.map(row => {
+                if (row.indisponible_date) {
+                    row.indisponible_date = new Date(row.indisponible_date).toLocaleString('en-US', { timeZone: 'Africa/Tunis' });
+                }
+                if (row.indisponible_time) {
+                    row.indisponible_time = new Date(row.indisponible_time).toLocaleString('en-US', { timeZone: 'Africa/Tunis' });
+                }
+                return row;
+            });
+            return {
+                ...result,
+                holiday_from: localHolidayFrom,
+                holiday_to: localHolidayTo
+            };
+        });
+
+        res.json(resultsWithFormattedDates);
+    } catch (err) {
+        console.error(err); // Debugging
+        return res.status(500).json({ error: 'Erreur lors de la récupération des spécialités.' });
+    }
+};
+const formatTime = (time) => {
+    if (!time) return null;
+    try {
+        const t = new Date(`1970-01-01T${time}Z`);
+        if (isNaN(t.getTime())) {
+            throw new Error("Invalid time value");
+        }
+        return t.toISOString().split('T')[1].slice(0, 5); // Format HH:MM
+    } catch (err) {
+        console.error(`Erreur dans formatTime: ${time} n'est pas valide.`);
+        return null;
+    }
+};
+
+const formatDate = (date) => {
+    if (!date) return null;
+    try {
+        const d = new Date(date);
+        if (isNaN(d.getTime())) {
+            throw new Error("Invalid date value");
+        }
+        return d.toISOString().slice(0, 16).replace('T', ':'); // Format YYYY-MM-DD:HH:MM
+    } catch (err) {
+        console.error(`Erreur dans formatDate: ${date} n'est pas valide.`);
+        return null;
+    }
+};
+
+const getDoctorsByIdav2 = async (req, res) => {
+    const doctorId = req.query.doctor_id;
+
+    if (!doctorId) {
+        return res.status(400).json({ error: 'Le doctor_id doit être un entier valide.' });
+    }
+
+    const query = `
+        SELECT 
+            ah.day,
+            ah.start_at,
+            ah.end_at,
+            ah.session_duration AS duree,
+            ah.pause_from AS pause_start,
+            ah.pause_to AS pause_end,
+            h.dateDebut AS holiday_from,
+            h.dateFin AS holiday_to,
+            ind.start_at AS indisponible_date
+        FROM 
+            availability_hours AS ah
+        LEFT JOIN 
+            vacance AS h 
+            ON ah.doctor_id = h.doctor_id 
+        LEFT JOIN 
+            appointments AS ind 
+            ON ah.doctor_id = ind.doctor_id 
+        WHERE 
+            ah.doctor_id = ?
+            AND ah.onligne = 0;
+    `;
+
+    try {
         const [results] = await db.query(query, [doctorId]);
 
-        // Check if any results were found
-        if (results.length === 0) {
-            return res.status(404).json({ message: 'Aucune disponibilité trouvée pour ce médecin.' });
-        }
+        const schedule = {
+            lundi: {}, mardi: {}, mercredi: {}, jeudi: {}, vendredi: {}, samedi: {}, dimanche: {},
+            duree: null,
+            indisponibles: [],
+            holidays: [],
+            pause: {}
+        };
 
-        // Return the results
-        res.json(results);
+        const dayMap = {
+            'lundi': 'lundi', 'mardi': 'mardi', 'mercredi': 'mercredi', 'jeudi': 'jeudi',
+            'vendredi': 'vendredi', 'samedi': 'samedi', 'dimanche': 'dimanche'
+        };
+
+        results.forEach(row => {
+            if (row.day && dayMap[row.day.toLowerCase()]) {
+                const dayName = dayMap[row.day.toLowerCase()];
+                schedule[dayName] = {
+                    start: formatTime(row.start_at) || "00:00",
+                    end: formatTime(row.end_at) || "00:00"
+                };
+            }
+
+            // Ajouter les indisponibilités, une seule heure par entrée
+            if (row.indisponible_date) {
+                schedule.indisponibles.push(formatDate(row.indisponible_date));
+            }
+
+            // Ajouter les vacances (uniquement par jour ou avec heure si précisée)
+            if (row.holiday_from && row.holiday_to) {
+                const holidayFrom = formatDate(row.holiday_from).split(':')[0]; // YYYY-MM-DD
+                const holidayTo = formatDate(row.holiday_to).split(':')[0];
+                if (holidayFrom === holidayTo) {
+                    schedule.holidays.push({ from: holidayFrom }); // Un jour unique
+                } else {
+                    schedule.holidays.push({ from: holidayFrom, to: holidayTo });
+                }
+            }
+
+            if (row.pause_start && row.pause_end) {
+                schedule.pause = {
+                    start: formatTime(row.pause_start) || "00:00",
+                    end: formatTime(row.pause_end) || "00:00"
+                };
+            }
+
+            if (row.duree) {
+                schedule.duree = row.duree;
+            }
+        });
+
+        res.json(schedule);
     } catch (err) {
-        console.error(err); // For debugging
+        console.error(err);
         return res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
     }
 };
+
 // Get available dates for doctors téleconsultation
 const getDoctorsByIdTeleconsultation = async (req, res) => {
     const doctorId = req.query.doctor_id; // Retrieve the doctor's ID
@@ -6271,20 +6706,20 @@ const searchDoctors = async (req, res) => {
     }
 };
 const getCitiesByGovernorate = async (req, res) => {
-    const { Location } = req.params; // Récupérer le gouvernorat des paramètres d'URL
+    const { gouvernorat } = req.params; // Récupérer le gouvernorat des paramètres d'URL
 
-    if (!Location) {
+    if (!gouvernorat) {
         return res.status(400).json({ message: "Le gouvernorat est requis." });
     }
 
     const query = `
-        SELECT DISTINCT(ville) FROM docteurs_tunisie WHERE Location LIKE ?;
+        SELECT DISTINCT(ville) FROM docteurs_tunisie WHERE gouvernorat LIKE ?;
 
     `;
 
     try {
         // Exécuter la requête SQL avec le gouvernorat donné
-        const [results] = await db.query(query, [Location]);
+        const [results] = await db.query(query, [gouvernorat]);
 
         if (results.length === 0) {
             return res.status(404).json({ message: "Aucune ville trouvée pour ce gouvernorat." });
@@ -6296,6 +6731,178 @@ const getCitiesByGovernorate = async (req, res) => {
     } catch (error) {
         console.error("Erreur lors de la récupération des villes :", error);
         res.status(500).json({ message: "Erreur interne du serveur." });
+    }
+};
+const puppeteer = require('puppeteer');
+const path = require('path');
+
+const fs = require('fs'); // Ajout de l'importation fs
+
+ 
+ const generatePDF = async (req, res) => {
+    try {
+        // Récupérer les données depuis la base de données
+        const [rows] = await db.query(`
+           SELECT 
+               p.type AS prescription_type, 
+               p.date AS prescription_date, 
+               p.observation AS prescription_observation, 
+               c.dateConsultation AS consultation_date, 
+               c.raison AS consultation_reason, 
+               c.motif AS consultation_motif, 
+               d.name AS doctor_name, 
+               u.first_name AS patient_first_name, 
+               u.last_name AS patient_last_name, 
+               JSON_ARRAYAGG(JSON_OBJECT('name', s.name)) AS specialities ,
+               addr.ville AS ville,
+               addr.pays AS pays,
+               addr.address AS adress
+             FROM 
+    prescriptions p 
+LEFT JOIN 
+    consultations c ON p.consultation_id = c.id
+LEFT JOIN 
+    patients u ON c.patient_id = u.id
+LEFT JOIN 
+    doctors d ON c.user_id = d.user_id
+ LEFT JOIN 
+    doctor_specialities ds ON d.id = ds.doctor_id
+LEFT JOIN 
+    specialities s ON ds.speciality_id = s.id
+ LEFT JOIN 
+     addresses addr ON c.user_id = addr.user_id
+           WHERE 
+               c.patient_id = ?
+               GROUP BY
+    p.type, p.date, p.observation, c.dateConsultation, c.raison, c.motif, d.name, u.first_name, u.last_name ,  addr.ville ,  addr.pays , addr.address ;`, 
+           [req.body.record_id]
+        );
+
+        // Vérifiez si des lignes ont été retournées
+        if (rows.length === 0) {
+            return res.status(404).json({ error: "Aucune donnée trouvée pour l'ID donné." });
+        }
+
+        // Assurez-vous que vous avez bien accès aux données
+        const data = rows[0]; // Si plusieurs lignes, vous pouvez itérer sur `rows`
+
+        console.log("Données récupérées:", data); // Affichez les données pour vérifier leur structure
+
+        // Vérifiez si `data.doctor_name` existe avant d'accéder à cette propriété
+        if (!data.doctor_name) {
+            return res.status(500).json({ error: "Nom du médecin manquant dans les données." });
+        }
+        const doctorName = JSON.parse(data.doctor_name).fr;
+        const specialityNames = data.specialities.map(speciality => {
+            return JSON.parse(speciality.name).fr;  // Extraire le nom en français
+        }).join(', ');  // Joindre les spécialités en une seule chaîne si plusieurs spécialités
+        
+        // Contenu HTML dynamique basé sur les données SQL
+        const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+              <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            max-width: 21cm;
+            margin: 0 auto;
+        }
+        
+        .header-left h1, .header-left p, .header-right p {
+            margin: 0;
+        }
+        .patient-info {
+            margin-bottom: 40px;
+        }
+        .medications {
+            margin-top: 20px;
+        }
+        .instructions {
+            margin-top: 20px;
+            font-style: italic;
+        }
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 80px;
+            font-size: 1.1em;
+        }
+        .signature {
+            text-align: right;
+            margin-top: 30px;
+        }
+    </style>
+
+        </head>
+        <body>
+        <header class="header">
+    <div class="header-left">
+    <br><br>
+      <h1>Dr. ${doctorName}</h1>
+        <table style="width: 100%; border-collapse: collapse;">
+    <tr>
+        <td style="padding: 0; text-align: left;">Médecin  : ${specialityNames|| 'Non spécifiée'}</td>
+        <td style="padding: 0; text-align: right;">Adresse : ${data.doctor_address || 'Non spécifiée'}</td>
+    </tr>
+</table>
+
+
+        <div style="border-top: 1px solid #ccc; padding-top: 5px; margin-top: 5px;">
+        <table style="width: 100%; border-collapse: collapse;">
+    <tr>
+  
+      
+</table>
+        </div>
+    </div>
+</header>
+            <div class="header">
+              
+                <p></p>
+                <p></p>
+            </div>
+            <div>
+                <p><strong>Patient :</strong> ${data.patient_first_name} ${data.patient_last_name}</p>
+                <p><strong>Date de consultation :</strong> ${data.consultation_date}</p>
+                <p><strong>Motif :</strong> ${data.consultation_motif || 'Non spécifié'}</p>
+                <p><strong>Raison :</strong> ${data.consultation_reason || 'Non spécifiée'}</p>
+                <p><strong>Type de prescription :</strong> ${data.prescription_type || 'Non spécifiée'}</p>
+                <p><strong>Date de prescription :</strong> ${data.prescription_date}</p>
+                <p><strong>Observation :</strong> ${data.prescription_observation || 'Aucune'}</p>
+            </div>
+            <div class="footer">
+                <p><em>Document généré automatiquement.</em></p>
+            </div>
+        </body>
+        </html>`;
+
+        // Configurer Puppeteer pour générer le PDF
+        const browser = await puppeteer.launch();
+        const page = await browser.newPage();
+
+        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+
+        // Générer le PDF
+        const pdfDir = path.join(__dirname, '../pdfs');
+        const pdfPath = path.join(pdfDir, `ordonnance-${Date.now()}.pdf`);
+
+        // Vérifier et créer le répertoire s'il n'existe pas
+        if (!fs.existsSync(pdfDir)) {
+            fs.mkdirSync(pdfDir, { recursive: true });
+        }
+
+        await page.pdf({ path: pdfPath, format: 'A4', printBackground: true });
+
+        await browser.close();
+
+        // Retourner l'URL du PDF
+        res.status(200).json({ url: `http://localhost:3001/pdfs/${path.basename(pdfPath)}` });
+    } catch (error) {
+        console.error('Erreur lors de la génération du PDF :', error);
+        res.status(500).json({ error: 'Erreur lors de la génération du PDF' });
     }
 };
 
@@ -6316,7 +6923,7 @@ module.exports = {
     getadressempas,getlaboratoire,
     getvilles,getpays,getmotif,gethistoriqu,getclinics,
     insertAppointment,getville,getveterinaires,
-    forgs,rests,insertAppointment,getplusprochedoc
+    forgs,rests,insertAppointment,getplusprochedoc , generatePDF
     ,getAppointmentsByPatientId , updateAppointment , getDoctorById , cancelAppointment , sendSMSBeforeAppointment ,verifierEtEnvoyerRappels , annulerRendezVous
     ,confirmerRendezVous , verifierEtEnvoyerSmsRappels , sendEmail ,getinfermiers , getblogs , getpharmacies , getAllDoctorsAndDocteursTunisie,getCitiesByGovernorate
 }

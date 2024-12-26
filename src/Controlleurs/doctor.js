@@ -6738,129 +6738,132 @@ const path = require('path');
 
 const fs = require('fs'); // Ajout de l'importation fs
 
- 
- const generatePDF = async (req, res) => {
+const safeJsonParse = (jsonString) => {
     try {
-        // Récupérer les données depuis la base de données
+        // Nettoyer la chaîne pour enlever les caractères spéciaux
+        const cleanedString = jsonString.replace(/[\x00-\x1F\x7F]/g, '');  // Supprimer les caractères de contrôle
+        return JSON.parse(cleanedString);
+    } catch (error) {
+        console.error("Erreur lors du parsing JSON:", error);
+        return null;  // Si le JSON est invalide, retourner null
+    }
+};
+
+
+const generatePDF = async (req, res) => {
+    try {
         const [rows] = await db.query(`
-           SELECT 
-               p.type AS prescription_type, 
-               p.date AS prescription_date, 
-               p.observation AS prescription_observation, 
-               c.dateConsultation AS consultation_date, 
-               c.raison AS consultation_reason, 
-               c.motif AS consultation_motif, 
-               d.name AS doctor_name, 
-               u.first_name AS patient_first_name, 
-               u.last_name AS patient_last_name, 
-               JSON_ARRAYAGG(JSON_OBJECT('name', s.name)) AS specialities ,
-               addr.ville AS ville,
-               addr.pays AS pays,
-               addr.address AS adress
-             FROM 
-    prescriptions p 
-LEFT JOIN 
-    consultations c ON p.consultation_id = c.id
-LEFT JOIN 
-    patients u ON c.patient_id = u.id
-LEFT JOIN 
-    doctors d ON c.user_id = d.user_id
- LEFT JOIN 
-    doctor_specialities ds ON d.id = ds.doctor_id
-LEFT JOIN 
-    specialities s ON ds.speciality_id = s.id
- LEFT JOIN 
-     addresses addr ON c.user_id = addr.user_id
-           WHERE 
-               c.patient_id = ?
-               GROUP BY
-    p.type, p.date, p.observation, c.dateConsultation, c.raison, c.motif, d.name, u.first_name, u.last_name ,  addr.ville ,  addr.pays , addr.address ;`, 
-           [req.body.record_id]
+            SELECT 
+                p.type AS prescription_type, 
+                p.date AS prescription_date, 
+                p.observation AS prescription_observation, 
+                c.dateConsultation AS consultation_date, 
+                c.raison AS consultation_reason, 
+                c.motif AS consultation_motif, 
+                d.name AS doctor_name, 
+                u.first_name AS patient_first_name, 
+                u.last_name AS patient_last_name, 
+                JSON_ARRAYAGG(JSON_OBJECT('name', s.name)) AS specialities ,
+                addr.ville AS ville,
+                addr.pays AS pays,
+                addr.address AS adress
+            FROM 
+            prescriptions p 
+            LEFT JOIN 
+            consultations c ON p.consultation_id = c.id
+            LEFT JOIN 
+            patients u ON c.patient_id = u.id
+            LEFT JOIN 
+            doctors d ON c.user_id = d.user_id
+            LEFT JOIN 
+            doctor_specialities ds ON d.id = ds.doctor_id
+            LEFT JOIN 
+            specialities s ON ds.speciality_id = s.id
+            LEFT JOIN 
+            addresses addr ON c.user_id = addr.user_id
+            WHERE 
+            c.patient_id = ?
+            GROUP BY
+            p.type, p.date, p.observation, c.dateConsultation, c.raison, c.motif, d.name, u.first_name, u.last_name , addr.ville , addr.pays , addr.address ;`, 
+            [req.body.record_id]
         );
 
-        // Vérifiez si des lignes ont été retournées
         if (rows.length === 0) {
             return res.status(404).json({ error: "Aucune donnée trouvée pour l'ID donné." });
         }
 
+        const data = rows[0];
+
         // Assurez-vous que vous avez bien accès aux données
-        const data = rows[0]; // Si plusieurs lignes, vous pouvez itérer sur `rows`
-
-        console.log("Données récupérées:", data); // Affichez les données pour vérifier leur structure
-
-        // Vérifiez si `data.doctor_name` existe avant d'accéder à cette propriété
-        if (!data.doctor_name) {
-            return res.status(500).json({ error: "Nom du médecin manquant dans les données." });
-        }
-        const doctorName = JSON.parse(data.doctor_name).fr;
-        const specialityNames = data.specialities.map(speciality => {
-            return JSON.parse(speciality.name).fr;  // Extraire le nom en français
-        }).join(', ');  // Joindre les spécialités en une seule chaîne si plusieurs spécialités
+        const doctorName = safeJsonParse(data.doctor_name)?.fr || 'Nom non spécifié';
+        const specialityNames = Array.isArray(data.specialities) 
+            ? data.specialities.map(speciality => {
+                return safeJsonParse(speciality.name)?.fr || 'Non spécifiée';
+            }).join(', ') 
+            : 'Non spécifiée';
         
+        const adresseName = safeJsonParse(data.adress)?.fr || 'Non spécifiée';
+        const villeName = safeJsonParse(data.ville)?.fr || 'Non spécifiée';
+        const paysName = safeJsonParse(data.pays)?.fr || 'Non spécifié';
+
         // Contenu HTML dynamique basé sur les données SQL
         const htmlContent = `
         <!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
-              <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 40px;
-            max-width: 21cm;
-            margin: 0 auto;
-        }
-        
-        .header-left h1, .header-left p, .header-right p {
-            margin: 0;
-        }
-        .patient-info {
-            margin-bottom: 40px;
-        }
-        .medications {
-            margin-top: 20px;
-        }
-        .instructions {
-            margin-top: 20px;
-            font-style: italic;
-        }
-        .footer {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 80px;
-            font-size: 1.1em;
-        }
-        .signature {
-            text-align: right;
-            margin-top: 30px;
-        }
-    </style>
-
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 40px;
+                    max-width: 21cm;
+                    margin: 0 auto;
+                }
+                .header-left h1, .header-left p, .header-right p {
+                    margin: 0;
+                }
+                .patient-info {
+                    margin-bottom: 40px;
+                }
+                .medications {
+                    margin-top: 20px;
+                }
+                .instructions {
+                    margin-top: 20px;
+                    font-style: italic;
+                }
+                .footer {
+                    display: flex;
+                    justify-content: space-between;
+                    margin-top: 80px;
+                    font-size: 1.1em;
+                }
+                .signature {
+                    text-align: right;
+                    margin-top: 30px;
+                }
+            </style>
         </head>
         <body>
-        <header class="header">
-    <div class="header-left">
-    <br><br>
-      <h1>Dr. ${doctorName}</h1>
-        <table style="width: 100%; border-collapse: collapse;">
-    <tr>
-        <td style="padding: 0; text-align: left;">Médecin  : ${specialityNames|| 'Non spécifiée'}</td>
-        <td style="padding: 0; text-align: right;">Adresse : ${data.doctor_address || 'Non spécifiée'}</td>
-    </tr>
-</table>
-
-
-        <div style="border-top: 1px solid #ccc; padding-top: 5px; margin-top: 5px;">
-        <table style="width: 100%; border-collapse: collapse;">
-    <tr>
-  
-      
-</table>
-        </div>
-    </div>
-</header>
+            <header class="header">
+                <div class="header-left">
+                    <br><br>
+                    <h1>Dr. ${doctorName}</h1>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 0; text-align: left;">Médecin  : ${specialityNames || 'Non spécifiée'}</td>
+                            <td style="padding: 0; text-align: right;">  ${adresseName || 'Non spécifiée'}</td>
+                        </tr>
+                    </table>
+                    <div style="border-top: 1px solid #ccc; padding-top: 5px; margin-top: 5px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                        </tr>
+                        </table>
+                    </div>
+                </div>
+            </header>
             <div class="header">
-              
                 <p></p>
                 <p></p>
             </div>
@@ -6879,30 +6882,90 @@ LEFT JOIN
         </body>
         </html>`;
 
-        // Configurer Puppeteer pour générer le PDF
         const browser = await puppeteer.launch();
         const page = await browser.newPage();
-
         await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
 
-        // Générer le PDF
         const pdfDir = path.join(__dirname, '../pdfs');
         const pdfPath = path.join(pdfDir, `ordonnance-${Date.now()}.pdf`);
 
-        // Vérifier et créer le répertoire s'il n'existe pas
         if (!fs.existsSync(pdfDir)) {
             fs.mkdirSync(pdfDir, { recursive: true });
         }
 
         await page.pdf({ path: pdfPath, format: 'A4', printBackground: true });
-
         await browser.close();
 
-        // Retourner l'URL du PDF
         res.status(200).json({ url: `http://localhost:3001/pdfs/${path.basename(pdfPath)}` });
+
     } catch (error) {
         console.error('Erreur lors de la génération du PDF :', error);
         res.status(500).json({ error: 'Erreur lors de la génération du PDF' });
+    }
+};
+
+
+
+const getPatientData = async (req, res) => {
+    const patientId = req.params.patientId;
+
+    try {
+        const [rows] = await db.query(`
+            SELECT 
+                p.type AS prescription_type, 
+                p.observation AS prescription_observation, 
+                c.dateConsultation AS consultation_date, 
+                d.name AS doctor_name, 
+                u.first_name AS patient_first_name, 
+                u.last_name AS patient_last_name, 
+                JSON_ARRAYAGG(JSON_OBJECT('name', s.name)) AS specialities,
+                addr.ville AS ville,
+                addr.pays AS pays,
+                addr.address AS adress
+            FROM 
+                prescriptions p 
+            LEFT JOIN 
+                consultations c ON p.consultation_id = c.id
+            LEFT JOIN 
+                patients u ON c.patient_id = u.id
+            LEFT JOIN 
+                doctors d ON c.user_id = d.user_id
+            LEFT JOIN 
+                doctor_specialities ds ON d.id = ds.doctor_id
+            LEFT JOIN 
+                specialities s ON ds.speciality_id = s.id
+            LEFT JOIN 
+                addresses addr ON c.user_id = addr.user_id
+            WHERE 
+                c.patient_id = ?
+            GROUP BY
+                p.type, p.date, p.observation, c.dateConsultation, d.name, u.first_name, u.last_name, addr.ville, addr.pays, addr.address
+        `, [patientId]);
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: "Aucune donnée trouvée pour le patient." });
+        }
+
+        // Convertir la date de consultation au format local (Africa/Tunis) en JJ/MM/AAAA HH:mm:ss
+        rows.forEach(row => {
+            if (row.consultation_date) {
+                const options = {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    timeZone: 'Africa/Tunis',
+                };
+                row.consultation_date = new Intl.DateTimeFormat('fr-FR', options).format(new Date(row.consultation_date));
+            }
+        });
+
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error("Erreur lors de l'exécution de la requête :", error);
+        res.status(500).json({ error: "Erreur lors de la récupération des données." });
     }
 };
 
@@ -6920,7 +6983,7 @@ module.exports = {
     getalldoctors,getDoctorsByIdTeleconsultation,
     getDoctorsparvillepaysspecialites,searchDoctors ,getbanquesangs,
     getDoctorsById,gethopiteaux,
-    getadressempas,getlaboratoire,
+    getadressempas,getlaboratoire,getPatientData,
     getvilles,getpays,getmotif,gethistoriqu,getclinics,
     insertAppointment,getville,getveterinaires,
     forgs,rests,insertAppointment,getplusprochedoc , generatePDF

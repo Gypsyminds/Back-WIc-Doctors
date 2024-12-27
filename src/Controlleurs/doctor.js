@@ -6749,42 +6749,67 @@ const safeJsonParse = (jsonString) => {
     }
 };
 
+function formatDateToFrench(dateString) {
+    const months = [
+        'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+        'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
+    ];
+    const date = new Date(dateString);
+    const day = date.getDate();
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    return `${day} ${month} ${year}`;
+}
+
 
 const generatePDF = async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT 
-                p.type AS prescription_type, 
-                p.date AS prescription_date, 
-                p.observation AS prescription_observation, 
-                c.dateConsultation AS consultation_date, 
-                c.raison AS consultation_reason, 
-                c.motif AS consultation_motif, 
-                d.name AS doctor_name, 
-                u.first_name AS patient_first_name, 
-                u.last_name AS patient_last_name, 
-                JSON_ARRAYAGG(JSON_OBJECT('name', s.name)) AS specialities ,
-                addr.ville AS ville,
-                addr.pays AS pays,
-                addr.address AS adress
-            FROM 
-            prescriptions p 
-            LEFT JOIN 
-            consultations c ON p.consultation_id = c.id
-            LEFT JOIN 
-            patients u ON c.patient_id = u.id
-            LEFT JOIN 
-            doctors d ON c.user_id = d.user_id
-            LEFT JOIN 
-            doctor_specialities ds ON d.id = ds.doctor_id
-            LEFT JOIN 
-            specialities s ON ds.speciality_id = s.id
-            LEFT JOIN 
-            addresses addr ON c.user_id = addr.user_id
-            WHERE 
-            c.patient_id = ?
-            GROUP BY
-            p.type, p.date, p.observation, c.dateConsultation, c.raison, c.motif, d.name, u.first_name, u.last_name , addr.ville , addr.pays , addr.address ;`, 
+         SELECT 
+    p.type AS prescription_type, 
+    p.date AS prescription_date, 
+    p.observation AS prescription_observation, 
+    c.dateConsultation AS consultation_date, 
+    c.raison AS consultation_reason, 
+    c.motif AS consultation_motif, 
+    d.name AS doctor_name, 
+    d.diplome AS diplome,
+    d.matricule_CNAM As matricule_CNAM ,d.numOrdre AS numOrdre ,
+    u.first_name AS patient_first_name, 
+    u.last_name AS patient_last_name, 
+    JSON_ARRAYAGG(JSON_OBJECT('name', s.name)) AS specialities,
+    addr.ville AS ville,
+    addr.pays AS pays,    us.phone_number AS doctor_phone_number, 
+
+    addr.address AS adress,
+    JSON_ARRAYAGG(JSON_OBJECT('name', m.NOM_COMMERCIAL, 'dosage', pm.dosage, 'nb_de_jours', pm.nb_de_jours ,'horaire',pm.horaire ,'nb_de_fois' ,pm.nb_de_fois)) AS medications ,
+    COUNT(pm.medicament_CODE_PCT) AS number_of_medications
+FROM 
+    prescriptions p
+LEFT JOIN 
+    consultations c ON p.consultation_id = c.id
+LEFT JOIN 
+    patients u ON c.patient_id = u.id
+LEFT JOIN 
+    doctors d ON c.user_id = d.user_id
+LEFT JOIN 
+    doctor_specialities ds ON d.id = ds.doctor_id
+LEFT JOIN 
+    specialities s ON ds.speciality_id = s.id
+LEFT JOIN 
+    addresses addr ON c.user_id = addr.user_id
+LEFT JOIN 
+   medicament_prescription pm ON p.id = pm.prescription_id
+LEFT JOIN 
+    medicaments m ON pm.medicament_CODE_PCT = m.CODE_PCT
+LEFT JOIN 
+    medicament_prescription mp ON pm.medicament_CODE_PCT = mp.id
+    LEFT JOIN 
+    users us ON d.user_id = us.id
+WHERE 
+    c.patient_id = ?
+GROUP BY
+    p.type, p.date, p.observation, c.dateConsultation, c.raison, c.motif, d.name, u.first_name, u.last_name, addr.ville, addr.pays, addr.address, d.diplome ,us.phone_number ,  d.matricule_CNAM , d.numOrdre ;`, 
             [req.body.record_id]
         );
 
@@ -6793,6 +6818,9 @@ const generatePDF = async (req, res) => {
         }
 
         const data = rows[0];
+        const consultationDate = formatDateToFrench(data.consultation_date || ''); // Exemple avec consultation_date
+        const patientName = safeJsonParse(data.patient_first_name)?.fr || 'Nom non spécifié';
+        const patientLastName = safeJsonParse(data.patient_last_name)?.fr || 'Nom non spécifié';
 
         // Assurez-vous que vous avez bien accès aux données
         const doctorName = safeJsonParse(data.doctor_name)?.fr || 'Nom non spécifié';
@@ -6805,6 +6833,9 @@ const generatePDF = async (req, res) => {
         const adresseName = safeJsonParse(data.adress)?.fr || 'Non spécifiée';
         const villeName = safeJsonParse(data.ville)?.fr || 'Non spécifiée';
         const paysName = safeJsonParse(data.pays)?.fr || 'Non spécifié';
+        console.log("Valeur de data.medications :", data.medications);
+
+      const medications = (data.medications || '[]');
 
         // Contenu HTML dynamique basé sur les données SQL
         const htmlContent = `
@@ -6818,6 +6849,8 @@ const generatePDF = async (req, res) => {
                     margin: 40px;
                     max-width: 21cm;
                     margin: 0 auto;
+                       padding-left: 20px; /* Marge gauche */
+            padding-right: 20px;
                 }
                 .header-left h1, .header-left p, .header-right p {
                     margin: 0;
@@ -6832,16 +6865,31 @@ const generatePDF = async (req, res) => {
                     margin-top: 20px;
                     font-style: italic;
                 }
-                .footer {
-                    display: flex;
-                    justify-content: space-between;
-                    margin-top: 80px;
-                    font-size: 1.1em;
-                }
-                .signature {
-                    text-align: right;
-                    margin-top: 30px;
-                }
+               .footer {
+    display: flex;
+    justify-content: flex-end; /* Aligne la signature à droite */
+    margin-top: 80px;
+    font-size: 1.1em;
+      padding-left: 20px; /* Marge gauche */
+            padding-right: 20px;
+}
+
+.signature {
+    text-align: center; /* Centrer le texte dans la signature */
+    margin-top: 30px;
+}
+
+.signature p:first-child {
+    margin-bottom: 10px; /* Ajoute un espace entre "Signature" et la ligne */
+}
+
+.signature .line {
+    display: inline-block;
+    width: 150px; /* Largeur personnalisée pour la ligne de signature */
+    border-top: 2px solid #000; /* Une ligne plus élégante pour la signature */
+    margin-top: 10px;
+}
+
             </style>
         </head>
         <body>
@@ -6851,36 +6899,64 @@ const generatePDF = async (req, res) => {
                     <h1>Dr. ${doctorName}</h1>
                     <table style="width: 100%; border-collapse: collapse;">
                         <tr>
-                            <td style="padding: 0; text-align: left;">Médecin  : ${specialityNames || 'Non spécifiée'}</td>
+                            <td style="padding: 0; text-align: left;">Médecin   ${specialityNames || 'Non spécifiée'}</td>
                             <td style="padding: 0; text-align: right;">  ${adresseName || 'Non spécifiée'}</td>
                         </tr>
                     </table>
+                
+
                     <div style="border-top: 1px solid #ccc; padding-top: 5px; margin-top: 5px;">
                         <table style="width: 100%; border-collapse: collapse;">
                             <tr>
-                        </tr>
+                            <td style="padding: 0; text-align: left;">  ${data.diplome || 'Non spécifiée'} <br>
+                                        N° d'order: ${data.numOrdre || 'Non spécifiée'} </td>
+
+                        <td style="padding: 0; text-align: right;"><strong>Tél :</strong>  ${data.doctor_phone_number || 'Non spécifiée'}<br>  <br>
+</td>
+
+     </tr>
+                    
+
                         </table>
                     </div>
                 </div>
             </header>
             <div class="header">
-                <p></p>
-                <p></p>
+                
+<div style="text-align: center">
+    <p><strong>Matricule CNAM: </strong>${data.matricule_CNAM}</p>
+</div>
+
+
+  <p style="padding: 0; text-align: right;"><strong>Le </strong>  ${consultationDate || 'Non spécifiée'}<br>  <br></p>
+
+            
             </div>
             <div>
-                <p><strong>Patient :</strong> ${data.patient_first_name} ${data.patient_last_name}</p>
-                <p><strong>Date de consultation :</strong> ${data.consultation_date}</p>
-                <p><strong>Motif :</strong> ${data.consultation_motif || 'Non spécifié'}</p>
-                <p><strong>Raison :</strong> ${data.consultation_reason || 'Non spécifiée'}</p>
-                <p><strong>Type de prescription :</strong> ${data.prescription_type || 'Non spécifiée'}</p>
-                <p><strong>Date de prescription :</strong> ${data.prescription_date}</p>
+                <p><strong>Mr/Mme ${patientName} ${patientLastName}</p>
+                <br> 
+                <h1>${data.prescription_type || 'Non spécifiée'}</h1>
+                <br>
+                 <p>
+                ${medications.map(med => `
+                    <p>${med.name } - ${med.dosage}, ${med.nb_de_fois}, ${med.horaire} ${med.nb_de_jours}
+                  
+                `).join('')}
+            </p>
                 <p><strong>Observation :</strong> ${data.prescription_observation || 'Aucune'}</p>
+                <p><strong>Total Médicaments: </strong> ${data.number_of_medications}</p>
+
             </div>
-            <div class="footer">
-                <p><em>Document généré automatiquement.</em></p>
-            </div>
+         <div class="footer">
+    <div class="signature">
+        <p>Signature</p>
+        <div class="line"></div>
+    </div>
+</div>
+
         </body>
         </html>`;
+        console.log("Nombre total de médicaments :", data.number_of_medications);
 
         const browser = await puppeteer.launch();
         const page = await browser.newPage();

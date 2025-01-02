@@ -451,22 +451,136 @@ const getalldoctorssavant = (req, res) => {
         res.json(results);
     });
 };
-
 const getalldoctors = async (req, res) => {
+    let query = `SELECT  
+    d.id AS doctor_id,
+    d.name AS name,
+    d.doctor_photo,
+    d.enable_online_consultation,
+    d.description,
+    d.horaires,
+    d.cabinet_photo,
+    d.created_at,
+    d.id_aleatoire AS aleatoire,
+    a.title AS title,
+    JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
+    usr.phone_number,  
+    addr.ville AS ville,
+    addr.pays AS pays,     
+    addr.gouvernorat AS gouvernorat,
+    addr.address AS adresse_exacte
+FROM 
+    doctors d 
+LEFT JOIN 
+    doctor_specialities ds ON d.id = ds.doctor_id 
+LEFT JOIN 
+    specialities s ON ds.speciality_id = s.id 
+LEFT JOIN 
+    experiences a ON d.id = a.doctor_id 
+LEFT JOIN 
+    users usr ON d.user_id = usr.id 
+LEFT JOIN 
+    addresses addr ON usr.id = addr.user_id
+WHERE
+    addr.ville IS NOT NULL AND addr.ville != ''  -- Filtrer pour avoir une adresse
+GROUP BY  
+    d.id, 
+    d.name, 
+    d.doctor_photo,
+    d.enable_online_consultation,
+    d.description,
+    d.horaires,
+    d.cabinet_photo,
+    d.created_at,
+    d.id_aleatoire,
+    a.title,
+    usr.phone_number,  
+    addr.ville,
+    addr.pays,     
+    addr.gouvernorat,
+    addr.address
+ORDER BY 
+    RAND();
+`;
+    try {
+        // Execute the query
+        const [results] = await db.query(query);
+
+        // Return the results
+        res.json(results);
+    } catch (err) {
+        console.error(err); // For debugging
+        return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs.' });
+    }
+};
+
+const getalldoctors66 = async (req, res) => {
     let query = `
-        SELECT  
-            d.id AS doctor_id,
-            d.name AS name,
-            d.doctor_photo,
-            d.enable_online_consultation,
-            d.description,
-            d.horaires,
-            d.cabinet_photo,
-            d.created_at,d.id_aleatoire,
-            a.title AS title,
+//        SELECT  
+  //          d.id AS doctor_id,
+    //        d.name AS name,
+      //      d.doctor_photo,
+        //    d.enable_online_consultation,
+          //  d.description,
+    //        d.horaires,
+      //      d.cabinet_photo,
+        //    d.created_at,d.id_aleatoire,
+          //  a.title AS title,
+SELECT  
+    d.id AS doctor_id,
+    d.name AS name,
+    d.doctor_photo,
+    d.enable_online_consultation,
+    d.description,
+    d.horaires,
+    d.cabinet_photo,
+    d.created_at,
+    d.id_aleatoire,
+    a.title AS title,
+    JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
+    usr.phone_number,  
+    addr.ville AS ville,
+    addr.pays AS pays,     
+    addr.gouvernorat AS gouvernorat,
+    addr.address AS adresse_exacte
+FROM 
+    doctors d 
+LEFT JOIN 
+    doctor_specialities ds ON d.id = ds.doctor_id 
+LEFT JOIN 
+    specialities s ON ds.speciality_id = s.id 
+LEFT JOIN 
+    experiences a ON d.id = a.doctor_id 
+LEFT JOIN 
+    users usr ON d.user_id = usr.id 
+LEFT JOIN 
+    addresses addr ON usr.id = addr.user_id
+WHERE
+    addr.ville IS NOT NULL AND addr.ville != ''  -- Filtrer pour avoir une adresse
+GROUP BY  
+    d.id, 
+    d.name, 
+    d.doctor_photo,
+    d.enable_online_consultation,
+    d.description,
+    d.horaires,
+    d.cabinet_photo,
+    d.created_at,
+    d.id_aleatoire,
+    a.title,
+    usr.phone_number,  
+    addr.ville,
+    addr.pays,     
+    addr.gouvernorat,
+    addr.address
+ORDER BY 
+    RAND();
             JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
             usr.phone_number,  
-            addr.ville
+             addr.ville AS ville,
+            addr.pays AS pays,     
+             addr.gouvernorat AS gouvernorat,
+            addr.address AS adresse_exacte
         FROM 
             doctors d 
         LEFT JOIN 
@@ -481,8 +595,7 @@ const getalldoctors = async (req, res) => {
             addresses addr ON usr.id = addr.user_id
         WHERE
             addr.ville IS NOT NULL AND addr.ville != ''  -- Filtrer pour avoir une adresse
-
-        GROUP BY  
+GROUP BY  
             d.id, 
             d.name, 
             d.doctor_photo,
@@ -493,10 +606,12 @@ const getalldoctors = async (req, res) => {
             d.created_at,
             a.title,d.id_aleatoire,
             usr.phone_number,  
-            addr.ville
+            addr.ville ,
+            addr.pays AS pays,     
+             addr.gouvernorat AS gouvernorat,
+            addr.address AS adresse_exacte,
         ORDER BY RAND();
     `;
-
     try {
         // Execute the query
         const [results] = await db.query(query);
@@ -1342,7 +1457,18 @@ const getDoctorsparvillepaysspecialitesfinale= async (req, res) => {
     }
 
     if (pays) {
-        conditionsDoctors.push('addr.pays LIKE ?');
+    if (row.holiday_from && row.holiday_to) {
+                const holidayKey = `${row.holiday_from}-${row.holiday_to}-${row.holiday_type}-${row.holiday_reason}`;
+                if (!holidaysSet.has(holidayKey)) {
+                    holidaysSet.add(holidayKey);
+                    formattedResults.holidays.push({
+                        start: row.holiday_from,
+                        ends: row.holiday_to,
+                        type: row.holiday_type || null,
+                        reason: row.holiday_reason || null,
+                    });
+                }
+            }        conditionsDoctors.push('addr.pays LIKE ?');
         queryParams.push(`%${pays}%`);
         countParams.push(`%${pays}%`);
     }
@@ -2097,8 +2223,254 @@ const getDoctorsparvillepaysspecialitestmchy = async (req, res) => {
     }
 };
 
-
 const getDoctorsparvillepaysspecialites = async (req, res) => {
+    const speciality_id = req.query.speciality_id; // Nom de la spécialité
+    const ville = req.query.ville; // Ville
+    const pays = req.query.pays; // Pays
+    const gouvernorat = req.query.gouvernorat; // Gouvernorat
+    const doctor_name = req.query.doctor_name; // Nom du médecin
+    const limit = parseInt(req.query.limit) || 10; // Nombre de résultats par page
+    const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
+    const queryParams = [];
+    const countParams = [];
+    const conditionsDoctors = [];
+    const conditionsDocteursTunisie = [];
+
+
+    // Requête pour la table `doctors`
+    let queryDoctors = `
+        SELECT  
+            d.id AS id_doctor,
+            d.name AS name,
+            d.doctor_photo,
+            d.enable_online_consultation,
+            d.description,
+            d.horaires,
+            d.cabinet_photo,
+            d.created_at,
+            a.title AS title,
+            usr.phone_number,d.id_aleatoire AS aleatoire,
+            addr.ville AS ville,
+            addr.pays AS pays,     
+             addr.gouvernorat AS gouvernorat,
+            addr.address AS adresse_exacte,
+            JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
+            'conventionné' AS type
+        FROM 
+            doctors d 
+        LEFT JOIN 
+            doctor_specialities ds ON d.id = ds.doctor_id 
+        LEFT JOIN 
+            specialities s ON ds.speciality_id = s.id 
+        LEFT JOIN 
+            experiences a ON d.id = a.doctor_id 
+        LEFT JOIN 
+            users usr ON d.user_id = usr.id 
+        LEFT JOIN 
+            addresses addr ON usr.id = addr.user_id
+    `;
+
+    // Conditions pour la table `doctors`
+    if (speciality_id) {
+        conditionsDoctors.push('s.name LIKE ?');
+        queryParams.push(`%${speciality_id}%`);
+        countParams.push(`%${speciality_id}%`);
+    }
+
+    if (ville) {
+        conditionsDoctors.push('addr.ville LIKE ?');
+        queryParams.push(`%${ville}%`);
+        countParams.push(`%${ville}%`);
+    }
+
+    if (pays) {
+        conditionsDoctors.push('addr.pays LIKE ?');
+        queryParams.push(`%${pays}%`);
+        countParams.push(`%${pays}%`);
+    }
+
+    if (doctor_name) {
+        conditionsDoctors.push('d.name LIKE ?');
+        queryParams.push(`%${doctor_name}%`);
+        countParams.push(`%${doctor_name}%`);
+    }
+    if (gouvernorat) {
+        conditionsDoctors.push('addr.gouvernorat LIKE ?');
+        queryParams.push(`%${gouvernorat}%`);
+        countParams.push(`%${gouvernorat}%`);
+    }
+
+    if (conditionsDoctors.length > 0) {
+        queryDoctors += ` WHERE ${conditionsDoctors.join(' AND ')}`;
+    }
+
+    queryDoctors += `
+        GROUP BY  
+            d.id,
+            d.name, 
+            d.doctor_photo,
+            d.enable_online_consultation,
+            d.description,
+            d.horaires,
+            d.cabinet_photo,
+            d.created_at,
+            a.title,d.id_aleatoire,
+            usr.phone_number, 
+            addr.ville,
+            addr.pays, 
+             addr.gouvernorat,
+            addr.address
+        LIMIT ? OFFSET ?
+    `;
+    queryParams.push(limit, offset);
+
+    // Requête pour la table `docteurs_tunisie`
+    let queryDocteursTunisie = `
+        SELECT 
+            NULL AS id_doctor,
+            dt.name AS name,
+            NULL AS doctor_photo,
+            NULL AS enable_online_consultation,
+            NULL AS description,
+            NULL AS horaires,
+            NULL AS cabinet_photo,
+            NULL AS created_at,
+            NULL AS title,dt.id_aleatoire AS aleatoire,
+            dt.Phone AS phone_number,
+            dt.adresse AS adresse_exacte,
+            dt.gouvernorat AS gouvernorat,
+            dt.ville AS ville,
+            dt.Sector AS specialites,
+            dt.Pays AS pays ,
+            'non-conventionné' AS type
+        FROM 
+            docteurs_tunisie dt
+    `;
+
+    // Conditions pour la table `docteurs_tunisie`
+    if (speciality_id) {
+        conditionsDocteursTunisie.push('dt.Sector LIKE ?');
+        queryParams.push(`%${speciality_id}%`);
+        countParams.push(`%${speciality_id}%`);
+    }
+
+    if (ville) {
+        conditionsDocteursTunisie.push('dt.ville LIKE ?');
+        queryParams.push(`%${ville}%`);
+        countParams.push(`%${ville}%`);
+    }
+
+    if (pays) {
+        conditionsDocteursTunisie.push('dt.Pays LIKE ?');
+        queryParams.push(`%${pays}%`);
+        countParams.push(`%${pays}%`);
+    }
+
+    if (doctor_name) {
+        conditionsDocteursTunisie.push('dt.name LIKE ?');
+        queryParams.push(`%${doctor_name}%`);
+        countParams.push(`%${doctor_name}%`);
+    }
+    if (gouvernorat) {
+        conditionsDocteursTunisie.push('dt.gouvernorat LIKE ?');
+        queryParams.push(`%${gouvernorat}%`);
+        countParams.push(`%${gouvernorat}%`);
+    }
+    if (conditionsDocteursTunisie.length > 0) {
+        queryDocteursTunisie += ` WHERE ${conditionsDocteursTunisie.join(' AND ')}`;
+    }
+
+    queryDocteursTunisie += `
+        LIMIT ? OFFSET ?
+    `;
+    queryParams.push(limit, offset);
+
+    try {
+        // Exécution des requêtes séparées
+        const [resultsDoctors] = await db.query(queryDoctors, queryParams);
+        const [resultsDocteursTunisie] = await db.query(queryDocteursTunisie, queryParams);
+
+        // Combinez et filtrez les résultats comme dans votre code original
+        let results = [...resultsDoctors, ...resultsDocteursTunisie];
+
+        results = results.filter(result => {
+            // Filtrer les médecins "Demo Doctor"
+            if (result.name && result.name.toLowerCase().includes('demo doctor')) {
+                return false;
+            }
+            if (!result.ville || !result.pays) {
+                return false;
+            }
+            return true;
+        });
+
+        // Formatage et pagination
+        results.forEach(result => {
+            if (result.specialities && typeof result.specialities === 'string') {
+                try {
+                    result.specialities = JSON.parse(result.specialities);
+                } catch {
+                    result.specialities = [];
+                }
+            }
+        });
+        let countDoctors = `
+        SELECT COUNT(DISTINCT d.id) AS total
+        FROM 
+            doctors d 
+        LEFT JOIN 
+            doctor_specialities ds ON d.id = ds.doctor_id 
+        LEFT JOIN 
+            specialities s ON ds.speciality_id = s.id 
+        LEFT JOIN 
+            users usr ON d.user_id = usr.id 
+        LEFT JOIN 
+            addresses addr ON usr.id = addr.user_id
+        WHERE 1=1
+            ${speciality_id ? 'AND s.name LIKE ?' : ''}
+            ${ville ? 'AND addr.ville LIKE ?' : ''}
+            ${pays ? 'AND addr.pays LIKE ?' : ''}
+            ${doctor_name ? 'AND d.name LIKE ?' : ''}
+           ${gouvernorat ? 'AND addr.gouvernorat LIKE ?' : ''}
+
+        `;
+        
+        // Comptage pour la table `docteurs_tunisie`
+        let countDocteursTunisie = `
+        SELECT COUNT(*) AS total
+        FROM docteurs_tunisie dt 
+        WHERE 1=1
+            ${speciality_id ? 'AND dt.Sector LIKE ?' : ''}
+            ${ville ? 'AND dt.ville LIKE ?' : ''}
+              ${pays ? 'AND dt.pays LIKE ?' : ''} 
+     ${doctor_name ? 'AND dt.Name LIKE ?' : ''}
+                ${gouvernorat ? 'AND dt.gouvernorat LIKE ?' : ''}
+
+`;
+        // Comptage total
+        const [doctorsCountResult] = await db.query(countDoctors, countParams);
+        const [docteursTunisieCountResult] = await db.query(countDocteursTunisie, countParams);
+
+        const totalDoctors = doctorsCountResult[0]?.total || 0;
+        const totalDocteursTunisie = docteursTunisieCountResult[0]?.total || 0;
+
+        const total = totalDoctors + totalDocteursTunisie;
+        const totalPages = Math.ceil(total / limit);
+        const currentPage = Math.floor(offset / limit) + 1;
+
+        return res.json({
+            total,
+            totalPages,
+            currentPage,
+            data: results,
+        });
+
+    } catch (err) {
+        console.error('Erreur lors de la récupération des médecins:', err);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des médecins.' });
+    }
+};
+const getDoctorsparvillepaysspecialitessansville = async (req, res) => {
     const speciality_id = req.query.speciality_id; // Nom de la spécialité
     const ville = req.query.ville; // Ville
     const pays = req.query.pays; // Pays
@@ -3920,9 +4292,617 @@ const getDoctorsparvillepaysspecialitesjdide = async (req, res) => {
     }
 };
 
-
-
 const getDoctorsById = async (req, res) => {
+    const doctorId = req.query.doctor_id;
+
+    // Valider doctor_id
+    if (!doctorId) {
+        return res.status(400).json({ error: 'Le doctor_id doit être un entier valide.' });
+    }
+
+    try {
+        // Requête pour les jours de disponibilité (sans pause ni durée)
+        const daysQuery = `
+            SELECT 
+                day,
+                start_at,
+                end_at
+            FROM 
+                availability_hours
+            WHERE 
+                doctor_id = ? AND onligne = 0;
+        `;
+        const [daysResults] = await db.query(daysQuery, [doctorId]);
+
+        // Requête pour les pauses et la durée
+        const pausesQuery = `
+        SELECT 
+            pause_from AS pause_start,
+            pause_to AS pause_end,
+            session_duration AS duree
+        FROM 
+            availability_hours
+        WHERE 
+            doctor_id = ? AND onligne = 0;
+    `;
+    const [pausesResults] = await db.query(pausesQuery, [doctorId]);
+
+    // Si des pauses sont récupérées, on en sélectionne une seule (par exemple, la première)
+    const uniquePause = pausesResults.length > 0 ? {
+        pause_start: pausesResults[0].pause_start,
+        pause_end: pausesResults[0].pause_end,
+     // duree: pausesResults[0].duree
+    } : null;
+    // Extraire les durées des pauses
+    const uniqueDuree = pausesResults.length > 0 ? pausesResults[0].duree : null;
+    // Requête pour récupérer les vacances
+    const holidaysQuery = `
+        SELECT 
+            dateDebut AS holiday_from,
+            dateFin AS holiday_to,
+            type AS holiday_type,
+            raison AS holiday_reason
+        FROM 
+            vacance
+        WHERE 
+            doctor_id = ?;
+    `;
+    const [holidaysResults] = await db.query(holidaysQuery, [doctorId]);
+
+    // Requête pour récupérer les indisponibilités
+    const unavailableQuery = `
+        SELECT 
+            start_at AS indisponible_date_debut,
+            ends_at AS indisponible_date_end
+        FROM 
+            appointments
+        WHERE 
+            doctor_id = ?;
+    `;
+    const [unavailableResults] = await db.query(unavailableQuery, [doctorId]);
+
+    const urgence = `SELECT 
+     jour , heurDebut, heurFin
+    FROM 
+    doctor_urgency
+WHERE 
+    doctor_id = ?;
+
+   `;
+   const [urgenceResults] = await db.query(urgence, [doctorId]);
+
+    // Formatage des données pour affichage local
+    const formattedHolidays = holidaysResults.map(holiday => ({
+        ...holiday,
+        holiday_from: new Date(holiday.holiday_from).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' }),
+        holiday_to: new Date(holiday.holiday_to).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' })
+    }));
+
+//    const formattedUnavailable = unavailableResults.map(ind => ({
+  //      ...ind,
+    //    indisponible_date_debut: new Date(ind.indisponible_date_debut).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }) + ' ' + new Date(ind.indisponible_date_debut).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' }),
+      //  indisponible_date_end: new Date(ind.indisponible_date_end).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }) + ' ' + new Date(ind.indisponible_date_end).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' })
+  //  }));
+ const today = new Date();
+    const filteredUnavailable = unavailableResults.filter(ind => {
+        const startDate = new Date(ind.indisponible_date_debut);
+        return startDate >= today;
+    });
+
+    const formattedUnavailable = filteredUnavailable.map(ind => ({
+        ...ind,
+        indisponible_date_debut: new Date(ind.indisponible_date_debut).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }) + ' ' + new Date(ind.indisponible_date_debut).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' }),
+        indisponible_date_end: new Date(ind.indisponible_date_end).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }) + ' ' + new Date(ind.indisponible_date_end).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' })
+    }));
+    const formattedUrgence = urgenceResults.map(inds => ({
+        ...inds,
+        jour: new Date(inds.jour).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }), // Format jour as date
+        heurDebut: new Date('1970-01-01T' + inds.heurDebut ).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' }), // Format heurDebut as time
+        heurFin: new Date('1970-01-01T' + inds.heurFin ).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' }) // Format heurFin as time
+    }));
+   
+   
+        res.json({
+            days: daysResults,
+            pauses: uniquePause,
+            duree :uniqueDuree,
+            holidays: formattedHolidays,
+            urgence :formattedUrgence ,
+            indisponibles: formattedUnavailable
+        });
+    } catch (err) {
+        console.error(err); // Debugging
+        return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
+    }
+};
+
+
+const getDoctorsById24 = async (req, res) => {
+    const doctorId = req.query.doctor_id;
+
+    // Valider doctor_id
+    if (!doctorId) {
+        return res.status(400).json({ error: 'Le doctor_id doit être un entier valide.' });
+    }
+
+    try {
+        // Requête pour les jours de disponibilité
+        const daysQuery = `
+            SELECT 
+                day,
+                start_at,
+                end_at
+            FROM 
+                availability_hours
+            WHERE 
+                doctor_id = ? AND onligne = 0;
+        `;
+        const [daysResults] = await db.query(daysQuery, [doctorId]);
+
+        const availability = daysResults.reduce((acc, { day, start_at, end_at }) => {
+            if (start_at && end_at) {
+                acc[day] = { start: start_at, end: end_at };
+            } else {
+                acc[day] = {};
+            }
+            return acc;
+        }, {});
+
+        // Requête pour les pauses et la durée
+        const pausesQuery = `
+            SELECT 
+                pause_from AS pause_start,
+                pause_to AS pause_end,
+                session_duration AS duree
+            FROM 
+                availability_hours
+            WHERE 
+                doctor_id = ? AND onligne = 0;
+        `;
+        const [pausesResults] = await db.query(pausesQuery, [doctorId]);
+
+        const uniquePause = pausesResults.length > 0 ? {
+            pause_start: pausesResults[0].pause_start,
+            pause_end: pausesResults[0].pause_end
+        } : null;
+
+        const uniqueDuree = pausesResults.length > 0 ? pausesResults[0].duree : null;
+
+        // Requête pour les vacances
+        const holidaysQuery = `
+            SELECT 
+                dateDebut AS holiday_from,
+                dateFin AS holiday_to,
+                type AS holiday_type,
+                raison AS holiday_reason
+            FROM 
+                vacance
+            WHERE 
+                doctor_id = ?;
+        `;
+        const [holidaysResults] = await db.query(holidaysQuery, [doctorId]);
+
+        // Requête pour les indisponibilités
+        const unavailableQuery = `
+            SELECT 
+                start_at AS indisponible_date_debut,
+                ends_at AS indisponible_date_end
+            FROM 
+                appointments
+            WHERE 
+                doctor_id = ?;
+        `;
+        const [unavailableResults] = await db.query(unavailableQuery, [doctorId]);
+
+        // Filtrer les indisponibilités pour exclure celles inférieures à aujourd'hui
+        const today = new Date();
+        const filteredUnavailable = unavailableResults.filter(ind => {
+            const startDate = new Date(ind.indisponible_date_debut);
+            return startDate >= today;
+        });
+
+        const formattedUnavailable = filteredUnavailable.map(ind => ({
+            ...ind,
+            indisponible_date_debut: new Date(ind.indisponible_date_debut).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }) + ' ' + new Date(ind.indisponible_date_debut).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' }),
+            indisponible_date_end: new Date(ind.indisponible_date_end).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }) + ' ' + new Date(ind.indisponible_date_end).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' })
+        }));
+
+        // Requête pour les urgences
+        const urgenceQuery = `
+            SELECT 
+                jour, heurDebut, heurFin
+            FROM 
+                doctor_urgency
+            WHERE 
+                doctor_id = ?;
+        `;
+        const [urgenceResults] = await db.query(urgenceQuery, [doctorId]);
+
+        const formattedUrgence = urgenceResults.map(inds => ({
+            ...inds,
+            jour: new Date(inds.jour).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }),
+            heurDebut: new Date(`1970-01-01T${inds.heurDebut}`).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' }),
+            heurFin: new Date(`1970-01-01T${inds.heurFin}`).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' })
+        }));
+
+        const formattedHolidays = holidaysResults.map(holiday => ({
+            ...holiday,
+            holiday_from: new Date(holiday.holiday_from).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' }),
+            holiday_to: new Date(holiday.holiday_to).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' })
+        }));
+
+        res.json({
+            days: availability,
+            pauses: uniquePause,
+            duree: uniqueDuree,
+            holidays: formattedHolidays,
+            urgence: formattedUrgence,
+            indisponibles: formattedUnavailable
+        });
+    } catch (err) {
+        console.error("Erreur lors de la récupération des données :", err);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
+    }
+};
+
+const getDoctorsByIdf = async (req, res) => {
+    const doctorId = req.query.doctor_id;
+
+    // Valider doctor_id
+    if (!doctorId) {
+        return res.status(400).json({ error: 'Le doctor_id doit être un entier valide.' });
+    }
+
+    try {
+        // Requête pour les jours de disponibilité (sans pause ni durée)
+        const daysQuery = `
+            SELECT 
+                day,
+                start_at,
+                end_at
+            FROM 
+                availability_hours
+            WHERE 
+                doctor_id = ? AND onligne = 0;
+        `;
+        const [daysResults] = await db.query(daysQuery, [doctorId]);
+
+        // Transforming the data into the desired format
+        const availability = daysResults.reduce((acc, { day, start_at, end_at }) => {
+            if (start_at && end_at) {
+                acc[day] = { start: start_at, end: end_at };
+            } else {
+                acc[day] = {};  // For days with no working hours (e.g., "dimanche")
+            }
+            return acc;
+        }, {});
+        // Requête pour les pauses et la durée
+        const pausesQuery = `
+        SELECT 
+            pause_from AS pause_start,
+            pause_to AS pause_end,
+            session_duration AS duree
+        FROM 
+            availability_hours
+        WHERE 
+            doctor_id = ? AND onligne = 0;
+    `;
+    const [pausesResults] = await db.query(pausesQuery, [doctorId]);
+
+    // Si des pauses sont récupérées, on en sélectionne une seule (par exemple, la première)
+    const uniquePause = pausesResults.length > 0 ? {
+        pause_start: pausesResults[0].pause_start,
+        pause_end: pausesResults[0].pause_end,
+     // duree: pausesResults[0].duree
+    } : null;
+    // Extraire les durées des pauses
+    const uniqueDuree = pausesResults.length > 0 ? pausesResults[0].duree : null;
+    // Requête pour récupérer les vacances
+    const holidaysQuery = `
+        SELECT 
+            dateDebut AS holiday_from,
+            dateFin AS holiday_to,
+            type AS holiday_type,
+            raison AS holiday_reason
+        FROM 
+            vacance
+        WHERE 
+            doctor_id = ?;
+    `;
+    const [holidaysResults] = await db.query(holidaysQuery, [doctorId]);
+
+    // Requête pour récupérer les indisponibilités
+    const unavailableQuery = `
+        SELECT 
+            start_at AS indisponible_date_debut,
+            ends_at AS indisponible_date_end
+        FROM 
+            appointments
+        WHERE 
+            doctor_id = ?;
+    `;
+    const [unavailableResults] = await db.query(unavailableQuery, [doctorId]);
+
+    const urgence = `
+    SELECT 
+      jour , heurDebut, heurFin
+    FROM 
+      doctor_urgency
+    WHERE 
+      doctor_id = ?;
+ `;
+ 
+ const [urgenceResults] = await db.query(urgence, [doctorId]);
+ 
+ const formattedUrgence = urgenceResults.map(inds => ({
+     ...inds,
+     jour: new Date(inds.jour).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }), // Format jour as date
+     heurDebut: new Date('1970-01-01T' + inds.heurDebut ).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' }), // Format heurDebut as time
+     heurFin: new Date('1970-01-01T' + inds.heurFin ).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' }) // Format heurFin as time
+ }));
+
+    // Formatage des données pour affichage local
+    const formattedHolidays = holidaysResults.map(holiday => ({
+        ...holiday,
+        holiday_from: new Date(holiday.holiday_from).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' }),
+        holiday_to: new Date(holiday.holiday_to).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' })
+    }));
+
+    const formattedUnavailable = unavailableResults.map(ind => ({
+        ...ind,
+        indisponible_date_debut: new Date(ind.indisponible_date_debut).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }) + ' ' + new Date(ind.indisponible_date_debut).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' }),
+        indisponible_date_end: new Date(ind.indisponible_date_end).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }) + ' ' + new Date(ind.indisponible_date_end).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' })
+    }));
+  
+        res.json({
+            days: availability,
+            pauses: uniquePause,
+            duree :uniqueDuree,
+            holidays: formattedHolidays,
+            urgence :formattedUrgence ,
+            indisponibles: formattedUnavailable
+        });
+    } catch (err) {
+        console.error(err); // Debugging
+        return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
+    }
+};
+
+const getDoctorsById4 = async (req, res) => {
+    const doctorId = req.query.doctor_id;
+
+    // Valider doctor_id
+    if (!doctorId || isNaN(Number(doctorId))) {
+        return res.status(400).json({ error: 'Le doctor_id doit être un entier valide.' });
+    }
+
+    const query = `
+      SELECT 
+        ah.day,
+        ah.start_at,
+        ah.end_at,
+        ah.session_duration AS duree,
+        ah.pause_from AS pause_start,
+        ah.pause_to AS pause_end,
+        h.dateDebut AS holiday_from,
+        h.dateFin AS holiday_to,
+        h.type AS holiday_type,
+        h.raison AS holiday_reason,
+        ind.start_at AS indisponible_date,
+        ind.ends_at AS indisponible_time
+      FROM 
+        availability_hours AS ah
+      LEFT JOIN 
+        vacance AS h 
+        ON ah.doctor_id = h.doctor_id 
+      LEFT JOIN 
+        appointments AS ind 
+        ON ah.doctor_id = ind.doctor_id 
+      WHERE 
+        ah.doctor_id = ?
+        AND ah.onligne = 0;
+    `;
+
+    try {
+        const [results] = await db.query(query, [doctorId]);
+
+        const formattedResults = {
+            lundi: {},
+            mardi: {},
+            mercredi: {},
+            jeudi: {},
+            vendredi: {},
+            samedi: {},
+            dimanche: {},
+            duree: null,
+            indisponibles: [],
+            holidays: [],
+            pause: {},
+        };
+
+        // Utiliser un Set pour éviter les doublons dans les vacances
+        const holidaysSet = new Set();
+
+        results.forEach((row) => {
+            const dayKey = row.day?.toLowerCase();
+
+            // Vérifier si dayKey correspond à un jour valide
+            if (dayKey && formattedResults[dayKey]) {
+                // Initialiser si nécessaire
+                if (!formattedResults[dayKey].start) {
+                    formattedResults[dayKey] = {
+                        start: row.start_at || null,
+                        end: row.end_at || null,
+                    };
+                }
+            }
+
+            // Ajouter la durée
+            if (!formattedResults.duree && row.duree) {
+                formattedResults.duree = row.duree;
+            }
+
+            // Ajouter les pauses
+            if (!formattedResults.pause.start && !formattedResults.pause.end && row.pause_start && row.pause_end) {
+                formattedResults.pause = {
+                    start: row.pause_start || null,
+                    end: row.pause_end || null,
+                };
+            }
+
+            // Ajouter les vacances (éviter les doublons)
+   //         if (row.holiday_from && row.holiday_to) {
+            //    const holidayKey = `${row.holiday_from}-${row.holiday_to}`;
+              //  if (!holidaysSet.has(holidayKey)) {
+                //    holidaysSet.add(holidayKey);
+ //const holidayStart = new Date(row.holiday_from).toISOString().split('T')[0];
+  //                  const holidayEnd = new Date(row.holiday_to).toISOString().split('T')[0];
+//if (holidayStart && holidayEnd) {
+       // const holidayKey = `${holidayStart}-${holidayEnd}-${row.holiday_type}-${row.holiday_reason}`;
+     //   if (!holidaysSet.has(holidayKey)) {
+   //         holidaysSet.add(holidayKey);
+    //        formattedResults.holidays.push({
+  //              start: holidayStart,
+//                ends: holidayEnd,                   
+ //formattedResults.holidays.push({
+      //                  start: row.holidayStart,
+    //                    ends: row.holidayEnd,
+                        //type: row.holiday_type || null,
+  //          });
+//}
+  //  }
+//}
+            // Ajouter les indisponibilités
+            if (row.indisponible_date && row.indisponible_time) {
+  const startDate = new Date(row.indisponible_date).toISOString();
+                    const endDate = new Date(row.indisponible_time).toISOString();
+                    const indisponibleRange = `${startDate}:${endDate}`;
+
+//                const indisponibleRange}:${row.indisponible_time}`;
+                if (!formattedResults.indisponibles.includes(indisponibleRange)) {
+                    formattedResults.indisponibles.push(indisponibleRange);
+                }
+            }
+        });
+
+        res.json(formattedResults);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
+    }
+};
+
+const getDoctorsById6 = async (req, res) => {
+    const doctorId = req.query.doctor_id;
+
+    // Valider doctor_id
+    if (!doctorId || isNaN(Number(doctorId))) {
+        return res.status(400).json({ error: 'Le doctor_id doit être un entier valide.' });
+    }
+
+    const query = `
+      SELECT 
+        ah.day,
+        ah.start_at,
+        ah.end_at,
+        ah.session_duration AS duree,
+        ah.pause_from AS pause_start,
+        ah.pause_to AS pause_end,
+        h.dateDebut AS holiday_from,
+        h.dateFin AS holiday_to,
+        h.type AS holiday_type,
+        h.raison AS holiday_reason,
+        ind.start_at AS indisponible_date,
+        ind.ends_at AS indisponible_time
+      FROM 
+        availability_hours AS ah
+      LEFT JOIN 
+        vacance AS h 
+        ON ah.doctor_id = h.doctor_id 
+      LEFT JOIN 
+        appointments AS ind 
+        ON ah.doctor_id = ind.doctor_id 
+      WHERE 
+        ah.doctor_id = ?
+        AND ah.onligne = 0;
+    `;
+
+    try {
+        const [results] = await db.query(query, [doctorId]);
+
+        const formattedResults = {
+            lundi: {},
+            mardi: {},
+            mercredi: {},
+            jeudi: {},
+            vendredi: {},
+            samedi: {},
+            dimanche: {},
+            duree: null,
+            indisponibles: [],
+            holidays: [],
+            pause: {},
+        };
+
+        // Utiliser un Set pour éviter les doublons dans les vacances
+        const holidaysSet = new Set();
+
+        results.forEach((row) => {
+            const dayKey = row.day;
+
+            // Ajouter les horaires
+            if (dayKey && !formattedResults[dayKey].start) {
+                formattedResults[dayKey] = {
+                    start: row.start_at || null,
+                    end: row.end_at || null,
+                };
+            }
+
+            // Ajouter la durée
+            if (!formattedResults.duree && row.duree) {
+                formattedResults.duree = row.duree;
+            }
+
+            // Ajouter les pauses
+            if (!formattedResults.pause.start && !formattedResults.pause.end && row.pause_start && row.pause_end) {
+                formattedResults.pause = {
+                    start: row.pause_start || null,
+                    end: row.pause_end || null,
+                };
+            }
+
+            // Ajouter les vacances (éviter les doublons)
+            if (row.holiday_from && row.holiday_to) {
+                const holidayKey = `${row.holiday_from}-${row.holiday_to}-${row.holiday_type}-${row.holiday_reason}`;
+                if (!holidaysSet.has(holidayKey)) {
+                    holidaysSet.add(holidayKey);
+                    formattedResults.holidays.push({
+                        start: row.holiday_from,
+                        ends: row.holiday_to,
+                        type: row.holiday_type || null,
+                        reason: row.holiday_reason || null,
+                    });
+                }
+            }
+
+            // Ajouter les indisponibilités
+            if (row.indisponible_date && row.indisponible_time) {
+                const indisponibleRange = `${row.indisponible_date}:${row.indisponible_time}`;
+                if (!formattedResults.indisponibles.includes(indisponibleRange)) {
+                    formattedResults.indisponibles.push(indisponibleRange);
+                }
+            }
+        });
+
+        res.json(formattedResults);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Erreur lors de la récupération des disponibilités.' });
+    }
+};
+
+
+const getDoctorsById3 = async (req, res) => {
     const doctorId = req.query.doctor_id; // Retrieve the doctor's ID
 
     // Validate doctor_id
@@ -4468,7 +5448,7 @@ try {
 }
 
         // Supprimer les heures disponibles
-        await db.query(deleteAvailableHourQuery, availableHourValues);
+//        await db.query(deleteAvailableHourQuery, availableHourValues);
 try {
     const [deleteResult] = await db.query(deleteAvailableHourQuery, availableHourValues);
     console.log(`Suppression réussie. Nombre de lignes supprimées : ${deleteResult.affectedRows}`);
@@ -6537,8 +7517,133 @@ const getclinics = async (req, res) => {
         return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
     }
 };
-
 const getDoctorsByIdTeleconsultation = async (req, res) => {
+    const doctorId = req.query.doctor_id;
+
+    // Valider doctor_id
+    if (!doctorId) {
+        return res.status(400).json({ error: 'Le doctor_id doit être un entier valide.' });
+    }
+
+    try {
+        // Requête pour les jours de disponibilité (sans pause ni durée)
+        const daysQuery = `
+            SELECT 
+                day,
+                start_at,
+                end_at
+            FROM 
+                availability_hours
+            WHERE 
+                doctor_id = ? AND onligne = 1;
+        `;
+        const [daysResults] = await db.query(daysQuery, [doctorId]);
+
+        // Requête pour les pauses et la durée
+        const pausesQuery = `
+        SELECT 
+            pause_from AS pause_start,
+            pause_to AS pause_end,
+            session_duration AS duree
+        FROM 
+            availability_hours
+        WHERE 
+            doctor_id = ? AND onligne = 1;
+    `;
+    const [pausesResults] = await db.query(pausesQuery, [doctorId]);
+
+    // Si des pauses sont récupérées, on en sélectionne une seule (par exemple, la première)
+    const uniquePause = pausesResults.length > 0 ? {
+        pause_start: pausesResults[0].pause_start,
+        pause_end: pausesResults[0].pause_end,
+     // duree: pausesResults[0].duree
+    } : null;
+    // Extraire les durées des pauses
+    const uniqueDuree = pausesResults.length > 0 ? pausesResults[0].duree : null;
+    // Requête pour récupérer les vacances
+    const holidaysQuery = ` SELECT 
+            dateDebut AS holiday_from,
+            dateFin AS holiday_to,
+            type AS holiday_type,
+            raison AS holiday_reason
+        FROM 
+            vacance
+        WHERE 
+            doctor_id = ?;
+    `;
+    const [holidaysResults] = await db.query(holidaysQuery, [doctorId]);
+
+    // Requête pour récupérer les indisponibilités
+    const unavailableQuery = `
+        SELECT 
+            start_at AS indisponible_date_debut,
+            ends_at AS indisponible_date_end
+        FROM 
+            appointments
+        WHERE 
+            doctor_id = ?;
+    `;
+    const [unavailableResults] = await db.query(unavailableQuery, [doctorId]);
+
+    const urgence = `SELECT 
+     jour , heurDebut, heurFin
+    FROM 
+    doctor_urgency
+WHERE 
+    doctor_id = ?;
+
+   `;
+   const [urgenceResults] = await db.query(urgence, [doctorId]);
+
+    // Formatage des données pour affichage local
+    const formattedHolidays = holidaysResults.map(holiday => ({
+        ...holiday,
+        holiday_from: new Date(holiday.holiday_from).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' }),
+        holiday_to: new Date(holiday.holiday_to).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' })
+    }));
+
+//    const formattedUnavailable = unavailableResults.map(ind => ({
+  //      ...ind,
+    //    indisponible_date_debut: new Date(ind.indisponible_date_debut).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }) + ' ' + new Date(ind.indisponible_date_debut).toLocaleTimeString('fr-FR'>
+      //  indisponible_date_end: new Date(ind.indisponible_date_end).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }) + ' ' + new Date(ind.indisponible_date_end).toLocaleTimeString('fr-FR', { ti>
+  //  }));
+  const today = new Date();
+    const filteredUnavailable = unavailableResults.filter(ind => {
+        const startDate = new Date(ind.indisponible_date_debut);
+        return startDate >= today;
+    });
+
+    const formattedUnavailable = filteredUnavailable.map(ind => ({
+        ...ind,
+        indisponible_date_debut: new Date(ind.indisponible_date_debut).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' })
+ + ' ' + new Date(ind.indisponible_date_debut).toLocaleTimeString('fr-FR',  { timeZone: 'Africa/Tunis' }) ,
+
+       indisponible_date_end: new Date(ind.indisponible_date_end).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }) +' '+
+       new Date(ind.indisponible_date_end).toLocaleTimeString('fr-FR', {  timeZone: 'Africa/Tunis'     })
+}));
+
+    const formattedUrgence = urgenceResults.map(inds => ({
+        ...inds,
+        jour: new Date(inds.jour).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }), // Format jour as date
+        heurDebut: new Date('1970-01-01T' + inds.heurDebut ).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' }), // Format heurDebut as time
+        heurFin: new Date('1970-01-01T' + inds.heurFin ).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis' }) // Format heurFin as time
+    }));
+   
+   
+        res.json({
+            days: daysResults,
+            pauses: uniquePause,
+            duree :uniqueDuree,
+            holidays: formattedHolidays,
+            urgence :formattedUrgence ,
+            indisponibles: formattedUnavailable
+        });
+    } catch (err) {
+        console.error(err); // Debugging
+        return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
+    }
+};
+const getDoctorsByIdTeleconsultations = async (req, res) => {
     const doctorId = req.query.doctor_id; // Retrieve the doctor's ID
 
     // Check if doctorId is provided
@@ -6580,7 +7685,7 @@ const getAllDoctorsAndDocteursTunisie = async (req, res) => {
             a.title AS title,
             usr.phone_number,
             addr.ville,
-            addr.pays,
+            addr.pays,addr.gouvernorat,
 d.id_aleatoire AS aleatoire ,            
             addr.address AS adresse_exacte,
             JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
@@ -6600,7 +7705,7 @@ d.id_aleatoire AS aleatoire ,
         GROUP BY  
             d.id, d.name, d.doctor_photo, d.enable_online_consultation, d.description,
             d.horaires, d.cabinet_photo, d.created_at, a.title, usr.phone_number,
-            addr.ville, addr.pays, addr.address
+            addr.ville, addr.pays, addr.address,addr.gouvernorat
     `;
 
     // Requête pour la table `docteurs_tunisie`
@@ -6616,7 +7721,8 @@ d.id_aleatoire AS aleatoire ,
             NULL AS created_at,
             NULL AS title,
             dt.Phone AS phone_number,
-            dt.Location AS ville,
+dt.gouvernorat AS gouvernorat ,
+            dt.ville AS ville,
             dt.Pays AS pays,
            dt.id_aleatoire AS aleatoire ,
             dt.adresse AS adresse_exacte,
@@ -6713,7 +7819,7 @@ LEFT JOIN
             SELECT 
                 t.Name AS name,
                 'docteurs_tunisie' AS source,
-                NULL AS doctor_photo,t.id_aleatoire,t.Location,
+                NULL AS doctor_photo,t.id_aleatoire,t.gouvernorat,
                 t.Sector AS specialities 
             FROM 
                 docteurs_tunisie t
@@ -6748,24 +7854,24 @@ LEFT JOIN
         });
     }
 }
-const getCitiesByGovernorate = async (req, res) => {
-    const {Location } = req.params; // Récupérer le gouvernorat des paramètres d'URL
+const getCitiesByGovernorates = async (req, res) => {
+    const {gouvernorat } = req.params; // Récupérer le gouvernorat des paramètres d'URL
 
-    if (!Location) {
+    if (!gouvernorat) {
         return res.status(400).json({ message: "Le gouvernorat est requis." });
     }
 
     const query = `
-        SELECT DISTINCT ville 
+        SELECT DISTINCT (ville) 
 FROM docteurs_tunisie 
-WHERE Location LIKE CONCAT('%', ?, '%');
+WHERE gouvernorat LIKE CONCAT('%', ?, '%');
 
 
     `;
 
     try {
         // Exécuter la requête SQL avec le gouvernorat donné
-        const [results] = await db.query(query, [Location]);
+        const [results] = await db.query(query, [gouvernorat]);
 
         if (results.length === 0) {
             return res.status(404).json({ message: "Aucune ville trouvée pour ce gouvernorat." });
@@ -6779,13 +7885,109 @@ WHERE Location LIKE CONCAT('%', ?, '%');
         res.status(500).json({ message: "Erreur interne du serveur." });
     }
 };
+const getCitiesByGovernorate = async (req, res) => {
+    const { gouvernorat } = req.params; // Récupérer le gouvernorat des paramètres d'URL
+
+    // Construire la requête SQL en fonction de la présence du gouvernorat
+    const query = gouvernorat
+        ? `
+            SELECT DISTINCT ville 
+            FROM docteurs_tunisie 
+            WHERE gouvernorat LIKE CONCAT('%', ?, '%');
+        `
+        : `
+            SELECT DISTINCT ville 
+            FROM docteurs_tunisie;
+        `;
+
+    try {
+        // Exécuter la requête SQL avec ou sans gouvernorat
+        const [results] = gouvernorat
+            ? await db.query(query, [gouvernorat])
+            : await db.query(query);
+
+        if (results.length === 0) {
+            return res.status(404).json({ message: gouvernorat ? "Aucune ville trouvée pour ce gouvernorat." : "Aucune ville trouvée." });
+        }
+
+        // Retourner les villes sous forme de tableau
+        const villes = results.map(row => row.ville);
+        res.status(200).json(villes);
+    } catch (error) {
+        console.error("Erreur lors de la récupération des villes :", error);
+        res.status(500).json({ message: "Erreur interne du serveur." });
+    }
+};
+const getPatientData = async (req, res) => {
+    const patientId = req.params.patientId;
+
+    try {
+        const [rows] = await db.query(`
+            SELECT 
+                p.type AS prescription_type, 
+                p.observation AS prescription_observation, 
+                c.dateConsultation AS consultation_date, 
+                d.name AS doctor_name, 
+                u.first_name AS patient_first_name, 
+                u.last_name AS patient_last_name, 
+                JSON_ARRAYAGG(JSON_OBJECT('name', s.name)) AS specialities,
+                addr.ville AS ville,
+                addr.pays AS pays,
+                addr.address AS adress
+            FROM 
+                prescriptions p 
+            LEFT JOIN 
+                consultations c ON p.consultation_id = c.id
+            LEFT JOIN 
+                patients u ON c.patient_id = u.id
+            LEFT JOIN 
+                doctors d ON c.user_id = d.user_id
+            LEFT JOIN 
+                doctor_specialities ds ON d.id = ds.doctor_id
+            LEFT JOIN 
+                specialities s ON ds.speciality_id = s.id
+            LEFT JOIN 
+                addresses addr ON c.user_id = addr.user_id
+            WHERE 
+                c.patient_id = ?
+            GROUP BY
+                p.type, p.date, p.observation, c.dateConsultation, d.name, u.first_name, u.last_name, addr.ville, addr.pays, addr.address
+        `, [patientId]);
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: "Aucune donnée trouvée pour le patient." });
+        }
+
+        // Convertir la date de consultation au format local (Africa/Tunis) en JJ/MM/AAAA HH:mm:ss
+        rows.forEach(row => {
+            if (row.consultation_date) {
+                const options = {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    timeZone: 'Africa/Tunis',
+                };
+                row.consultation_date = new Intl.DateTimeFormat('fr-FR', options).format(new Date(row.consultation_date));
+            }
+        });
+
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error("Erreur lors de l'exécution de la requête :", error);
+        res.status(500).json({ error: "Erreur lors de la récupération des données." });
+    }
+};
+
 
 
 
 module.exports = {
     specialitespardoctor,getclinics,
     getalldoctors,getpharmacies,getlaboratoire,
-    getDoctorsparvillepaysspecialites,
+    getDoctorsparvillepaysspecialites,getPatientData , 
 //envoyerRappelEmail,
     getDoctorsById,gethopiteaux,getDoctorsByIdTeleconsultation,
     getadressempas,getAllAnnuaires,

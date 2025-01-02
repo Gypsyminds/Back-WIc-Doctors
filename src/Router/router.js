@@ -36,8 +36,10 @@ router.get('/search-doctors', authController.searchDoctors);
 
 router.post('/init-payment', paypalController.initiatePayment);
 router.get('/gettempsteleconsultation' , authController.getDoctorsByIdTeleconsultation);
-router.get('/cities/:Location', authController.getCitiesByGovernorate);
+router.get('/cities', authController.getCitiesByGovernorate);
+router.get('/cities/:gouvernorat', authController.getCitiesByGovernorate);
 
+router.get('/getPatientData/:patientId', authController.getPatientData);
 
 // Route pour créer un paiement
 router.post('/pay', paypalController.createPayment);

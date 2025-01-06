@@ -434,7 +434,7 @@ async function signupss(req, res) {
 const sendSMScontact = async (req, res) => {
     const { api_key, from, to, message, alphasender } = req.body;
     
-    const url = 'https://sms.way-interactive-convergence.com/apis/smscontact/';
+    const url = 'https://dashboard.wic-sms.com/apis/addcontact/';
     const fields = {
       apikey: api_key,
       from: from,
@@ -482,7 +482,7 @@ async function signuppatientsanssms(req, res) {
 
         // Send confirmation email
         sendConfirmationEmail(firstname + lastname, email, password, res, userId);
-        //sendSMScontact(INS757364498 ,33743134488,phone ,   <p>Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : <strong>${password}</strong></p> )
+        //sendSMScontact(INS757364498 ,33743134585,phone ,   <p>Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : <strong>${password}</strong></p> )
     } catch (error) {
         console.error('Error during patient signup:', error);
         return res.status(500).json({ error: 'Une erreur est survenue lors de l\'inscription.' });
@@ -533,7 +533,7 @@ function sendConfirmationEmail(name, email, password, res, userId) {
 
 // Function to handle B2B signup
 async function signupb2b(req, res) {
-    const { name, email, phone, type, specialities, description } = req.body;
+    const { name, lastname,email, phone, type, specialities, description } = req.body;
 
     // Validate input
     if (!name || !email || !phone || !type) {
@@ -547,11 +547,11 @@ async function signupb2b(req, res) {
     console.log("description:", description);
 
     // SQL query to insert registration request
-    const userSql = 'INSERT INTO DemandesInscription (name, email, phone_number, type, specialities, description) VALUES (?, ?, ?, ?, ?, ?)';
+    const userSql = 'INSERT INTO doctor_request (name,lastname, email, phone_number, type, specialities, description) VALUES (?, ?, ?, ?, ?, ?,?)';
 
     try {
         // Execute the insert query
-        const [userResults] = await db.execute(userSql, [name, email, phone, type, specialities || null, description || null]);
+        const [userResults] = await db.execute(userSql, [name,lastname, email, phone, type, specialities , description || null]);
 
         // If insertion is successful
         return res.status(201).json({ message: 'Demande d\'inscription ajoutée avec succès.', id: userResults.insertId });
@@ -884,11 +884,11 @@ if (phone_number !== currentData.phone_number) {
 
 // Function to send SMS
 const sendSMScontactinscrit = async (phone, message) => {
-    const api_key = 'INS757364498'; // Replace with your actual API key
-    const from = '33743134488'; // Replace with your sender ID
+    const api_key = 'INS7204865101'; // Replace with your actual API key
+    const from = '33743134585'; // Replace with your sender ID
     const alphasender = 'wic doctor'; // Replace with your alpha sender
   
-    const url = 'https://sms.way-interactive-convergence.com/apis/smscontact/';
+    const url = 'https://dashboard.wic-sms.com/apis/smscontact/';
     const fields = {
       apikey: api_key,
       from: from,
@@ -1053,7 +1053,7 @@ const sendSMScontactinscrit = async (phone, message) => {
       return res.status(500).json({ error: errorMessage });
     }
   };
-  const signuppatients = async (req, res) => {
+  const signuppatients1 = async (req, res) => {
     const { email, phone, lastname, name } = req.body;
     const errors = [];
     // Validate input
@@ -1147,7 +1147,104 @@ if (errors.length > 0) {
       
   }
     };
-  
+    const signuppatients = async (req, res) => {
+        const { email, phone, lastname, name } = req.body;
+        const errors = [];
+      
+        // Validate input
+        if (!phone) {
+          return res.status(400).json({ error: 'Le numéro de téléphone est requis.' });
+        }
+      
+        try {
+          const [currentPatient] = await db.execute('SELECT email, phone_number FROM users');
+          if (currentPatient.length === 0) {
+            return res.status(404).json({ error: 'Patient non trouvé.' });
+          }
+      
+          const currentData = currentPatient[0];
+      
+          // Vérification pour le numéro de téléphone
+          if (phone !== currentData.phone_number) {
+            const [existingPhone] = await db.execute(
+              'SELECT id FROM users WHERE phone_number = ? AND phone_number IS NOT NULL AND phone_number != ""',
+              [phone]
+            );
+            if (existingPhone.length > 0) {
+              errors.push('Le numéro de téléphone est déjà utilisé.');
+            }
+          }
+      
+          // Vérification pour l'email
+          if (email !== currentData.email) {
+            const [existingEmail] = await db.execute(
+              'SELECT id FROM users WHERE email = ? AND email IS NOT NULL AND email != ""',
+              [email]
+            );
+            if (existingEmail.length > 0) {
+              errors.push('L\'adresse e-mail est déjà utilisée.');
+            }
+          }
+      
+          // Si des erreurs existent, retourner toutes les erreurs regroupées
+          if (errors.length > 0) {
+            return res.status(409).json({ errors });
+          }
+      
+          const generatedPassword = generatePassword(); // Génération d'un mot de passe
+          const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+      
+          // Normalisation du numéro de téléphone
+          const normalizedPhone = phone.replace(/[^\d]/g, '');
+      
+          // Formatage des noms en JSON
+          const nameJson = JSON.stringify({ fr: name || '' });
+          const lastnameJson = JSON.stringify({ fr: lastname || '' });
+      
+          // Insertion de l'utilisateur dans la table `users`
+          const userSql =
+            'INSERT INTO users (name, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+          const [userResults] = await db.execute(userSql, [name, lastname, email || null, phone, hashedPassword]);
+      
+          const userId = userResults.insertId; // ID du nouvel utilisateur
+      
+          // Insertion dans la table `patients`
+          const insertSql =
+            'INSERT INTO patients (user_id, first_name, last_name, phone_number, email, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+          const values = [userId, nameJson, lastnameJson, phone, email || null];
+          await db.execute(insertSql, values);
+      
+          // Préparation du message de confirmation
+          const message =
+            `Bienvenue ${name}!\n` +
+            `Vous êtes inscrit chez Wic-Doctor.\n` +
+            `Afin d'accéder à votre compte, veuillez trouver votre mot de passe ci-dessous : ${generatedPassword}\n` +
+            `Veuillez compléter votre fiche, s'il vous plaît.\n\n` +
+            `Si vous n'avez pas demandé cette inscription, ignorez simplement ce message.\n` +
+            `Cordialement,\nL'équipe de Wic-Doctor.`;
+      
+          // Envoi de l'email de confirmation (si email existe)
+          if (email) {
+            await sendConfirmationEmail(`${name} ${lastname}`, email, generatedPassword);
+          }
+      
+          // Envoi du SMS de confirmation (si phone existe)
+          if (normalizedPhone) {
+            await sendSMScontactinscrit(normalizedPhone, message);
+          }
+      
+          // Réponse de succès
+          return res.status(201).json({ message: 'Inscription réussie et confirmation envoyée.' });
+        } catch (error) {
+          console.error('Error during patient signup:', error);
+      
+          // Gestion des erreurs : envoyer une réponse uniquement si aucune n'a été envoyée
+          if (!res.headersSent) {
+            return res.status(500).json({ error: 'Erreur interne lors de l\'inscription.' });
+          }
+        }
+      };
+      
   
 const ajouterPatient = async (req, res) => {
     try {

@@ -1,6 +1,6 @@
 const express = require('express');
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3003;
 const authRoutes = require('./Router/router');
 const cors = require('cors');
 const bodyParser = require('body-parser');

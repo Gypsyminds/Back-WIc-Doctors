@@ -1324,7 +1324,7 @@ const getDoctorsparvillepaysspecialites = async (req, res) => {
             usr.phone_number,
             addr.ville AS ville,
             addr.pays AS pays,     
-             addr.gouvernorat AS gouvernorat,
+            addr.gouvernorat AS gouvernorat,
             addr.address AS adresse_exacte,
             JSON_ARRAYAGG(JSON_OBJECT('id', s.id, 'name', s.name)) AS specialities,
             'conventionné' AS type
@@ -3738,7 +3738,7 @@ WHERE
         return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
     }
 };
-const getDoctorsById = async (req, res) => {
+const getDoctorsById9 = async (req, res) => {
     const doctorId = req.query.doctor_id;
 
     // Valider doctor_id
@@ -3767,7 +3767,7 @@ const getDoctorsById = async (req, res) => {
             FROM 
                 availability_hours
             WHERE 
-                doctor_id = ? AND onligne = 0;
+                doctor_id = ? AND onligne = 0 AND is_available = 1;
         `;
         const [daysResults] = await db.query(daysQuery, [doctorId]);
 
@@ -3879,6 +3879,75 @@ const getDoctorsById = async (req, res) => {
     }
 };
 
+const getDoctorsById = async (req, res) => {
+    const doctorId = req.query.doctor_id;
+    const duration = parseInt(req.query.duration, 10); // Durée en jours envoyée par le frontend
+
+    // Valider doctor_id et duration
+    if (!doctorId) {
+        return res.status(400).json({ error: 'Le doctor_id est requis.' });
+    }
+    if (!duration || isNaN(duration) || duration <= 0) {
+        return res.status(400).json({ error: 'La durée doit être un entier positif.' });
+    }
+
+    try {
+        const today = new Date();
+        const endDate = new Date();
+        endDate.setDate(today.getDate() + duration); // Calcule la date de fin
+
+        // Requête pour récupérer les disponibilités par jour de la semaine
+        const availabilityQuery = `
+            SELECT 
+                day,
+                start_at,
+                end_at,
+                pause_from,
+                pause_to,
+                session_duration
+            FROM 
+                availability_hours
+            WHERE 
+                doctor_id = ? AND onligne = 0 AND is_available = 1;
+        `;
+        const [availabilityResults] = await db.query(availabilityQuery, [doctorId]);
+
+        // Générer les plages de dates correspondant aux jours demandés
+        const generateWeeklySchedule = (availabilities, startDate, daysCount) => {
+            const schedule = [];
+            for (let i = 0; i < daysCount; i++) {
+                const currentDate = new Date(startDate);
+                currentDate.setDate(startDate.getDate() + i);
+
+                const dayOfWeek = currentDate.toLocaleString('fr-FR', { weekday: 'long' }).toLowerCase();
+
+                // Trouver la disponibilité correspondante pour le jour
+                const availability = availabilities.find(avail => avail.day.toLowerCase() === dayOfWeek);
+
+                if (availability) {
+                    schedule.push({
+                        date: currentDate.toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' }),
+                        start_at: availability.start_at,
+                        end_at: availability.end_at,
+                        pause_from: availability.pause_from,
+                        pause_to: availability.pause_to,
+                        session_duration: availability.session_duration
+                    });
+                }
+            }
+            return schedule;
+        };
+
+        const schedule = generateWeeklySchedule(availabilityResults, today, duration);
+
+        res.json({
+            schedule,
+        });
+    } catch (err) {
+        console.error(err); // Debugging
+        return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
+    }
+};
 
 
 const getDoctorsByIdav = async (req, res) => {
@@ -4102,6 +4171,7 @@ const specialitespardoctor = async (req, res) => {
       SELECT s.id, s.name, s.icon, COUNT(sd.doctor_id) AS doctor_count
       FROM specialities s
       LEFT JOIN doctor_specialities sd ON s.id = sd.speciality_id
+      WHERE pays = 'Tunisie'
       GROUP BY s.id, s.name
       ORDER BY doctor_count DESC;
     `;
@@ -4427,11 +4497,11 @@ transporter.sendMail(mailOptions, function(error, info) {
 }
 const axios = require('axios');
 const sendSMScontactinscrit = async (phone, message) => {
-    const api_key = 'INS757364498'; // Replace with your actual API key
-    const from = '33743134488'; // Replace with your sender ID
+    const api_key = 'INS7204865101'; // Replace with your actual API key
+    const from = '33743134585'; // Replace with your sender ID
     const alphasender = 'wic doctor'; // Replace with your alpha sender
   
-    const url = 'https://sms.way-interactive-convergence.com/apis/smscontact/';
+    const url = 'https://dashboard.wic-sms.com/apis/addcontact/';
     const fields = {
       apikey: api_key,
       from: from,
@@ -5635,11 +5705,11 @@ const getUpcomingAppointments = async () => {
   }
 
   const sendSMSdertapelle = async (phone, message) => {
-    const api_key = 'INS9057194100'; // Replace with your actual API key
-    const from = '33743134488'; // Replace with your sender ID
+    const api_key = 'INS7204865101'; // Replace with your actual API key
+    const from = '33743134585'; // Replace with your sender ID
     const alphasender = 'wic doctor'; // Replace with your alpha sender
   
-    const url = 'https://sms.way-interactive-convergence.com/apis/smscontact/';
+    const url = 'https://dashboard.wic-sms.com/apis/addcontact/';
     const fields = {
       apikey: api_key,
       from: from,
@@ -5968,8 +6038,8 @@ const verifierEtEnvoyerSmsRappels = async () => {
             for (let row of rows) {
                 // Envoi de l'email
               //  await envoyerRappelEmail(row.email, row.patient_name, row.start_at, row.appointment_id, row.doctorname);
-              const api_key = 'INS9057194100'
-              const from = '33743134488'; // Replace with your sender ID
+              const api_key = 'INS7204865101'
+              const from = '33743134585'; // Replace with your sender ID
              
                 // Envoi du SMS
                 const smsMessage = `Bonjour ${row.patient_name}, votre rendez-vous avec le Dr. ${row.doctorname} est prévu le ${moment(row.start_at).format('DD/MM/YYYY à HH:mm')}. Merci !`;
@@ -6662,7 +6732,7 @@ const searchDoctors = async (req, res) => {
             LEFT JOIN 
                 specialities s ON ds.speciality_id = s.id
             WHERE 
-                JSON_EXTRACT(d.name, '$.fr') LIKE ?
+                JSON_EXTRACT(d.name, '$.fr') LIKE ? AND s.pays = 'Tunisie'
             GROUP BY 
                 d.name, d.doctor_photo
         )

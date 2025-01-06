@@ -2,6 +2,8 @@ const express= require ('express');
 const authController =require ('../Controlleurs/doctor');
 const loginController =require ('../Controlleurs/login');
 const paypalController = require('../Controlleurs/paypal');
+const FranceController = require('../Controlleurs/France');
+
 const bodyParser = require('body-parser');
 const clinicController =require ('../Controlleurs/clinic');
 
@@ -15,6 +17,14 @@ const db = require('../config/db'); // Importer la connexion à la base de donn�
 
 const router= express.Router();
 app.use(bodyParser.json()); // Middleware pour analyser le corps des requêtes JSON
+
+router.get('/specialtiesfrance' ,FranceController.specialitespardoctorfrance);
+router.get('/doctorsadd-france', FranceController.getDoctorsparvillepaysspecialites);
+
+
+router.get('/search-doctors-france' ,FranceController.searchDoctorsfrance3lettre);
+
+
 
 //route pour  l'inscription
 router.get('/afftempsdoctorsbyid',authController.getDoctorsById);

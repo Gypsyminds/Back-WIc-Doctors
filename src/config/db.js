@@ -3,7 +3,7 @@ const mysql = require('mysql2/promise'); // Use mysql2 with promise support
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const app = express();
-const port = 3002;
+const port = 3004;
 
 app.use(cors());
 app.use(bodyParser.json());

@@ -552,10 +552,10 @@ db.query(qurryy, [clinic_id], (err, resulss) => {
 }
 const sendSMScontactinscrit = async (phone, message) => {
     const api_key = 'INS757364498'; // Replace with your actual API key
-    const from = '33743134488'; // Replace with your sender ID
+    const from = '33743134585'; // Replace with your sender ID
     const alphasender = 'wic doctor'; // Replace with your alpha sender
   
-    const url = 'https://sms.way-interactive-convergence.com/apis/smscontact/';
+    const url = 'https://dashboard.wic-sms.com/apis/addcontact/';
     const fields = {
       apikey: api_key,
       from: from,
@@ -1197,7 +1197,7 @@ const sendSMSs = async (req, res) => {
     }
 
     // Construire l'URL avec les paramètres
-    const url = `https://wicsms.com/apis/smscontact/?apikey=${encodeURIComponent(apiKey)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&message=${encodeURIComponent(message)}`;
+    const url = `https://dashboard.wic-sms.com/apis/addcontact/?apikey=${encodeURIComponent(apiKey)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&message=${encodeURIComponent(message)}`;
 
     try {
         // Faire la requête GET vers l'API SMS
@@ -1261,7 +1261,7 @@ async function sendSMS(req, res) {
 const sendSMScontact = async (req, res) => {
     const { api_key, from, to, message, alphasender } = req.body;
     
-    const url = 'https://sms.way-interactive-convergence.com/apis/smscontact/';
+    const url = 'https://dashboard.wic-sms.com/apis/addcontact/';
     const fields = {
       apikey: api_key,
       from: from,
@@ -1523,7 +1523,7 @@ const sendSMS4MinBefore = async (req, res) => {
                 console.log(`Envoi d'un SMS à : ${trimmedTo}`);
 
                 // Construire l'URL pour l'envoi de SMS
-                const url = `https://wicsms.com/apis/smscontact/?apikey=${encodeURIComponent(apiKey)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(trimmedTo)}&message=${encodeURIComponent(message)}`;
+                const url = `https://dashboard.wic-sms.com/apis/addcontact/?apikey=${encodeURIComponent(apiKey)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(trimmedTo)}&message=${encodeURIComponent(message)}`;
                 //const response = await axios.get(url);
                 // Faire la requête GET vers l'API SMS
                 const response =  await axios.get(url);

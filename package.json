@@ -34,6 +34,8 @@
     "passport-google-oauth2": "^0.2.0",
     "passport-google-oauth20": "^2.0.0",
     "paypal-rest-sdk": "^1.8.1",
+    "puppeteer": "^24.0.0",
+    "puppeteer-core": "^24.0.0",
     "twilio": "^5.3.4",
     "uuid": "^10.0.0"
   }

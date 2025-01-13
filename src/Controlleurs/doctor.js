@@ -23,6 +23,34 @@ const cron = require('node-cron');
 
 const SECRET_KEY = 'votre_clé_secrète';
 
+const puppeteer = require('puppeteer');
+const path = require('path');
+
+const fs = require('fs'); // Ajout de l'importation fs
+
+const safeJsonParse = (jsonString) => {
+    try {
+        // Nettoyer la chaîne pour enlever les caractères spéciaux
+        const cleanedString = jsonString.replace(/[\x00-\x1F\x7F]/g, '');  // Supprimer les caractères de contrôle
+        return JSON.parse(cleanedString);
+    } catch (error) {
+        console.error("Erreur lors du parsing JSON:", error);
+        return null;  // Si le JSON est invalide, retourner null
+    }
+};
+function formatDateToFrench(dateString) {
+    const months = [
+        'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+        'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
+    ];
+    const date = new Date(dateString);
+    const day = date.getDate();
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    return `${day} ${month} ${year}`;
+}
+
+
 // Configurer body-parser pour les requêtes JSON
 
 // Lire les horaires de chaque  docteur par ID doctor
@@ -84,6 +112,65 @@ app.get('/doctorsliste', (req, res) => {
         res.json(results);
     });
 });
+
+const getbanquesangs = async (req, res) => {
+    const limit = parseInt(req.query.limit) || 10;  // Nombre de résultats par page
+    const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
+    const queryParams = [limit, offset]; // Paramètres pour la requête
+
+    try {
+        // Requête pour récupérer le nombre total de vétérinaires
+        const totalCountQuery = `
+        SELECT COUNT(*) AS totalCount
+        FROM  banque_sang dt
+    `;
+    
+
+        // Exécution de la requête pour obtenir le total
+        const [totalCountResult] = await db.query(totalCountQuery);
+        const total = totalCountResult[0].totalCount;  // Total des vétérinaires
+
+        // Calcul du nombre total de pages
+        const totalPages = Math.ceil(total / limit);
+
+        // Requête pour récupérer les vétérinaires avec la pagination
+        const queryDocteursTunisie = `
+            SELECT 
+                dt.Name AS name,
+                dt.Phone AS phone_number,
+                dt.adresse AS Adresse_exacte,
+                dt.gouvernorat AS gouvernorat,
+                  dt.pays AS pays 
+
+            FROM 
+                 banque_sang dt
+            LIMIT ? OFFSET ?
+        `;
+
+        // Exécution de la requête
+        const [results] = await db.query(queryDocteursTunisie, queryParams);
+
+        // Vérifier s'il y a des résultats
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Aucun vétérinaire trouvé.' });
+        }
+
+        // Calcul de la page actuelle
+        const currentPage = Math.floor(offset / limit) + 1;
+
+        // Retour des résultats au client avec la pagination
+        return res.json({
+            total,
+            totalPages,
+            currentPage,
+            data: results,
+        });
+    } catch (error) {
+        console.error('Erreur lors de la récupération des vétérinaires:', error);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
+    }
+};
+
 
 //Chercher La Lite Des Doctors Par Adresse (en ajoutant attribt vadresse au tabla docotors)
 app.get('/doctorsadresse', (req, res) => {
@@ -4310,7 +4397,7 @@ const getDoctorsById = async (req, res) => {
             FROM 
                 availability_hours
             WHERE 
-                doctor_id = ? AND onligne = 0;
+                doctor_id = ? AND onligne = 0  AND is_available = 1;
         `;
         const [daysResults] = await db.query(daysQuery, [doctorId]);
 
@@ -4699,6 +4786,8 @@ const getDoctorsById4 = async (req, res) => {
         appointments AS ind 
         ON ah.doctor_id = ind.doctor_id 
       WHERE 
+            duree: uniqueDuree,
+            holidays: formattedHolidays,
         ah.doctor_id = ?
         AND ah.onligne = 0;
     `;
@@ -5080,32 +5169,6 @@ const getpays = async (req, res) => {
     }
 };
 
-const getmotifs = async (req, res) => {
-    const specialiteid = req.query.specialite_id; // Récupérer l'ID de la spécialité
-
-    // Vérification si specialiteid est fourni
-    if (!specialiteid) {
-        return res.status(400).json({ error: 'Le specialiteid est requis.' });
-    }
-
-    // Préparation de la requête SQL
-    const query = `SELECT id, nom, price FROM pattern WHERE specialite_id = ?`;
-
-    try {
-        const [results] = await db.query(query, [specialiteid]);
-        
-        // Vérification si des résultats ont été trouvés
-        if (results.length === 0) {
-            return res.status(404).json({ message: 'Aucun motif trouvé pour cette spécialité.' });
-        }
-
-        // Retourner les résultats
-        res.json(results);
-    } catch (err) {
-        console.error(err); // Pour le débogage
-        return res.status(500).json({ error: 'Erreur lors de la récupération des motifs de spécialités.' });
-    }
-};
 
 const getmotif = async (req, res) => {
     const doctorId = req.query.doctor_id; // Récupérer l'ID du médecin
@@ -5646,8 +5709,8 @@ function forgotPassword(email) {
 
 // Route pour réinitialiser le mot de passe app.put('/reset-password',
  const resetpass = (req, res) => {
-    const { token, password } = req.body;
-    const response = resetPassword(token, password);
+    const { token, passwordpatient } = req.body;
+    const response = resetPassword(token, passwordpatient);
     
     res.status(200).send(response);
 }
@@ -5664,7 +5727,7 @@ function resetPassword(token, password) {
         return "Token expired.";
     }
 
-    user.password = password; // Mettez à jour le mot de passe
+    user.passwordpatient = passwordpatient; // Mettez à jour le mot de passe
     user.token = token;
     user.tokenCreationDate = tokenCreationDate;
 
@@ -7339,7 +7402,7 @@ const getpharmacies = async (req, res) => {
         // Retour des résultats au client avec la pagination
         return res.json({
             total,
-            totalPages,
+ totalPages,
             currentPage,
             data: results,
         });
@@ -7349,6 +7412,9 @@ const getpharmacies = async (req, res) => {
     }
 };
 
+                      
+        // Lancer Puppeteer pour générer le PDF à partir du contenu HTML
+      // Arguments nécessaires pour éviter l'erreur
 const gethopiteaux = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;  // Nombre de résultats par page
     const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
@@ -7375,7 +7441,7 @@ const gethopiteaux = async (req, res) => {
                 dt.Phone AS phone_number,
                 dt.adresse AS Adresse_exacte,
                 dt.Location AS ville,
-                dt.Sector AS Secteur ,
+dt.Sector AS Secteur ,
                 dt.Pays AS pays 
             FROM 
                 	hopiteaux dt
@@ -7405,6 +7471,221 @@ const gethopiteaux = async (req, res) => {
         return res.status(500).json({ error: 'Erreur lors de la récupération des données.' });
     }
 };
+//const puppeteer = require('puppeteer');
+//const path = require('path');
+//const fs = require('fs');
+
+const generatePDFs = async (req, res) => {
+    try {
+        // Exécution de la requête SQL pour récupérer les données nécessaires
+        const [rows] = await db.query(`
+            SELECT 
+                p.type AS prescription_type, 
+                p.date AS prescription_date, 
+                p.observation AS prescription_observation, 
+                c.dateConsultation AS consultation_date, 
+                c.raison AS consultation_reason, 
+                c.motif AS consultation_motif, 
+                d.name AS doctor_name, 
+                d.diplome AS diplome,
+                d.matricule_CNAM As matricule_CNAM,
+                d.numOrdre AS numOrdre,
+                u.first_name AS patient_first_name, 
+                u.last_name AS patient_last_name, 
+                JSON_ARRAYAGG(JSON_OBJECT('name', s.name)) AS specialities,
+                addr.ville AS ville,
+                addr.pays AS pays,
+                us.phone_number AS doctor_phone_number, 
+                addr.address AS adress,
+                JSON_ARRAYAGG(JSON_OBJECT('name', m.NOM_COMMERCIAL, 'dosage', pm.dosage, 'nb_de_jours', pm.nb_de_jours ,'horaire',pm.horaire ,'nb_de_fois' ,pm.nb_de_fois)) AS medications,
+                COUNT(pm.medicament_CODE_PCT) AS number_of_medications
+            FROM 
+                prescriptions p
+            LEFT JOIN 
+                consultations c ON p.consultation_id = c.id
+            LEFT JOIN 
+                patients u ON c.patient_id = u.id
+            LEFT JOIN 
+                doctors d ON c.user_id = d.user_id
+            LEFT JOIN 
+                doctor_specialities ds ON d.id = ds.doctor_id
+            LEFT JOIN 
+                specialities s ON ds.speciality_id = s.id
+            LEFT JOIN 
+                addresses addr ON c.user_id = addr.user_id
+            LEFT JOIN 
+                medicament_prescription pm ON p.id = pm.prescription_id
+            LEFT JOIN 
+                medicaments m ON pm.medicament_CODE_PCT = m.CODE_PCT
+            LEFT JOIN 
+                medicament_prescription mp ON pm.medicament_CODE_PCT = mp.id
+            LEFT JOIN 
+                users us ON d.user_id = us.id
+            WHERE 
+                c.patient_id = ?
+            GROUP BY
+                p.type, p.date, p.observation, c.dateConsultation, c.raison, c.motif, d.name, u.first_name, u.last_name, addr.ville, addr.pays, addr.address, d.diplome ,us.phone_number ,  d.matricule_CNAM , d.numOrdre;`, 
+            [req.body.record_id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: "Aucune donnée trouvée pour l'ID donné." });
+        }
+
+        const data = rows[0];
+        const consultationDate = formatDateToFrench(data.consultation_date || ''); // Exemple avec consultation_date
+        const patientName = safeJsonParse(data.patient_first_name)?.fr || 'Nom non spécifié';
+        const patientLastName = safeJsonParse(data.patient_last_name)?.fr || 'Nom non spécifié';
+
+        // Assurez-vous que vous avez bien accès aux données
+        const doctorName = safeJsonParse(data.doctor_name)?.fr || 'Nom non spécifié';
+        const specialityNames = Array.isArray(data.specialities) 
+            ? data.specialities.map(speciality => {
+                return safeJsonParse(speciality.name)?.fr || 'Non spécifiée';
+            }).join(', ') 
+            : 'Non spécifiée';
+        
+        const adresseName = safeJsonParse(data.adress)?.fr || 'Non spécifiée';
+        const villeName = safeJsonParse(data.ville)?.fr || 'Non spécifiée';
+        const paysName = safeJsonParse(data.pays)?.fr || 'Non spécifié';
+        console.log("Valeur de data.medications :", data.medications);
+
+        const medications = (data.medications || '[]');
+
+        // Contenu HTML dynamique basé sur les données SQL
+        const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 40px;
+                    max-width: 21cm;
+                    margin: 0 auto;
+                    padding-left: 20px;
+                    padding-right: 20px;
+                }
+                .header-left h1, .header-left p, .header-right p {
+                    margin: 0;
+                }
+                .patient-info {
+                    margin-bottom: 40px;
+                }
+                .medications {
+                    margin-top: 20px;
+                }
+                .instructions {
+                    margin-top: 20px;
+                    font-style: italic;
+                }
+               .footer {
+                    display: flex;
+                    justify-content: flex-end;
+                    margin-top: 80px;
+                    font-size: 1.1em;
+                    padding-left: 20px;
+                    padding-right: 20px;
+                }
+
+                .signature {
+                    text-align: center;
+                    margin-top: 30px;
+                }
+
+                .signature p:first-child {
+                    margin-bottom: 10px;
+                }
+
+                .signature .line {
+                    display: inline-block;
+                    width: 150px;
+                    border-top: 2px solid #000;
+                    margin-top: 10px;
+                }
+
+            </style>
+        </head>
+        <body>
+            <header class="header">
+                <div class="header-left">
+                    <br><br>
+                    <h1>Dr. ${doctorName}</h1>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 0; text-align: left;">Médecin ${specialityNames || 'Non spécifiée'}</td>
+                            <td style="padding: 0; text-align: right;">${adresseName || 'Non spécifiée'}</td>
+                        </tr>
+                    </table>
+                    <div style="border-top: 1px solid #ccc; padding-top: 5px; margin-top: 5px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 0; text-align: left;">${data.diplome || 'Non spécifiée'} <br>
+                                    N° d'order: ${data.numOrdre || 'Non spécifiée'} </td>
+                                <td style="padding: 0; text-align: right;"><strong>Tél :</strong> ${data.doctor_phone_number || 'Non spécifiée'}<br>  <br></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </header>
+            <div class="header">
+                <div style="text-align: center">
+                    <p><strong>Matricule CNAM: </strong>${data.matricule_CNAM}</p>
+                </div>
+                <p style="padding: 0; text-align: right;"><strong>Le </strong>${consultationDate || 'Non spécifiée'}<br>  <br></p>
+            </div>
+            <div>
+                <p><strong>Mr/Mme ${patientName} ${patientLastName}</strong></p>
+                <br>
+                <h1>${data.prescription_type || 'Non spécifiée'}</h1>
+                <br>
+                <p>
+                    ${medications.map(med => `
+                        <p>${med.name} - ${med.dosage}, ${med.nb_de_fois}, ${med.horaire} ${med.nb_de_jours}</p>
+                    `).join('')}
+                </p>
+                <p><strong>Observation :</strong> ${data.prescription_observation || 'Aucune'}</p>
+                <p><strong>Total Médicaments: </strong>${data.number_of_medications}</p>
+            </div>
+            <div class="footer">
+                <div class="signature">
+                    <p>Signature</p>
+                    <div class="line"></div>
+                </div>
+            </div>
+        </body>
+        </html>`;
+
+        // Lancer Puppeteer pour générer le PDF à partir du contenu HTML
+        const browser = await puppeteer.launch({
+            args: ['--no-sandbox', '--disable-setuid-sandbox'] // Arguments nécessaires pour éviter l'erreur "running as root"
+        });
+        const page = await browser.newPage();
+        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+
+        // Définir le répertoire où enregistrer les PDF
+        const pdfDir = path.join(__dirname, '../pdfs');
+        const pdfPath = path.join(pdfDir, `ordonnance-${Date.now()}.pdf`);
+
+        // Créer le répertoire si nécessaire
+        if (!fs.existsSync(pdfDir)) {
+            fs.mkdirSync(pdfDir, { recursive: true });
+        }
+
+        // Générer le PDF
+        await page.pdf({ path: pdfPath, format: 'A4', printBackground: true });
+        await browser.close();
+
+        // Répondre avec l'URL du fichier PDF généré
+        res.status(200).json({ url: `http://localhost:3001/pdfs/${path.basename(pdfPath)}` });
+
+    } catch (error) {
+        console.error('Erreur lors de la génération du PDF :', error);
+        res.status(500).json({ error: 'Erreur lors de la génération du PDF' });
+    }
+};
+               
 const getlaboratoire = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;  // Nombre de résultats par page
     const offset = parseInt(req.query.offset) || 0; // Décalage des résultats
@@ -7980,12 +8261,445 @@ const getPatientData = async (req, res) => {
         res.status(500).json({ error: "Erreur lors de la récupération des données." });
     }
 };
+//const puppeteer = require('puppeteer');
+//const path = require('path');
+//const fs = require('fs');
+
+const generatePDF = async (req, res) => {
+    try {
+        // Exécution de la requête SQL pour récupérer les données nécessaires
+        const [rows] = await db.query(`
+            SELECT 
+                p.type AS prescription_type, 
+                p.date AS prescription_date, 
+                p.observation AS prescription_observation, 
+                c.dateConsultation AS consultation_date, 
+                c.raison AS consultation_reason, 
+                c.motif AS consultation_motif, 
+                d.name AS doctor_name, 
+                d.diplome AS diplome,
+                d.matricule_CNAM As matricule_CNAM,
+                d.numOrdre AS numOrdre,
+                u.first_name AS patient_first_name, 
+                u.last_name AS patient_last_name, 
+                JSON_ARRAYAGG(JSON_OBJECT('name', s.name)) AS specialities,
+                addr.ville AS ville,
+                addr.pays AS pays,
+                us.phone_number AS doctor_phone_number, 
+                addr.address AS adress,
+                JSON_ARRAYAGG(JSON_OBJECT('name', m.NOM_COMMERCIAL, 'dosage', pm.dosage, 'nb_de_jours', pm.nb_de_jours ,'horaire',pm.horaire ,'nb_de_fois' ,pm.nb_de_fois)) AS medications,
+                COUNT(pm.medicament_CODE_PCT) AS number_of_medications
+            FROM 
+                prescriptions p
+            LEFT JOIN 
+                consultations c ON p.consultation_id = c.id
+            LEFT JOIN 
+                patients u ON c.patient_id = u.id
+            LEFT JOIN 
+                doctors d ON c.user_id = d.user_id
+            LEFT JOIN 
+                doctor_specialities ds ON d.id = ds.doctor_id
+            LEFT JOIN 
+                specialities s ON ds.speciality_id = s.id
+            LEFT JOIN 
+                addresses addr ON c.user_id = addr.user_id
+            LEFT JOIN 
+                medicament_prescription pm ON p.id = pm.prescription_id
+            LEFT JOIN 
+                medicaments m ON pm.medicament_CODE_PCT = m.CODE_PCT
+            LEFT JOIN 
+                medicament_prescription mp ON pm.medicament_CODE_PCT = mp.id
+            LEFT JOIN 
+                users us ON d.user_id = us.id
+            WHERE 
+                c.patient_id = ?
+            GROUP BY
+                p.type, p.date, p.observation, c.dateConsultation, c.raison, c.motif, d.name, u.first_name, u.last_name, addr.ville, addr.pays, addr.address, d.diplome ,us.phone_number ,  d.matricule_CNAM , d.numOrdre;`, 
+            [req.body.record_id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: "Aucune donnée trouvée pour l'ID donné." });
+        }
+
+        const data = rows[0];
+        const consultationDate = formatDateToFrench(data.consultation_date || ''); // Exemple avec consultation_date
+        const patientName = safeJsonParse(data.patient_first_name)?.fr || 'Nom non spécifié';
+        const patientLastName = safeJsonParse(data.patient_last_name)?.fr || 'Nom non spécifié';
+
+        // Assurez-vous que vous avez bien accès aux données
+        const doctorName = safeJsonParse(data.doctor_name)?.fr || 'Nom non spécifié';
+        const specialityNames = Array.isArray(data.specialities) 
+            ? data.specialities.map(speciality => {
+                return safeJsonParse(speciality.name)?.fr || 'Non spécifiée';
+            }).join(', ') 
+            : 'Non spécifiée';
+        
+        const adresseName = safeJsonParse(data.adress)?.fr || 'Non spécifiée';
+        const villeName = safeJsonParse(data.ville)?.fr || 'Non spécifiée';
+        const paysName = safeJsonParse(data.pays)?.fr || 'Non spécifié';
+        console.log("Valeur de data.medications :", data.medications);
+
+        const medications = (data.medications || '[]');
+
+        // Contenu HTML dynamique basé sur les données SQL
+        const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 40px;
+                    max-width: 21cm;
+                    margin: 0 auto;
+                    padding-left: 20px;
+                    padding-right: 20px;
+                }
+                .header-left h1, .header-left p, .header-right p {
+                    margin: 0;
+                }
+                .patient-info {
+                    margin-bottom: 40px;
+                }
+                .medications {
+                    margin-top: 20px;
+                }
+                .instructions {
+                    margin-top: 20px;
+                    font-style: italic;
+                }
+               .footer {
+                    display: flex;
+                    justify-content: flex-end;
+                    margin-top: 80px;
+                    font-size: 1.1em;
+                    padding-left: 20px;
+                    padding-right: 20px;
+                }
+
+                .signature {
+                    text-align: center;
+                    margin-top: 30px;
+                }
+
+                .signature p:first-child {
+                    margin-bottom: 10px;
+                }
+
+                .signature .line {
+                    display: inline-block;
+                    width: 150px;
+                    border-top: 2px solid #000;
+                    margin-top: 10px;
+                }
+
+            </style>
+        </head>
+        <body>
+            <header class="header">
+                <div class="header-left">
+                    <br><br>
+                    <h1>Dr. ${doctorName}</h1>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 0; text-align: left;">Médecin ${specialityNames || 'Non spécifiée'}</td>
+                            <td style="padding: 0; text-align: right;">${adresseName || 'Non spécifiée'}</td>
+                        </tr>
+                    </table>
+                    <div style="border-top: 1px solid #ccc; padding-top: 5px; margin-top: 5px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 0; text-align: left;">${data.diplome || 'Non spécifiée'} <br>
+                                    N° d'order: ${data.numOrdre || 'Non spécifiée'} </td>
+                                <td style="padding: 0; text-align: right;"><strong>Tél :</strong> ${data.doctor_phone_number || 'Non spécifiée'}<br>  <br></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </header>
+            <div class="header">
+                <div style="text-align: center">
+                    <p><strong>Matricule CNAM: </strong>${data.matricule_CNAM}</p>
+                </div>
+                <p style="padding: 0; text-align: right;"><strong>Le </strong>${consultationDate || 'Non spécifiée'}<br>  <br></p>
+            </div>
+            <div>
+                <p><strong>Mr/Mme ${patientName} ${patientLastName}</strong></p>
+                <br>
+                <h1>${data.prescription_type || 'Non spécifiée'}</h1>
+                <br>
+                <p>
+                    ${medications.map(med => `
+                        <p>${med.name} - ${med.dosage}, ${med.nb_de_fois}, ${med.horaire} ${med.nb_de_jours}</p>
+                    `).join('')}
+                </p>
+                <p><strong>Observation :</strong> ${data.prescription_observation || 'Aucune'}</p>
+                <p><strong>Total Médicaments: </strong>${data.number_of_medications}</p>
+            </div>
+            <div class="footer">
+                <div class="signature">
+                    <p>Signature</p>
+                    <div class="line"></div>
+                </div>
+            </div>
+        </body>
+        </html>`;
+
+        // Lancer Puppeteer pour générer le PDF à partir du contenu HTML
+        const browser = await puppeteer.launch({
+            args: ['--no-sandbox', '--disable-setuid-sandbox'] // Arguments nécessaires pour éviter l'erreur "running as root"
+        });
+        const page = await browser.newPage();
+        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+
+        // Définir le répertoire où enregistrer les PDF
+        const pdfDir = path.join(__dirname, '../pdfs');
+        const pdfPath = path.join(pdfDir, `ordonnance-${Date.now()}.pdf`);
+
+        // Créer le répertoire si nécessaire
+        if (!fs.existsSync(pdfDir)) {
+            fs.mkdirSync(pdfDir, { recursive: true });
+        }
+
+        // Générer le PDF
+        await page.pdf({ path: pdfPath, format: 'A4', printBackground: true });
+        await browser.close();
+
+        // Répondre avec l'URL du fichier PDF généré
+        res.status(200).json({ url: `https://wic-doctor.com:3004/pdfs/${path.basename(pdfPath)}` });
+
+    } catch (error) {
+        console.error('Erreur lors de la génération du PDF :', error);
+        res.status(500).json({ error: 'Erreur lors de la génération du PDF' });
+    }
+};
+
+
+const generatePDFss = async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+         SELECT 
+    p.type AS prescription_type, 
+    p.date AS prescription_date, 
+    p.observation AS prescription_observation, 
+    c.dateConsultation AS consultation_date, 
+    c.raison AS consultation_reason, 
+    c.motif AS consultation_motif, 
+    d.name AS doctor_name, 
+    d.diplome AS diplome,
+    d.matricule_CNAM As matricule_CNAM ,d.numOrdre AS numOrdre ,
+    u.first_name AS patient_first_name, 
+    u.last_name AS patient_last_name, 
+    JSON_ARRAYAGG(JSON_OBJECT('name', s.name)) AS specialities,
+    addr.ville AS ville,
+    addr.pays AS pays,    us.phone_number AS doctor_phone_number, 
+
+    addr.address AS adress,
+    JSON_ARRAYAGG(JSON_OBJECT('name', m.NOM_COMMERCIAL, 'dosage', pm.dosage, 'nb_de_jours', pm.nb_de_jours ,'horaire',pm.horaire ,'nb_de_fois' ,pm.nb_de_fois)) AS medications ,
+    COUNT(pm.medicament_CODE_PCT) AS number_of_medications
+FROM 
+    prescriptions p
+LEFT JOIN 
+    consultations c ON p.consultation_id = c.id
+LEFT JOIN 
+    patients u ON c.patient_id = u.id
+LEFT JOIN 
+    doctors d ON c.user_id = d.user_id
+LEFT JOIN 
+    doctor_specialities ds ON d.id = ds.doctor_id
+LEFT JOIN 
+    specialities s ON ds.speciality_id = s.id
+LEFT JOIN 
+    addresses addr ON c.user_id = addr.user_id
+LEFT JOIN 
+   medicament_prescription pm ON p.id = pm.prescription_id
+LEFT JOIN 
+    medicaments m ON pm.medicament_CODE_PCT = m.CODE_PCT
+LEFT JOIN 
+    medicament_prescription mp ON pm.medicament_CODE_PCT = mp.id
+    LEFT JOIN 
+    users us ON d.user_id = us.id
+WHERE 
+    c.patient_id = ?
+GROUP BY
+    p.type, p.date, p.observation, c.dateConsultation, c.raison, c.motif, d.name, u.first_name, u.last_name, addr.ville, addr.pays, addr.address, d.diplome ,us.phone_number ,  d.matricule_CNAM , d.numOrdre ;`, 
+            [req.body.record_id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: "Aucune donnée trouvée pour l'ID donné." });
+        }
+
+        const data = rows[0];
+        const consultationDate = formatDateToFrench(data.consultation_date || ''); // Exemple avec consultation_date
+        const patientName = safeJsonParse(data.patient_first_name)?.fr || 'Nom non spécifié';
+        const patientLastName = safeJsonParse(data.patient_last_name)?.fr || 'Nom non spécifié';
+
+        // Assurez-vous que vous avez bien accès aux données
+        const doctorName = safeJsonParse(data.doctor_name)?.fr || 'Nom non spécifié';
+        const specialityNames = Array.isArray(data.specialities) 
+            ? data.specialities.map(speciality => {
+                return safeJsonParse(speciality.name)?.fr || 'Non spécifiée';
+            }).join(', ') 
+            : 'Non spécifiée';
+        
+        const adresseName = safeJsonParse(data.adress)?.fr || 'Non spécifiée';
+        const villeName = safeJsonParse(data.ville)?.fr || 'Non spécifiée';
+        const paysName = safeJsonParse(data.pays)?.fr || 'Non spécifié';
+        console.log("Valeur de data.medications :", data.medications);
+
+      const medications = (data.medications || '[]');
+
+        // Contenu HTML dynamique basé sur les données SQL
+        const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 40px;
+                    max-width: 21cm;
+                    margin: 0 auto;
+                       padding-left: 20px; /* Marge gauche */
+            padding-right: 20px;
+                }
+                .header-left h1, .header-left p, .header-right p {
+                    margin: 0;
+                }
+                .patient-info {
+                    margin-bottom: 40px;
+                }
+                .medications {
+                    margin-top: 20px;
+                }
+                .instructions {
+                    margin-top: 20px;
+                    font-style: italic;
+                }
+               .footer {
+    display: flex;
+    justify-content: flex-end; /* Aligne la signature à droite */
+    margin-top: 80px;
+    font-size: 1.1em;
+      padding-left: 20px; /* Marge gauche */
+            padding-right: 20px;
+}
+
+.signature {
+    text-align: center; /* Centrer le texte dans la signature */
+    margin-top: 30px;
+}
+
+.signature p:first-child {
+    margin-bottom: 10px; /* Ajoute un espace entre "Signature" et la ligne */
+}
+
+.signature .line {
+    display: inline-block;
+    width: 150px; /* Largeur personnalisée pour la ligne de signature */
+    border-top: 2px solid #000; /* Une ligne plus élégante pour la signature */
+    margin-top: 10px;
+}
+
+            </style>
+        </head>
+        <body>
+            <header class="header">
+                <div class="header-left">
+                    <br><br>
+                    <h1>Dr. ${doctorName}</h1>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 0; text-align: left;">Médecin   ${specialityNames || 'Non spécifiée'}</td>
+                            <td style="padding: 0; text-align: right;">  ${adresseName || 'Non spécifiée'}</td>
+                        </tr>
+                    </table>
+                
+
+                    <div style="border-top: 1px solid #ccc; padding-top: 5px; margin-top: 5px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                            <td style="padding: 0; text-align: left;">  ${data.diplome || 'Non spécifiée'} <br>
+                                        N° d'order: ${data.numOrdre || 'Non spécifiée'} </td>
+
+                        <td style="padding: 0; text-align: right;"><strong>Tél :</strong>  ${data.doctor_phone_number || 'Non spécifiée'}<br>  <br>
+</td>
+
+     </tr>
+                    
+
+                        </table>
+                    </div>
+                </div>
+            </header>
+            <div class="header">
+                
+<div style="text-align: center">
+    <p><strong>Matricule CNAM: </strong>${data.matricule_CNAM}</p>
+</div>
+
+
+  <p style="padding: 0; text-align: right;"><strong>Le </strong>  ${consultationDate || 'Non spécifiée'}<br>  <br></p>
+
+            
+            </div>
+            <div>
+                <p><strong>Mr/Mme ${patientName} ${patientLastName}</p>
+                <br> 
+                <h1>${data.prescription_type || 'Non spécifiée'}</h1>
+                <br>
+                 <p>
+                ${medications.map(med => `
+                    <p>${med.name } - ${med.dosage}, ${med.nb_de_fois}, ${med.horaire} ${med.nb_de_jours}
+                  
+                `).join('')}
+            </p>
+                <p><strong>Observation :</strong> ${data.prescription_observation || 'Aucune'}</p>
+                <p><strong>Total Médicaments: </strong> ${data.number_of_medications}</p>
+
+            </div>
+         <div class="footer">
+    <div class="signature">
+        <p>Signature</p>
+        <div class="line"></div>
+    </div>
+</div>
+
+        </body>
+        </html>`;
+        console.log("Nombre total de médicaments :", data.number_of_medications);
+
+        const browser = await puppeteer.launch();
+        const page = await browser.newPage();
+        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+
+        const pdfDir = path.join(__dirname, '../pdfs');
+        const pdfPath = path.join(pdfDir, `ordonnance-${Date.now()}.pdf`);
+
+        if (!fs.existsSync(pdfDir)) {
+            fs.mkdirSync(pdfDir, { recursive: true });
+        }
+
+        await page.pdf({ path: pdfPath, format: 'A4', printBackground: true });
+        await browser.close();
+
+        res.status(200).json({ url: `https://wic-doctor.com:3004/${path.basename(pdfPath)}` });
+
+    } catch (error) {
+        console.error('Erreur lors de la génération du PDF :', error);
+        res.status(500).json({ error: 'Erreur lors de la génération du PDF' });
+    }
+};
 
 
 
 
 module.exports = {
-    specialitespardoctor,getclinics,
+    specialitespardoctor,getclinics,getbanquesangs ,
     getalldoctors,getpharmacies,getlaboratoire,
     getDoctorsparvillepaysspecialites,getPatientData , 
 //envoyerRappelEmail,
@@ -7993,7 +8707,7 @@ module.exports = {
     getadressempas,getAllAnnuaires,
     getvilles,getpays,getmotif,gethistoriqu,
  insertAppointmentteleconsultation ,
-getblogs,getveterinaires,searchDoctors,
+getblogs,getveterinaires,searchDoctors,generatePDF,
     forgs,rests,insertAppointment,getplusprochedoc, getCitiesByGovernorate,
     getAppointmentsByPatientId , updateAppointment ,
  getDoctorById , cancelAppointment , sendSMSBeforeAppointment ,verifierEtEnvoyerRappels , annulerRendezVous

@@ -67,7 +67,7 @@ async function signups(req, res) {
     const hashedPassword = await bcrypt.hash(password, 10); // 10 est le nombre de "salt rounds"
 
     // Insertion de l'utilisateur dans la table users
-    const userSql = 'INSERT INTO users (name, email, phone_number, password,created_at) VALUES (?, ?, ?, ?, now())';
+    const userSql = 'INSERT INTO users (name, email, phone_number, passwordpatient,created_at) VALUES (?, ?, ?, ?, now())';
     db.execute(userSql, [name, email, phone, hashedPassword], (err, userResults) => {
         if (err) {
             console.error('Error inserting user:', err);
@@ -178,7 +178,7 @@ async function signins(req, res) {
         const getSql = 'SELECT * FROM patients WHERE user_id = ?';
         const [patientResults] = await db.query(getSql, [user.id]);
 
-        // Afficher les résultats dans la console
+//passwordpatient        // Afficher les résultats dans la console
         console.log('Résultats de la requête :', patientResults);
 
         // Répondre avec les informations de connexion réussie
@@ -236,9 +236,9 @@ async function signin(req, res) {
   
       const user = results[0]  ;
  // Gérer les différences entre $2y$ et $2b$
-    const hashedPassword = user.password.startsWith('$2y$')
-      ? user.password.replace('$2y$', '$2b$')
-      : user.password;
+    const hashedPassword = user.passwordpatient.startsWith('$2y$')
+      ? user.passwordpatient.replace('$2y$', '$2b$')
+      : user.passwordpatient;
 
     // Vérifiez le mot de passe
     const isPasswordMatch = await bcrypt.compare(password, hashedPassword);
@@ -370,7 +370,7 @@ async function signinfos(req, res) {
         // Remplacer $2y$ par $2b$ dans le hachage Laravel
         const hashedPassword = user.password.replace('$2y$', '$2b$');
 
-        // Vérifier le mot de passe
+        // Véripasswordpatientfier le mot de passe
         const match = await bcrypt.compare(password, hashedPassword);
         if (!match) {
             return res.status(401).json({ error: 'Identifiants incorrects.' });
@@ -415,7 +415,7 @@ async function signupss(req, res) {
     const hashedPassword = await bcrypt.hash(password, 10); // 10 est le nombre de "salt rounds"
 
     // Insertion de l'utilisateur dans la table users
-    const userSql = 'INSERT INTO users (name, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, now())';
+    const userSql = 'INSERT INTO users (name, email, phone_number, passwordpatient, created_at) VALUES (?, ?, ?, ?, now())';
     db.execute(userSql, [name, email, phone, hashedPassword], (err, userResults) => {
         if (err) {
             console.error('Error inserting user:', err);
@@ -614,10 +614,9 @@ function sendConfirmationEmail(name, email, password, res, userId) {
         }
     });
 }
-
 // Function to handle B2B signup
 async function signupb2b(req, res) {
-    const { name, email, phone, type, specialities, description } = req.body;
+    const { name,email, phone, type, specialities, description } = req.body;
 
     // Validate input
     if (!name || !email || !phone || !type) {
@@ -631,7 +630,7 @@ async function signupb2b(req, res) {
     console.log("description:", description);
 
     // SQL query to insert registration request
-    const userSql = 'INSERT INTO doctor_request (name, email, phone_number, type, specialities, description) VALUES (?, ?, ?, ?, ?, ?)';
+    const userSql = 'INSERT INTO doctor_request (name, email, phone_number, type, specialities, description) VALUES (?, ?, ?, ?, ?,?)';
 
     try {
         // Execute the insert query
@@ -645,6 +644,118 @@ async function signupb2b(req, res) {
     }
 }
 
+
+// Function to handle B2B signup
+async function signupb2b2(req, res) {
+    const { name, lastname, email, phone, type, specialities, description } = req.body;
+
+    // Validate input
+    if (!name || !email || !phone || !type) {
+        return res.status(400).json({ error: 'Tous les champs sont requis.' });
+    }
+
+    console.log("userId:", email);
+    console.log("phone:", phone);
+    console.log("name:", name);
+    console.log("specialities:", specialities);
+    console.log("description:", description);
+
+    // SQL query to insert registration request
+    const userSql = 'INSERT INTO doctor_request (name,lastname, email, phone_number, type, specialities, description) VALUES (?, ?, ?, ?, ?,? , ?)';
+
+    try {
+        // Execute the insert query
+        const [userResults] = await db.execute(userSql, [name,lastname , email, phone, type, specialities, description || null]);
+
+        // If insertion is successful
+        return res.status(201).json({ message: 'Demande d\'inscription ajoutée avec succès.', id: userResults.insertId });
+    } catch (error) {
+        console.error('Error inserting registration request:', error);
+        return res.status(500).json({ error: 'Erreur lors de l\'insertion de la demande.' });
+    }
+}
+
+async function infob2bb(req, res) {
+    const { name, lastname, email, phone, type, specialities, description } = req.body;
+
+    // Validate input
+    if (!name || !email || !phone || !type) {
+        return res.status(400).json({ error: 'Tous les champs sont requis.' });
+    }
+
+    console.log("userId:", email);
+    console.log("phone:", phone);
+    console.log("name:", name);
+    console.log("specialities:", specialities);
+    console.log("description:", description);
+
+    // SQL query to insert registration request
+    const userSql = 'INSERT INTO doctor_questions (name,lastname, email, phone_number, type, specialities, description) VALUES (?, ?, ?, ?, ?,? , ?)';
+
+    try {
+        // Execute the insert query
+        const [userResults] = await db.execute(userSql, [name,lastname , email, phone, type, specialities, description || null]);
+
+        // If insertion is successful
+        return res.status(201).json({ message: 'Demande d\'inscription ajoutée avec succès.', id: userResults.insertId });
+    } catch (error) {
+        console.error('Error inserting registration request:', error);
+        return res.status(500).json({ error: 'Erreur lors de l\'insertion de la demande.' });
+    }
+}
+
+async function infob2b(req, res) {
+    const { name, lastname, email, phone, type, specialities, description } = req.body;
+
+    // Validate input
+    if (!name || !email || !phone || !type) {
+        return res.status(400).json({ error: 'Tous les champs sont requis.' });
+    }
+
+    console.log("userId:", email);
+    console.log("phone:", phone);
+    console.log("name:", name);
+    console.log("specialities:", specialities);
+    console.log("description:", description);
+
+    // Captcha validation
+    const recaptchaResponse = req.body['g-recaptcha-response'];
+    const secretKey = '6Ld1rrEqAAAAAOQ8Kp4fDbM2rZZ0MsH97sxZi8_N';  // Remplacez par votre clé secrète
+
+    try {
+        // Vérification de la réponse reCAPTCHA auprès de l'API Google
+        const response = await axios.post('https://www.google.com/recaptcha/api/siteverify', null, {
+            params: {
+                secret: secretKey,
+                response: recaptchaResponse
+            }
+        });
+
+        const data = response.data;
+
+        // Si la vérification échoue
+        if (!data.success) {
+            return res.status(400).json({ error: 'Échec de la validation reCAPTCHA. Essayez encore.' });
+        }
+    } catch (error) {
+        console.error('Erreur lors de la vérification reCAPTCHA:', error);
+        return res.status(500).json({ error: 'Erreur interne du serveur lors de la validation reCAPTCHA.' });
+    }
+
+    // SQL query to insert registration request
+    const userSql = 'INSERT INTO doctor_questions (name, lastname, email, phone_number, type, specialities, description) VALUES (?, ?, ?, ?, ?, ?, ?)';
+
+    try {
+        // Execute the insert query
+        const [userResults] = await db.execute(userSql, [name, lastname, email, phone, type, specialities, description || null]);
+
+        // If insertion is successful
+        return res.status(201).json({ message: 'Demande d\'inscription ajoutée avec succès.', id: userResults.insertId });
+    } catch (error) {
+        console.error('Error inserting registration request:', error);
+        return res.status(500).json({ error: 'Erreur lors de l\'insertion de la demande.' });
+    }
+}
 
 
 const logout = async (req, res) => {
@@ -703,7 +814,7 @@ const resetPassword = async (req, res) => {
         const user = results[0];
 
         // Compare the current password with the stored password
-        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        const isMatch = await bcrypt.compare(currentPassword, user.passwordpatient);
         if (!isMatch) {
             return res.status(401).json({ message: 'Current password is incorrect.' });
         }
@@ -1443,7 +1554,7 @@ const sendSMScontactinscrit = async (phone, message) => {
       const hashedPassword = await bcrypt.hash(password, 10);
   
       // Insert the user into the `users` table
-      const userSql = 'INSERT INTO users (name, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+      const userSql = 'INSERT INTO users (name, lastname, email, phone_number, passwordpatient, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
       const [userResults] = await db.execute(userSql, [name, lastname, email, phone, hashedPassword]);
   
       const userId = userResults.insertId; // ID of the newly inserted user
@@ -1533,7 +1644,7 @@ if (email !== currentData.email) {
       const lastnameJson = JSON.stringify({ fr: lastname || '' });  
       // Insert the user into the `users` table
       const userSql =
-        'INSERT INTO users (name, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+        'INSERT INTO users (name, lastname, email, phone_number, passwordpatient, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
       const [userResults] = await db.execute(userSql, [name, lastname, email || null, phone, hashedPassword]);
   
       const userId = userResults.insertId; // ID of the newly inserted user
@@ -1591,7 +1702,7 @@ if (email !== currentData.email) {
   
       // Insert the user into the `users` table
       const userSql =
-        'INSERT INTO users (name, lastname, email, phone_number, password, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+        'INSERT INTO users (name, lastname, email, phone_number, passwordpatient, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
       const [userResults] = await db.execute(userSql, [name, lastname, email || null, phone, hashedPassword]);
   
       const userId = userResults.insertId; // ID of the newly inserted user
@@ -1753,7 +1864,64 @@ const obtenirPatientsParUtilisateur = async (req, res) => {
         }
     });
 }
+
+
+
+const sendSMS = async (from, to, content) => {
+    try {
+        // Définir les paramètres de la requête
+        const payload = {
+            login: 'sender@vats',
+            pass: 'qgOX7lHHLmyg7Sn3iWpx',
+            compte: 'Vats',
+            op: '1',
+            customised: '0',
+            dest_num: to,
+            msg: content,
+            type: '0',
+            auto_detect: '0',
+            dt: new Date().toISOString().split('T')[0],  // Date d'aujourd'hui au format YYYY-MM-DD
+            hr: new Date().getHours().toString().padStart(2, '0'),  // Heure actuelle
+            mn: new Date().getMinutes().toString().padStart(2, '0'),  // Minute actuelle
+            label: 'Vats',
+            ref: 'vats-test'
+        };
+
+        // Faire la requête HTTP POST à l'API SMS
+        const response = await axios.post('https://sms.topnetpro.tn/send/webapi/v3/send_ack.php', null, {
+            params: payload
+        });
+
+        return response.data;
+    } catch (error) {
+        throw new Error('Erreur lors de l\'envoi du SMS: ' + error.message);
+    }
+};
+
+// Contrôleur pour envoyer un SMS
+const sendSMSController = async (req, res) => {
+    const { from, to, content } = req.body;
+
+    // Validation des paramètres nécessaires
+    if (!from || !to || !content) {
+        return res.status(400).json({ error: 'Les paramètres "from", "to" et "content" sont requis.' });
+    }
+
+    try {
+        const result = await sendSMS(from, to, content);
+
+        // Vérifier si le SMS a été envoyé avec succès
+        if (result.status === 'success') {
+            return res.status(200).json({ message: 'SMS envoyé avec succès' });
+        } else {
+            return res.status(400).json({ error: 'Erreur lors de l\'envoi du SMS', details: result });
+        }
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+};
 module.exports = {
-getAssurances,sendEmailPaiement,    signuppatients,signin,signupb2b,updateprofilpatient,logout,resetPassword , ajouterPatient , obtenirPatientsParUtilisateur , signuppatient 
+getAssurances,sendEmailPaiement,infob2b,    signuppatients,signin,signupb2b,updateprofilpatient,logout,resetPassword , ajouterPatient , obtenirPatientsParUtilisateur , signuppatient 
+,sendSMSController
 }
   

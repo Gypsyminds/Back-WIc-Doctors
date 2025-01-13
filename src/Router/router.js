@@ -4,6 +4,7 @@ const loginController =require ('../Controlleurs/login');
 const bodyParser = require('body-parser');
 const clinicController =require ('../Controlleurs/clinic');
 const paypalController = require('../Controlleurs/paiement');
+const FranceController = require('../Controlleurs/doctorfrance');
 
 const { getdoctorsbyid } = require('../Controlleurs/doctor');
 const {sendSMSBeforeAppointment} = require ('../Controlleurs/doctor');
@@ -15,6 +16,14 @@ const db = require('../config/db'); // Importer la connexion à la base de donn�
 
 const router= express.Router();
 app.use(bodyParser.json()); // Middleware pour analyser le corps des requêtes JSON
+//routefrance
+router.get('/specialtiesfrance' ,FranceController.specialitespardoctorfrance);
+router.get('/doctorsadd-france', FranceController.getDoctorsparvillepaysspecialites);
+router.get('/search-doctors-france' ,FranceController.searchDoctorsfrance3lettre);
+router.post('/send-sms',loginController.sendSMSController);
+router.post('/generate-pdf', authController.generatePDF);
+
+
 
 //route pour  l'inscription
 router.get('/afftempsdoctorsbyid',authController.getDoctorsById);
@@ -33,6 +42,8 @@ router.post('/ajouterrendezvoustele',authController.insertAppointmentteleconsult
 router.post('/send-email-with-link-paiement', loginController.sendEmailPaiement);
 router.get('/getannuairetous',authController.getAllDoctorsAndDocteursTunisie);
 router.get('/search-doctors', authController.searchDoctors);
+
+router.get('/search-banque-sang', authController.getbanquesangs);
 
 router.post('/init-payment', paypalController.initiatePayment);
 router.get('/gettempsteleconsultation' , authController.getDoctorsByIdTeleconsultation);
@@ -64,6 +75,9 @@ router.post('/ajouterrendezvousclinic',clinicController.insertAppointmentclinic)
 //router.post('/api/reset-password',authController.rests);
 router.post('/api/logup',loginController.signuppatients);
 router.post('/api/logupb2b',loginController.signupb2b);
+
+router.post('/api/infob2b',loginController.infob2b);
+
 router.put('/update/patient/:id',loginController.updateprofilpatient);
 router.get('/api/assurances',loginController.getAssurances);
 router.get('/getdocbyid/:id',authController.getDoctorById);

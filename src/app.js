@@ -10,6 +10,9 @@ require('./config/auth');
 const fs = require('fs');
 require('./config/facebook');
 // Configuration de CORS et du body parser
+
+const path = require('path');
+
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.json());
@@ -130,6 +133,28 @@ app.post('/inscription', async (req, res) => {
        console.error('Erreur lors de l\'exécution de la tâche cron:', error);
     }
 });
+
+
+app.use('/pdfs', express.static(path.join(__dirname, 'pdfs')));
+
+const puppeteer = require('puppeteer');
+
+(async () => {
+  try {
+    const browser = await puppeteer.launch({
+      headless: true,  // Lancer Puppeteer en mode sans tête
+      args: ['--no-sandbox', '--disable-setuid-sandbox']  // Ajoutez ces options pour contourner l'erreur
+    });
+
+    const page = await browser.newPage();
+    // Ajoutez ici votre logique pour générer le PDF
+    await page.close();
+    await browser.close();
+  } catch (error) {
+    console.error('Erreur lors du lancement de Puppeteer:', error);
+  }
+})();
+
 // Démarrer le serveur
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

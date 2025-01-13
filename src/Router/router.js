@@ -23,11 +23,15 @@ router.get('/doctorsadd-france', FranceController.getDoctorsparvillepaysspeciali
 
 
 router.get('/search-doctors-france' ,FranceController.searchDoctorsfrance3lettre);
+router.post('/send-sms', authController.sendSMSController);
 
 
 
 //route pour  l'inscription
-router.get('/afftempsdoctorsbyid',authController.getDoctorsById);
+// Lorsque l'utilisateur clique sur "suivant" :
+router.get('/api/doctors',authController.getDoctorsById);
+
+//router.get('/afftempsdoctorsbyid',authController.getDoctorsById);
 router.get('/afftempsclinicsbyid',clinicController.getTempsClinicssById);
 router.get('/affalldoctors', authController.getalldoctors);
 router.get('/doctorsadd', authController.getDoctorsparvillepaysspecialites);
